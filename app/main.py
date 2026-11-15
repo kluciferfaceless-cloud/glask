@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from .store import Store
-from . import live_loot
+from . import live_loot, itemdb
 
 ROOT = Path(__file__).resolve().parent.parent
 DISCORD_API = 'https://discord.com/api/v10'
@@ -46,6 +46,17 @@ TEMPLATE = (ROOT / 'app' / 'template.html').read_text()
 MASK = (ROOT / 'app' / 'mask.b64').read_text().strip()
 DATA = json.loads((ROOT / 'data' / 'glask.json').read_text())
 AA = json.loads((ROOT / 'data' / 'aa.json').read_text())
+
+
+def tag_inv(inv):
+    """Add each worn item's own expansion (from the item database) to an inventory."""
+    return [dict(w, xp=itemdb.xpac(w.get('item'))) for w in inv] if isinstance(inv, list) else inv
+
+
+for _g in DATA['guilds']:
+    for _m in _g['members']:
+        if _m.get('inv'):
+            _m['inv'] = tag_inv(_m['inv'])
 
 
 def current_xpac(server, now=None):
@@ -225,6 +236,8 @@ def index(request: Request):
     data = dict(DATA, guilds=guilds)
     data['loot_status'] = {g['server']: live_loot.STATUS.get(g['server']) for g in allowed}
     data['aa'] = dict(buffer=AA['buffer'], **{g['server']: current_xpac(g['server']) for g in allowed})
+    for k in [k for k in kv if k.startswith('glask-inv-')]:
+        kv[k] = tag_inv(kv[k])
     for k in [k for k in kv if k.startswith('glask-uploads-')]:
         kv[k] = uploads_for(u, k.split('-', 2)[2], kv[k])
     me = dict(id=u['id'], name=u['name'], avatar=u.get('avatar'), access=u['access'], lead=u.get('lead', []), links=mylinks)
@@ -542,6 +555,15 @@ async def set_signup(request: Request):
     v = dict(title=str(b.get('title', '')).strip()[:120], url=url, due=str(b.get('due', ''))[:40], by=u['name'], at=time.time()) if url else None
     store.put('glask-signup-' + server, v, f"{u['name']} ({u['id']})")
     return v or {}
+
+
+@app.post('/api/item-info')
+async def item_info(request: Request):
+    u = user(request)
+    if not u or not u['access']:
+        raise HTTPException(401, 'Sign in again')
+    names = [str(n)[:120] for n in ((await request.json()).get('names') or [])][:60]
+    return {n: dict(slot=itemdb.slot(n), xp=itemdb.xpac(n)) for n in names}
 
 
 @app.post('/api/raid-delete')
