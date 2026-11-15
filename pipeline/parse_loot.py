@@ -18,10 +18,7 @@ def parse(path):
             if r is None or len(r)<=gi: continue
             item=r[ii]; to=r[gi]
             if not item or not to: continue
-            cost=None
-            # cost: numeric in cols after gi (e.g. K)
-            for c in r[gi+2:gi+6] if len(r)>gi+2 else []:
-                if isinstance(c,(int,float)) and not isinstance(c,bool): cost=c
+            cost=None   # Glask doesn't use DKP: costs are never read
             out.append(dict(tab=name,time=str(r[ti]) if ti is not None and r[ti] else '',item=str(item).strip(),npc=str(r[ni]).strip() if ni is not None and r[ni] else '',to=str(to).strip(),cost=cost))
             n+=1
         if n: used.append((name,n))
