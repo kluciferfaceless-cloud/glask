@@ -326,6 +326,25 @@ async def set_slots(request: Request):
     return cur
 
 
+@app.post('/api/lootrev')
+async def loot_review(request: Request):
+    """Officers mark a flagged loot issue as resolved (or reopen it). Keyed by the exact items, so new loot re-flags it."""
+    u = user(request)
+    b = await request.json()
+    server, key = b.get('server', ''), str(b.get('key', ''))[:600]
+    if not u or u['access'].get(server) != 'officer':
+        raise HTTPException(403, 'Only officers can resolve loot issues')
+    with REC_LOCK:
+        k = 'glask-lootrev-' + server
+        cur = store.get(k) or {}
+        if b.get('reopen'):
+            cur.pop(key, None)
+        else:
+            cur[key] = dict(by=u['name'], at=time.time(), how=str(b.get('how', ''))[:60], note=str(b.get('note', ''))[:500])
+        store.put(k, cur, f"{u['name']} ({u['id']})")
+    return cur
+
+
 @app.post('/api/raid-delete')
 async def raid_delete(request: Request):
     """Leadership only: remove a raid log (and the attendance it added) so a bad upload stops affecting the data."""
