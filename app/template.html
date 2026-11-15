@@ -159,6 +159,7 @@ applySlots();
 function otherServer(gi){return D.guilds[gi].server==='Mischief'?'Teek':'Mischief'}
 function lootRefresh(){alertBox('Reading the loot sheets…');fetch('/api/loot-refresh',{method:'POST'}).then(r=>r.ok?r.json():Promise.reject(r.status)).then(s=>{const bad=Object.entries(s).filter(([k,v])=>!v.ok);if(bad.length)alertBox('Loot refresh failed: '+bad.map(([k,v])=>k+': '+v.msg).join(' · '));else{alertBox('Loot refreshed. Reloading…');setTimeout(()=>location.reload(),800)}}).catch(e=>alertBox('Loot refresh failed ('+e+')'))}
 function gIdx(s){const i=D.guilds.findIndex(x=>x.server===s);return i<0?G:i}
+function isMem(gi){return ME.access[D.guilds[gi].server]==='member'}
 function isOff(gi){return ME.access[D.guilds[gi].server]==='officer'}
 function kvGet(k){return k in KV?KV[k]:null}
 let SAVES=null;
@@ -167,7 +168,7 @@ async function kvPost(k,v){try{const r=await fetch('/api/kv',{method:'POST',head
   let d='';try{d=(await r.json()).detail}catch(e){}return {ok:false,msg:d||('server said '+r.status)}}catch(e){return {ok:false,msg:'could not reach Glask'}}}
 function kvSet(k,v){KV[k]=v;const pr=kvPost(k,v);
   if(SAVES)SAVES.push({k,pr});else pr.then(r=>{if(!r.ok){alertBox('Not saved: '+r.msg);if(r.auth)setTimeout(()=>location.href='/login',2500)}});return pr}
-let G=0, V='overview', inactiveRank='Raider', rosterSort={k:'main',d:1}, rosterRank='', rosterFilter='';
+let G=0, V=(Object.values(ME.access).every(a=>a==='member')?'me':'overview'), inactiveRank='Raider', rosterSort={k:'main',d:1}, rosterRank='', rosterFilter='';
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const g=()=>D.guilds[G];
 const fmt=n=>Number(n).toLocaleString();
@@ -179,14 +180,14 @@ function lootDate(t,tab){return /^\d{4}-\d\d-\d\d/.test(t)?t.slice(0,10):(t||tab
 function openNav(){$('#navDrawer').classList.add('open');$('#navShade').classList.add('open')}
 function closeNav(){$('#navDrawer').classList.remove('open');$('#navShade').classList.remove('open')}
 const RECRUIT_VIEWS=['overview','roster','gear','ach','apps','recruit','uploads'];
-function viewsFor(gi){return isOff(gi)?ALLVIEWS:ALLVIEWS.filter(v=>RECRUIT_VIEWS.includes(v[0]))}
+function viewsFor(gi){return isMem(gi)?[['me','My character']]:(isOff(gi)?ALLVIEWS:ALLVIEWS.filter(v=>RECRUIT_VIEWS.includes(v[0]))).concat([['me','My character']])}
 let VIEWS=ALLVIEWS;
-function renderShell(){VIEWS=viewsFor(G);if(!VIEWS.some(v=>v[0]===V))V='overview';
+function renderShell(){VIEWS=viewsFor(G);{const s=document.querySelector('.search');if(s)s.style.display=isMem(G)?'none':''}if(!VIEWS.some(v=>v[0]===V))V=VIEWS[0][0];
   $('#gsel').innerHTML=D.guilds.map((x,i)=>`<button class="${i===G?'on':''}" onclick="G=${i};render()">${x.server}</button>`).join('');
   $('#nav').innerHTML=VIEWS.map(([k,l])=>`<button class="${k===V?'on':''}" onclick="V='${k}';render()">${l}</button>`).join('');
   $('#nav2').innerHTML=VIEWS.map(([k,l])=>`<button class="${k===V?'on':''}" onclick="V='${k}';closeNav();render();window.scrollTo(0,0)">${l}</button>`).join('');
   $('#gsel2').innerHTML=$('#gsel').innerHTML;
-  $('#meChip').innerHTML=`${ME.avatar?`<img src="${ME.avatar}" alt="">`:''}<span>${esc(ME.name)}<small>${isOff(G)?'Officer':'Recruitment'}</small></span><a href="/logout" title="Sign out">⏻</a>`;
+  $('#meChip').innerHTML=`${ME.avatar?`<img src="${ME.avatar}" alt="">`:''}<span>${esc(ME.name)}<small>${isOff(G)?((ME.lead||[]).includes(D.guilds[G].server)?'Leadership':'Officer'):isMem(G)?'Member':'Recruitment'}</small></span><a href="/logout" title="Sign out">⏻</a>`;
   $('#ptitle').textContent=(VIEWS.find(v=>v[0]===V)||['',''])[1].replace('⇪ ','');
   const ls=(D.loot_status||{})[g().server];
   $('#foot').innerHTML=`Loot: ${ls&&ls.ok?`from the ${g().server} loot sheet, read ${new Date(ls.at*1000).toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'})}, next read Mon/Tue/Thu/Fri 10 AM Eastern (${fmt(g().stats.loot_nights)} tabs)`:`<span style="color:var(--ember2)">${ls&&ls.msg?esc(ls.msg):'snapshot'}</span>`}${isOff(G)?` · <a href="#" onclick="event.preventDefault();lootRefresh()" style="color:var(--ember2)">Refresh now</a>`:''} · Guild dumps from ${D.generated} and application sheet · <a href="/privacy" style="color:inherit">Privacy</a> · <a href="/terms" style="color:inherit">Terms</a> · inactive = no character online in ${D.inactive_days}+ days`;
@@ -269,7 +270,7 @@ function cleanup(){
   const x=g(), s=x.stats;
   const ranks=[...new Set(x.members.map(m=>m.rank))];
   const inact=x.members.filter(m=>(m.days==null||m.days>D.inactive_days)&&(!inactiveRank||m.rank===inactiveRank)).sort((a,b)=>(b.days??9999)-(a.days??9999));
-  return glaskSay()+lootReviewCard()+`<div class="card"><h3>1 · Departed mains with alts still in the guild <span class="n">${s.departed_alts} alts</span></h3>
+  return glaskSay()+linksCard()+lootReviewCard()+`<div class="card"><h3>1 · Departed mains with alts still in the guild <span class="n">${s.departed_alts} alts</span></h3>
   <div class="hint">Each alt's note points to a main who's no longer in ${x.guild}. One decision per main: remove the alts, or re-link them if the person is still around under a new main. A <span class="tag warn">in other chapter</span> tag means that name is in the other guild.</div>
   ${x.departed.map(d=>`<details><summary><b>${esc(d.main)}</b>${d.elsewhere?`<span class="tag warn">in ${otherServer(G)} as ${esc(d.elsewhere[0])}</span>`:''}<span class="c">${d.alts.length} alt${d.alts.length>1?'s':''} · last seen ${esc(d.last||'?')}</span></summary>
   <div class="inner">${d.alts.map(a=>`${esc(a.n)} <span class="tag">${a.l} ${esc(a.c)}</span> last on ${esc(a.s)}`).join('<br>')}</div></details>`).join('')}</div>
@@ -341,13 +342,13 @@ function gearCard(m,gi){
   let slotRows='';
   if(inv){
     slotRows=inv.filter(w=>w.slot!=='Ammo').map(w=>{const l=m.slot_last[w.slot];const empt=w.augs.filter(a=>a==='Empty').length;
-      return `<tr><td>${w.slot}${dup[w.slot]?bang(dup[w.slot]):''}</td><td>${esc(w.item)}<div style="color:var(--dim);font-size:11.5px">${w.augs.map(a=>a==='Empty'?'<span style="color:var(--warn)">empty</span>':esc(a)).join(' · ')}</div></td>
+      return `<tr><td>${w.slot}${dup[w.slot]&&!isMem(gi)?bang(dup[w.slot]):''}</td><td>${esc(w.item)}<div style="color:var(--dim);font-size:11.5px">${w.augs.map(a=>a==='Empty'?'<span style="color:var(--warn)">empty</span>':esc(a)).join(' · ')}</div></td>
       <td>${l?`${esc(l[0])} <span class="tag ${isCur(l[2])?'ok':'red'}">${esc(l[2]||'?')}</span>`:'<span style="color:var(--dim)">not in loot sheet</span>'}</td><td class="num">${empt||''}</td></tr>`}).join('');
   } else {
-    slotRows=SLOTS.map(sl=>{const l=m.slot_last[sl];return `<tr><td>${sl}${dup[sl]?bang(dup[sl]):''}</td><td style="color:var(--dim)">upload inventory to see</td><td>${l?`${esc(l[0])} · ${esc(l[1])} <span class="tag ${isCur(l[2])?'ok':'red'}">${esc(l[2]||'?')}</span>`:'<span style="color:var(--dim)">—</span>'}</td><td></td></tr>`}).join('');
+    slotRows=SLOTS.map(sl=>{const l=m.slot_last[sl];return `<tr><td>${sl}${dup[sl]&&!isMem(gi)?bang(dup[sl]):''}</td><td style="color:var(--dim)">upload inventory to see</td><td>${l?`${esc(l[0])} · ${esc(l[1])} <span class="tag ${isCur(l[2])?'ok':'red'}">${esc(l[2]||'?')}</span>`:'<span style="color:var(--dim)">—</span>'}</td><td></td></tr>`}).join('');
   }
   return `<div class="card"><h3>Gear <span style="display:flex;gap:8px;align-items:center">${inv?'<span class="tag ok">inventory on file</span>':''}<label class="more" style="margin:0;cursor:pointer">Upload /outputfile inventory<input type="file" accept=".txt" style="display:none" onchange="uploadInv(event,${gi},'${esc(m.main)}')"></label></span></h3>
-   ${Object.keys(dup).length?`<div class="card" style="border-color:#5a2a20;background:#1d1210;margin:0 0 12px"><b class="bang">!</b> <b>Review:</b> more ${esc(xpacNow(gi).xpac||'')} items than the slot holds.${Object.entries(dup).map(([s,l])=>`<div style="margin-top:6px"><b>${s}</b> ×${l.length}: ${l.map(i=>`${esc(i[1])} <span style="color:var(--dim)">${esc(i[0])}${i[3]?' · '+fmt(i[3])+' DKP':''}</span>`).join('; ')}</div>`).join('')}</div>`:''}
+   ${Object.keys(dup).length&&!isMem(gi)?`<div class="card" style="border-color:#5a2a20;background:#1d1210;margin:0 0 12px"><b class="bang">!</b> <b>Review:</b> more ${esc(xpacNow(gi).xpac||'')} items than the slot holds.${Object.entries(dup).map(([s,l])=>`<div style="margin-top:6px"><b>${s}</b> ×${l.length}: ${l.map(i=>`${esc(i[1])} <span style="color:var(--dim)">${esc(i[0])}${i[3]?' · '+fmt(i[3])+' DKP':''}</span>`).join('; ')}</div>`).join('')}</div>`:''}
    <div class="hint">“Last upgrade” is the newest item for that slot awarded to <b>${esc(m.main)}</b> in the loot sheet. <span class="tag ok">${esc(xpacNow(gi).code||'')}</span> = this expansion, <span class="tag red">older</span> = not upgraded yet. Empty aug slots are listed as-is; some may be ornament or type-restricted slots, which Glask will confirm from Lucy before calling anything missing.</div>
    <table><tr><th>Slot</th><th>${inv?'Wearing':''}</th><th>Last upgrade (loot sheet)</th><th class="num">${inv?'Empty augs':''}</th></tr>${slotRows}</table></div>
    <div class="card"><h3>${esc(xp)} loot, all characters <span class="n">${cur.length}</span></h3>${cur.length?`<table><tr><th>Date</th><th>Item</th><th>On</th><th>Slot</th>${gi===0?'<th class="num">DKP</th>':''}</tr>${cur.map(i=>`<tr><td>${esc(i[0])}</td><td>${esc(i[1])}</td><td>${esc(i[2])}</td><td>${isOff(gi)?`<select onchange="tagSlot(this.dataset.item,this.value)" data-item="${esc(i[1])}" style="background:var(--panel2);border:1px solid ${i[4]?'var(--line)':'#5a4520'};color:var(--text);border-radius:6px;padding:2px 4px"><option value="">${i[4]?'—':'slot ?'}</option>${[...SLOTS,'Not gear'].map(s=>`<option ${i[4]===s?'selected':''}>${s}</option>`).join('')}</select>`:i[4]?esc(i[4]):'<span style="color:var(--dim)">?</span>'}</td>${gi===0?`<td class="num">${i[3]??''}</td>`:''}</tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nothing awarded this expansion yet.</div>'}</div>`;
@@ -494,9 +495,11 @@ async function parseRaidFile(f,gi){
 async function uploadRaidLog(ev,gi){const f=ev.target.files[0];if(!f)return;alertBox('Reading '+f.name+'… (big logs take a few seconds)');
   const r=await parseRaidFile(f,gi);const x=D.guilds[gi];
   if(!r||!r.players.length){alertBox('No guild members found in that log.');return}
-  const raids=lsGet('glask-raids-'+x.server)||[];const i=raids.findIndex(q=>q.id===r.id&&q.date===r.date);if(i>=0)raids[i]=r;else raids.push(r);lsSet('glask-raids-'+x.server,raids);
-  const store=lsGet('glask-att-'+x.server)||{};store[r.date]=[...new Set([...(store[r.date]||[]),...r.players.map(p=>p.main)])];lsSet('glask-att-'+x.server,store);
+  const s=await saveRaid(gi,r);if(!s.ok){alertBox('Not saved: '+s.msg);return}
   alertBox(`${r.id} (${r.date}): ${r.players.length} players parsed, attendance and performance updated.`);render()}
+async function saveRaid(gi,r){const x=D.guilds[gi];try{const res=await fetch('/api/raid-add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({server:x.server,raid:r})});
+  if(!res.ok){let d='';try{d=(await res.json()).detail}catch(e){}return {ok:false,msg:d||('server said '+res.status)}}
+  const j=await res.json();KV['glask-raids-'+x.server]=j.raids;KV['glask-att-'+x.server]=j.att;return {ok:true}}catch(e){return {ok:false,msg:'could not reach Glask'}}}
 // ---- class overrides set by officers ----
 function clsOverrides(gi=G){return lsGet('glask-cls-'+D.guilds[gi].server)||{}}
 function setClass(gi,char,cls){const o=clsOverrides(gi);if(cls)o[char.toLowerCase()]=cls;else delete o[char.toLowerCase()];lsSet('glask-cls-'+D.guilds[gi].server,o);alertBox(cls?`${char} set to ${cls} for raid comparisons.`:`${char} back to automatic class.`)}
@@ -548,7 +551,7 @@ function applyDump(gi,text,label){
     let start=null;if(mm){const y=+mm[3]<100?2000+ +mm[3]:+mm[3];start=`${y}-${String(mm[1]).padStart(2,'0')}-${String(mm[2]).padStart(2,'0')}`}
     const raids=start?x.raid_dates.filter(d=>d>=start).length:null;return {main:m.main,rank:m.rank,cls:m.cls,level:m.level,note:mc.note,days:m.days,app:((m.app||{}).date||'').split(' ')[0],start,raids,partial:!!(start&&x.raid_dates.length&&start<x.raid_dates[0])}});
   x.dump_label=label;return {chars:chars.length,mains:members.length}}
-function guildFor(name,text){if(/_mischief/i.test(name))return 0;if(/_teek/i.test(name))return 1;
+function guildFor(name,text){if(/_mischief/i.test(name))return gIdx('Mischief');if(/_teek/i.test(name))return gIdx('Teek');
   let best=G,bn=-1;D.guilds.forEach((x,i)=>{const names=new Set(x.members.flatMap(m=>m.chars.map(c=>c.n.toLowerCase())));let n=0;for(const l of text.slice(0,200000).split('\n'))if(names.has((l.split('\t')[0]||'').toLowerCase()))n++;if(n>bn){bn=n;best=i}});return best}
 function memberForChar(gi,ch){const x=D.guilds[gi];return x.members.find(m=>m.chars.some(c=>c.n.toLowerCase()===ch.toLowerCase()))}
 // ---- the Uploads page ----
@@ -587,8 +590,7 @@ async function handleFiles(files){let nOk=0,nBad=0;for(const f of files){let kin
      let head=u16?new TextDecoder(raw[0]===0xff?'utf-16le':'utf-16be').decode(await f.slice(0,2000000).arrayBuffer()):await f.slice(0,2000000).text();head=head.replace(/^\ufeff/,'');
      if(u16){kind='Raid log?';throw new Error('This file is saved as UTF-16 (usually from re-saving it in Notepad or Word). Upload the original eqlog file from your EverQuest Logs folder, or re-save it as UTF-8.')}
      if(/\[\w{3} \w{3} +\d+ \d\d:\d\d:\d\d \d{4}\]/.test(head)){kind='Raid log';const gi=/_teek/i.test(f.name)?gIdx('Teek'):/_mischief/i.test(f.name)?gIdx('Mischief'):G;const r=await parseRaidFile(f,gi);
-       if(!r||!r.players.length)msg='No guild members found doing anything in it.';else{const x=D.guilds[gi];const raids=lsGet('glask-raids-'+x.server)||[];const i=raids.findIndex(q=>q.id===r.id&&q.date===r.date);if(i>=0)raids[i]=r;else raids.push(r);lsSet('glask-raids-'+x.server,raids);
-         const st=lsGet('glask-att-'+x.server)||{};st[r.date]=[...new Set([...(st[r.date]||[]),...r.players.map(p=>p.main)])];lsSet('glask-att-'+x.server,st);ok=true;msg=`${x.server} raid ${r.date}: ${r.players.length} players, ${Math.round(r.seconds/60)} min`}}
+       if(!r||!r.players.length)msg='No guild members found doing anything in it.';else{const x=D.guilds[gi];SAVES.push({k:'glask-raids-'+x.server,pr:saveRaid(gi,r)});ok=true;msg=`${x.server} raid ${r.date}: ${r.players.length} players, ${Math.round(r.seconds/60)} min`}}
      else if(looksLikeDump(head)){kind='Guild dump';const t=await f.text();const gi=guildFor(f.name,t);const res=applyDump(gi,t,f.name);
        if(!res)msg='No rows found.';else{lsSet('glask-dump-'+D.guilds[gi].server,{name:f.name,text:t,at:new Date().toISOString()});ok=true;msg=`${D.guilds[gi].server}: ${res.chars} characters, ${res.mains} people`}}
      else{const first=(head.split(/\r?\n/).find(l=>l.trim())||'').slice(0,90);msg=`Couldn't tell what this file is (${fmt(f.size)} bytes). It starts with: "${first}". Raid logs are EverQuest's eqlog_Name_server.txt, with lines like [Thu Nov 12 22:28:33 2026].`}}}catch(e){msg='Error: '+e.message}
@@ -627,7 +629,8 @@ function analyzeQ(q,gi=G){const x=D.guilds[gi],c=qCols(q);const idx={};x.members
 function qTag(st){return st==='Available'?'<span class="tag ok" style="border-color:#2d6a3a;background:#173022;color:#8fd19e">Available</span>':st==='Unavailable'?'<span class="tag red" style="background:#3a1a14">Unavailable</span>':''}
 function latestQStatus(m,gi=G){const qs=allQ(gi);if(!qs.length)return null;const r=analyzeQ(qs[0],gi).find(z=>z.m&&z.m.main===m.main);return r?r.status:null}
 let qIdx=0,qFilter='all';
-function launch(){const x=g(),qs=allQ();
+function launch(){return signupSetter()+launch0()}
+function launch0(){const x=g(),qs=allQ();
   const up=`<label class="more" style="margin:0;cursor:pointer">Upload responses (.csv)<input type="file" accept=".csv" style="display:none" onchange="handleFiles(this.files)"></label>`;
   if(!qs.length)return `<div class="glask"><div class="who">GLASK</div><div><p><em>“Who will stand at the gates when they open?”</em> No ${x.server} launch questionnaire loaded yet.</p><p style="color:var(--mute);font-size:13px">In Google Sheets open the form's responses, then File → Download → CSV, and drop it here or on the Uploads tab. (Or share the sheet with me and I'll load it.)</p></div></div>${up}`;
   if(qIdx>=qs.length)qIdx=0;const q=qs[qIdx],c=qCols(q),res=analyzeQ(q);
@@ -789,7 +792,68 @@ function recCard(gi,id){const p=pipeline(gi).find(z=>z.id===id);if(!p)return;con
    </div>`;
   $('#drawer').classList.add('open');$('#shade').classList.add('open')}
 
-function render(){renderShell();$('#view').innerHTML={overview,cleanup,roster,gear,perf,ach,launch,apps,recruit,uploads}[V]()}
+// ---- Member side: "My character" ----
+function myMain(gi=G){const l=(ME.links||{})[D.guilds[gi].server];return l&&l.status==='approved'?D.guilds[gi].members.find(m=>m.main===l.main):null}
+function signupOf(gi=G){return KV['glask-signup-'+D.guilds[gi].server]||null}
+async function linkChar(gi,form){const char=form.c.value.trim();if(!char)return;
+  const r=await fetch('/api/link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({server:D.guilds[gi].server,char})});
+  if(!r.ok){let d='';try{d=(await r.json()).detail}catch(e){}alertBox(d||('Not saved ('+r.status+')'));return}
+  const j=await r.json();alertBox(j.status==='approved'?`Linked to ${j.main}. Loading your character…`:`Request sent for ${j.main}. An officer will approve it.`);setTimeout(()=>location.reload(),900)}
+function perfSummary(m,gi){const names=new Set(m.chars.map(c=>c.n));const rows=[];allRaids(gi).forEach(r=>r.players.forEach(p=>{if(names.has(p.name))rows.push([r,p])}));
+  if(!rows.length)return '';const avg=a=>a.reduce((s,v)=>s+v,0)/a.length;
+  const pct=Math.round(avg(rows.map(([,p])=>p.pct||0))),up=Math.round(avg(rows.map(([,p])=>(p.uptime||0)*100))),top=rows.filter(([,p])=>p.rank&&p.of&&p.rank<=Math.ceil(p.of/2)).length;
+  const word=pct>=110?'well above':pct>=95?'right around':pct>=80?'a bit below':'below';
+  return `<div class="card"><h3>Your performance, overall</h3>
+   <div class="facts"><div><b>${pct}%</b><span>of your class's median, on average</span></div><div><b>${top} / ${rows.length}</b><span>raids in the top half of your class</span></div><div><b>${up}%</b><span>average time active</span></div><div><b>${rows.length}</b><span>raid logs you're in</span></div></div>
+   <div class="hint" style="margin:10px 0 0">Across ${rows.length} raid log${rows.length>1?'s':''}, you're ${word} the middle of your class. “vs class” compares you to the median of everyone playing your class in that raid; boxes, the raid leader and anyone active less than 30% of the fight aren't counted. Healers are measured on healing per second, everyone else on damage per second while active.</div></div>`}
+function charHeader(m,gi){const x=D.guilds[gi],ax=achOf(m,gi);
+  return `<div class="card"><h3>${esc(m.main)} <span class="tag">${esc(x.guild)}</span></h3>
+   <div class="facts"><div><b>${esc(m.cls)}</b><span>class${(()=>{const mc=m.chars.find(c=>c.n===m.main)||{};const b=baseOf(mc,gi);return b&&b!==m.cls?' (base '+esc(b)+')':''})()}</span></div><div><b>${esc(m.level||'?')}</b><span>level</span></div><div><b>${esc(m.rank||'?')}</b><span>rank</span></div><div><b>${aaText(ax)}</b><span>AA ${ax?'(from your achievement export)':'(upload your achievement export)'}</span></div></div>
+   ${m.chars.length>1?`<div style="margin-top:10px;color:var(--mute);font-size:13px">Your characters: ${m.chars.map(c=>`${esc(c.n)} <span style="color:var(--dim)">${esc(c.c)} ${esc(c.l||'')}</span>`).join(' · ')}</div>`:''}</div>`}
+function signupCard(m,gi){const s=signupOf(gi),st=latestQStatus(m,gi),qs=allQ(gi);
+  if(!s&&!qs.length)return '';
+  return `<div class="card" style="border-color:${s&&!st?'#5a4520':'var(--line)'}"><h3>Expansion launch sign-up${s?' · '+esc(s.title||''):''}</h3>
+   ${s?`<p style="margin:0 0 10px">${st?`You've responded${qs[0]?' to '+esc(qs[0].title):''}: ${st==='Available'?'<span class="tag ok">Available</span>':st==='Unavailable'?'<span class="tag red">Unavailable</span>':'<span class="tag">'+esc(st)+'</span>'}. You can update your answers with the same form.`:"Leadership is planning the next launch. Let them know when you can raid."}${s.due?' Please answer by <b>'+esc(s.due)+'</b>.':''}</p>
+     <a class="more" href="${esc(s.url)}" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none">${st?'Open the sign-up form':'Sign up for launch'}</a>`
+    :`<p style="margin:0">${st?`Your response to ${esc(qs[0].title)}: <b>${esc(st)}</b>.`:'No launch sign-up is open right now.'}</p>`}</div>`}
+function memberUploadCard(gi){const own=D.guilds.flatMap(x=>(KV['glask-uploads-'+x.server]||[])).sort((a,b)=>b.at-a.at).slice(0,10);
+  return `<div class="card"><h3>Upload your files</h3>
+   <div class="hint">Drop any of these here, several at once is fine:<br><b>Inventory</b>: type <code>/outputfile inventory</code> in game, then upload <code>${esc(myMain(gi)?.main||'Name')}_${esc(D.guilds[gi].server.toLowerCase())}-Inventory.txt</code> from your EverQuest folder. It fills in your gear by slot.<br>
+   <b>Achievements</b>: <code>/outputfile achievement</code>, then upload <code>…-Achievements.txt</code>. It gives your AA count and achievement progress.<br>
+   <b>Raid log</b>: your <code>eqlog_Name_${esc(D.guilds[gi].server.toLowerCase())}.txt</code> from the Logs folder (or a clip of one raid). It adds the raid to everyone's attendance and performance; you'll only see your own numbers.</div>
+   <label id="drop" style="display:block;border:2px dashed #4a3a33;border-radius:14px;padding:30px 20px;text-align:center;cursor:pointer;background:#141111;margin:4px 0 12px" ondragover="event.preventDefault();this.style.borderColor='var(--ember)'" ondragleave="this.style.borderColor='#4a3a33'" ondrop="event.preventDefault();this.style.borderColor='#4a3a33';handleFiles(event.dataTransfer.files)">
+    <div style="font:700 16px Cinzel,serif;color:var(--bone);letter-spacing:.08em">DROP FILES HERE</div><div style="color:var(--mute);margin-top:6px">or click to choose</div>
+    <input type="file" multiple accept=".txt" style="display:none" onchange="handleFiles(this.files)"></label>
+   ${upLog.length?`<table><tr><th>File</th><th>Detected as</th><th>Status</th><th>Result</th></tr>${upLog.map(u=>`<tr><td>${esc(u.f)}</td><td>${esc(u.kind)}</td><td>${stTag(u.st)}</td><td style="color:${u.ok?'var(--text)':'var(--ember2)'}">${esc(u.msg)}</td></tr>`).join('')}</table>`:''}
+   ${own.length?`<div class="hint" style="margin:10px 0 4px">Your recent uploads</div>${own.map(u=>`<div style="font-size:13px;color:var(--mute)">${new Date(u.at*1000).toLocaleDateString([], {month:'short',day:'numeric'})} · ${esc(u.file)} · ${esc(u.kind)}</div>`).join('')}`:''}</div>`}
+function me(){const gi=G,x=D.guilds[gi],l=(ME.links||{})[x.server];
+  if(!l)return `<div class="glask"><div class="who">GLASK</div><div><p><em>“Show me your face.”</em> Which character is yours in ${esc(x.guild)}?</p>
+    <form onsubmit="event.preventDefault();linkChar(${gi},this)" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><input name="c" placeholder="Your main's name" autocomplete="off" style="background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 10px;min-width:220px"><button class="more" type="submit">Link my character</button></form>
+    <p style="color:var(--mute);font-size:13px;margin-top:10px">If your Discord username matches the one on your guild application, you're linked right away. Otherwise an officer approves it, usually within a day. You only ever see your own character here.</p></div></div>`;
+  if(l.status!=='approved')return `<div class="glask"><div class="who">GLASK</div><div><p>Your link to <b>${esc(l.main)}</b> is waiting for an officer to approve it. Check back soon.</p><p style="color:var(--mute);font-size:13px">Wrong character? <a href="#" onclick="event.preventDefault();ME.links['${esc(x.server)}']=null;render()" style="color:var(--ember2)">Request a different one</a>.</p></div></div>`;
+  const m=myMain(gi);if(!m)return `<div class="glask"><div class="who">GLASK</div><div><p><b>${esc(l.main)}</b> isn't in the latest ${esc(x.server)} guild roster. If you've changed mains, ask an officer to update your link.</p></div></div>`;
+  return charHeader(m,gi)+signupCard(m,gi)+gearCard(m,gi)+perfSummary(m,gi)+perfCard(m,gi)+attCard(m,gi)+vqCard(m,gi)+flagCard(m,gi)+raidAchCard(m,gi)+memberUploadCard(gi)}
+// ---- officers: approve character links; set the launch sign-up ----
+function linksCard(){const x=g(),L=KV['glask-links-'+x.server]||{};const all=Object.entries(L);const pend=all.filter(([,v])=>v.status!=='approved');
+  if(!all.length)return '';const when=t=>new Date(t*1000).toLocaleDateString([], {month:'short',day:'numeric'});
+  return `<div class="card" style="border-color:${pend.length?'#5a4520':'var(--line)'}"><h3>Member character links <span class="n">${pend.length}</span></h3>
+   <div class="hint">Members link their Discord to their main so they can see their own character page. Approve only if this is really their character.</div>
+   ${pend.length?`<table><tr><th>Discord</th><th>Wants to link</th><th>Asked</th><th></th></tr>${pend.map(([id,v])=>`<tr><td><b>${esc(v.name)}</b> <span style="color:var(--dim)">@${esc(v.username||'')}</span></td><td>${esc(v.main)}${v.asked&&v.asked.toLowerCase()!==v.main.toLowerCase()?` <span style="color:var(--dim)">(typed ${esc(v.asked)})</span>`:''}</td><td>${when(v.at)}</td><td style="white-space:nowrap"><button class="more" onclick="linkDecide('${id}',1)">Approve</button> <button class="more" onclick="linkDecide('${id}',0)">Deny</button></td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">No requests waiting.</div>'}
+   <details style="margin-top:8px"><summary style="color:var(--mute)">Linked (${all.length-pend.length})</summary><table>${all.filter(([,v])=>v.status==='approved').map(([id,v])=>`<tr><td>${esc(v.name)} <span style="color:var(--dim)">@${esc(v.username||'')}</span></td><td>${esc(v.main)}</td><td style="color:var(--dim)">${esc(v.by||'')}</td><td><button class="more" onclick="linkDecide('${id}',0)">Unlink</button></td></tr>`).join('')}</table></details></div>`}
+async function linkDecide(uid,ok){const x=g();if(!ok&&!confirm('Remove this link?'))return;
+  const r=await fetch('/api/link-decide',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({server:x.server,uid,approve:!!ok})});
+  if(!r.ok){alertBox('Not saved ('+r.status+')');return}KV['glask-links-'+x.server]=await r.json();render()}
+function signupSetter(){const x=g(),s=signupOf(G)||{};if(!isOff(G))return '';
+  return `<div class="card"><h3>Member sign-up link</h3><div class="hint">Members see this on their character page with a “Sign up for launch” button, plus whether they've already answered (from the responses you load here).</div>
+   <form onsubmit="event.preventDefault();setSignup(this)" style="display:grid;grid-template-columns:1fr 2fr 1fr auto;gap:8px;align-items:center">
+    <input name="t" placeholder="Title, e.g. Shattering of Ro launch" value="${esc(s.title||'')}" style="background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:6px">
+    <input name="u" placeholder="https://forms.gle/…" value="${esc(s.url||'')}" style="background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:6px">
+    <input name="d" placeholder="Answer by (optional)" value="${esc(s.due||'')}" style="background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:6px">
+    <button class="more" type="submit">Save</button></form>${s.url?`<div class="hint" style="margin:8px 0 0">Set by ${esc(s.by||'')}. Clear the link and save to hide it.</div>`:''}</div>`}
+async function setSignup(f){const r=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({server:g().server,title:f.t.value,url:f.u.value,due:f.d.value})});
+  if(!r.ok){let d='';try{d=(await r.json()).detail}catch(e){}alertBox('Not saved: '+(d||r.status));return}const j=await r.json();KV['glask-signup-'+g().server]=j.url?j:null;alertBox('Sign-up link saved');render()}
+
+function render(){renderShell();$('#view').innerHTML={overview,cleanup,roster,gear,perf,ach,launch,apps,recruit,uploads,me}[V]()}
 render();
 </script>
 </body>

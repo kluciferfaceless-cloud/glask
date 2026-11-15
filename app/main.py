@@ -1,5 +1,5 @@
 """Glask web server: Discord sign-in, role-based access per guild, shared storage."""
-import json, os, secrets, threading, time
+import json, os, re, secrets, threading, time
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -99,9 +99,93 @@ def can(u, key, write):
         return False
     if level == 'officer':
         return True
+    if level == 'member':
+        parts = key.split('-', 3)
+        own = len(parts) == 4 and bool(my_main(u, scope)) and parts[3] == my_main(u, scope)
+        if kind in ('inv', 'ach'):
+            return own
+        return (not write) and kind in ('signup', 'hidden')
     if write:
         return kind in RECRUIT_WRITE
     return kind not in OFFICER_ONLY_READ
+
+
+def links(server):
+    return store.get('glask-links-' + server) or {}
+
+
+def my_main(u, server):
+    l = links(server).get(u['id'])
+    return l['main'] if l and l.get('status') == 'approved' else None
+
+
+def find_main(server, char):
+    g = next((x for x in DATA['guilds'] if x['server'] == server), None)
+    if not g:
+        return None, None
+    for m in g['members']:
+        if any(c['n'].lower() == char.strip().lower() for c in m['chars']):
+            return g, m
+    return g, None
+
+
+def anon_raids(raids, own, overrides):
+    """Raid parses with everyone but this member's own characters made anonymous (class and numbers only)."""
+    out = []
+    for r in raids or []:
+        r = dict(r); rl = r.get('raid_leader'); ps = []
+        for p in r.get('players', []):
+            p = dict(p); o = overrides.get(p.get('name', '').lower())
+            if o:
+                p['cls'] = o; p['played'] = o
+            if p.get('name', '').lower() not in own:
+                is_rl = bool(rl) and p.get('main') == rl
+                p['name'] = ''; p['main'] = '__rl__' if is_rl else ''; p['killed_by'] = []
+            ps.append(p)
+        r['players'] = ps; r['raid_leader'] = '__rl__' if rl else rl
+        out.append(r)
+    return out
+
+
+def own_rows(qs, own):
+    return [dict(q, rows=[r for r in q.get('rows', []) if any(str(c).strip().lower() in own for c in r)]) for q in qs or []]
+
+
+def member_guild(g, main, kv):
+    """What a member may see of their guild: their own record, plus a bare name/class roster for reading raid logs."""
+    s = g['server']
+    me = next((m for m in g['members'] if m['main'] == main), None)
+    own = {c['n'].lower() for c in me['chars']} if me else set()
+    ovr = kv.get('glask-cls-' + s) or {}
+    others = [dict(main=m['main'], cls=m['cls'], rank='', level='', last=None, days=None, loot_n=0, dkp=0, cur=[], cur_main=0,
+                   cur_slots=[], slot_last={}, app=None, inv=None, other=[], flags={}, vq_seen={}, raid_ach={}, achx=None,
+                   chars=[dict(n=c['n'], c=c['c'], a=c['a']) for c in m['chars']], _other=True)
+              for m in g['members'] if m['main'] != main]
+    att = {d: [x for x in l if x == main] for d, l in (g.get('attendance') or {}).items()}
+    out = dict(g, members=([me] if me else []) + others, departed=[], unreadable=[], apps=[],
+               recruits=[r for r in g.get('recruits', []) if r['main'] == main], questionnaires=own_rows(g.get('questionnaires'), own),
+               raids=anon_raids(g.get('raids'), own, ovr), attendance={d: l for d, l in att.items() if l})
+    mkv = {}
+    for k, v in kv.items():
+        parts = k.split('-', 3)
+        if len(parts) < 3 or parts[2] != s:
+            continue
+        kind = parts[1]
+        if kind in ('inv', 'ach') and len(parts) == 4 and parts[3] == main:
+            mkv[k] = v
+        elif kind == 'raids':
+            mkv[k] = anon_raids(v, own, ovr)
+        elif kind == 'att':
+            mkv[k] = {d: [x for x in l if x == main] for d, l in v.items() if main in l}
+        elif kind == 'q':
+            mkv[k] = own_rows(v, own)
+        elif kind == 'base':
+            mkv[k] = {c: b for c, b in v.items() if c in own}
+        elif kind in ('signup', 'hidden'):
+            mkv[k] = v
+        elif kind == 'uploads':
+            mkv[k] = [x for x in v if x.get('uid')]   # filtered per user below
+    return out, mkv
 
 
 def page(body, title='Glask'):
@@ -125,13 +209,25 @@ def index(request: Request):
     if not allowed:
         return page(f"<p>Signed in as <b>{u['name']}</b>, but Glask doesn't recognize an officer or recruitment role "
                     "for you in The Faceless or Faceless Fury Discord.</p><p><a href='/logout' style='color:#a8957d'>Sign out</a></p>")
-    data = dict(DATA, guilds=allowed)
+    full = store.all()
+    guilds = []; kv = {}; mylinks = {}
+    for g in allowed:
+        s = g['server']
+        l = links(s).get(u['id'])
+        mylinks[s] = dict(main=l['main'], status=l['status']) if l else None
+        if u['access'][s] == 'member':
+            mg, mkv = member_guild(g, l['main'] if l and l['status'] == 'approved' else None, full)
+            guilds.append(mg); kv.update(mkv)
+        else:
+            guilds.append(g)
+            kv.update({k: v for k, v in full.items() if k.split('-')[2:3] == [s] and can(u, k, write=False)})
+    kv.update({k: v for k, v in full.items() if k == 'glask-slots-all' or (k.startswith(('glask-logsettings-', 'glask-qcount-')) and can(u, k, False))})
+    data = dict(DATA, guilds=guilds)
     data['loot_status'] = {g['server']: live_loot.STATUS.get(g['server']) for g in allowed}
     data['aa'] = dict(buffer=AA['buffer'], **{g['server']: current_xpac(g['server']) for g in allowed})
-    kv = {k: v for k, v in store.all().items() if can(u, k, write=False)}
     for k in [k for k in kv if k.startswith('glask-uploads-')]:
         kv[k] = uploads_for(u, k.split('-', 2)[2], kv[k])
-    me = dict(id=u['id'], name=u['name'], avatar=u.get('avatar'), access=u['access'], lead=u.get('lead', []))
+    me = dict(id=u['id'], name=u['name'], avatar=u.get('avatar'), access=u['access'], lead=u.get('lead', []), links=mylinks)
     safe = lambda o: json.dumps(o).replace('</', '<\\/')
     html = (TEMPLATE.replace('__DATA__', safe(data)).replace('__MASK__', MASK)
             .replace('__ME__', safe(me)).replace('__STORE__', safe(kv)))
@@ -177,7 +273,10 @@ Notes, votes and uploads you make are shown to other officers with your name on 
 <li>Inventory and achievement files that officers or members upload.</li>
 <li>Officer notes, recruitment votes and decisions, and performance improvement plans.</li></ul>
 <p>Access is limited by Discord role: officers see their own guild's information; the recruitment team sees a smaller set and cannot see
-performance improvement plans. People without those roles cannot see anything.</p>
+performance improvement plans. Other members of a guild's Discord see only their own character page (their gear, achievements, AA,
+their own raid performance compared with anonymous class averages, and their launch sign-up), plus the guild's character names and classes
+so that raid logs they upload can be read. Members link their Discord account to their character; links are approved automatically
+when the Discord username matches their guild application, or by an officer.</p>
 
 <h2>Where it's stored and who else is involved</h2>
 <ul><li>Glask runs on Railway (railway.com), which hosts the app and its database in the United States.</li>
@@ -249,6 +348,7 @@ async def callback(request: Request, code: str = '', state: str = ''):
             if r.status_code != 200:
                 continue                                   # not in that Discord server
             roles = set(r.json().get('roles', []))
+            access[server] = 'member'                         # anyone in the guild's Discord gets their own character page
             if roles & cfg['leader']:
                 lead.append(server)
             if roles & (cfg['officer'] | cfg['leader']):
@@ -258,7 +358,7 @@ async def callback(request: Request, code: str = '', state: str = ''):
     name = me.get('global_name') or me.get('username')
     av = f"https://cdn.discordapp.com/avatars/{me['id']}/{me['avatar']}.png?size=64" if me.get('avatar') else None
     # Roles are re-checked at each sign-in; sessions last 12 hours so role changes take effect the same day.
-    request.session['user'] = dict(id=me['id'], name=name, avatar=av, access=access, lead=lead, exp=time.time() + 12 * 3600)
+    request.session['user'] = dict(id=me['id'], name=name, username=me.get('username', ''), avatar=av, access=access, lead=lead, exp=time.time() + 12 * 3600)
     store.audit(f"{name} ({me['id']})", 'sign-in', '', json.dumps(access))
     return RedirectResponse('/')
 
@@ -268,6 +368,7 @@ def dev_login(request: Request, level: str = 'officer'):
     if not DEV_LOGIN:
         raise HTTPException(404)
     request.session['user'] = dict(id='dev-' + level, name='Dev ' + level, avatar=None, exp=time.time() + 3600,
+                                   username='dev' + level,
                                    access={'Mischief': 'officer' if level == 'leader' else level, 'Teek': 'officer' if level == 'leader' else level},
                                    lead=['Mischief', 'Teek'] if level == 'leader' else [])
     return RedirectResponse('/')
@@ -343,6 +444,104 @@ async def loot_review(request: Request):
             cur[key] = dict(by=u['name'], at=time.time(), how=str(b.get('how', ''))[:60], note=str(b.get('note', ''))[:500])
         store.put(k, cur, f"{u['name']} ({u['id']})")
     return cur
+
+
+def _norm_handle(h):
+    return re.sub(r'#\d+$', '', (h or '').strip().lstrip('@')).lower()
+
+
+@app.post('/api/link')
+async def link_character(request: Request):
+    """A member says which character is theirs. Auto-approved when their Discord username matches that character's application."""
+    u = user(request)
+    b = await request.json()
+    server, char = b.get('server', ''), str(b.get('char', ''))[:40]
+    if not u or server not in u['access']:
+        raise HTTPException(403, "You're not in that guild's Discord")
+    g, m = find_main(server, char)
+    if not m:
+        raise HTTPException(404, f"Glask can't find a character named {char} in the {server} guild roster")
+    apps = [a for a in g.get('apps', []) if (a.get('member') or '').lower() == m['main'].lower()]
+    auto = any(_norm_handle(a.get('discord')) and _norm_handle(a.get('discord')) == _norm_handle(u.get('username')) for a in apps)
+    with REC_LOCK:
+        k = 'glask-links-' + server
+        cur = store.get(k) or {}
+        taken = [x for i, x in cur.items() if i != u['id'] and x.get('main') == m['main'] and x.get('status') == 'approved']
+        status = 'approved' if auto and not taken else 'pending'
+        cur[u['id']] = dict(main=m['main'], asked=char, status=status, name=u['name'], username=u.get('username', ''),
+                            at=time.time(), by='auto (application Discord matches)' if status == 'approved' else None)
+        store.put(k, cur, f"{u['name']} ({u['id']})")
+    return dict(main=m['main'], status=status)
+
+
+@app.post('/api/link-decide')
+async def link_decide(request: Request):
+    u = user(request)
+    b = await request.json()
+    server, uid, ok = b.get('server', ''), str(b.get('uid', '')), bool(b.get('approve'))
+    if not u or u['access'].get(server) != 'officer':
+        raise HTTPException(403, 'Only officers approve character links')
+    with REC_LOCK:
+        k = 'glask-links-' + server
+        cur = store.get(k) or {}
+        if uid not in cur:
+            raise HTTPException(404, 'No such request')
+        if ok:
+            cur[uid].update(status='approved', by=u['name'], decided=time.time())
+        else:
+            cur.pop(uid)
+        store.put(k, cur, f"{u['name']} ({u['id']})")
+    return cur
+
+
+@app.post('/api/raid-add')
+async def raid_add(request: Request):
+    """Add (or replace) one parsed raid log and rebuild uploaded-raid attendance on the server, so uploads never overwrite each other."""
+    u = user(request)
+    b = await request.json()
+    server, raid = b.get('server', ''), b.get('raid') or {}
+    lvl = (u or {}).get('access', {}).get(server)
+    if not u or not lvl:
+        raise HTTPException(403, "You don't have access to that guild")
+    if lvl == 'member' and not my_main(u, server):
+        raise HTTPException(403, 'Link your character first')
+    if not raid.get('id') or not raid.get('date') or not isinstance(raid.get('players'), list):
+        raise HTTPException(400, "That doesn't look like a parsed raid")
+    if len(json.dumps(raid)) > 3_000_000:
+        raise HTTPException(413, 'Too large')
+    who = f"{u['name']} ({u['id']})"
+    with REC_LOCK:
+        rk, ak = 'glask-raids-' + server, 'glask-att-' + server
+        raids = [r for r in (store.get(rk) or []) if not (r.get('id') == raid['id'] and r.get('date') == raid['date'])]
+        raid['uploaded_by'] = u['id']
+        raids.append(raid)
+        att = {}
+        for r in raids:
+            att[r['date']] = sorted({p['main'] for p in r['players'] if p.get('main')} | set(att.get(r['date'], [])))
+        store.put(rk, raids, who); store.put(ak, att, who)
+    if lvl == 'member':
+        main = my_main(u, server)
+        g = next(x for x in DATA['guilds'] if x['server'] == server)
+        m = next((x for x in g['members'] if x['main'] == main), None)
+        own = {c['n'].lower() for c in m['chars']} if m else set()
+        ovr = store.get('glask-cls-' + server) or {}
+        return dict(raids=anon_raids(raids, own, ovr), att={d: [main] for d, l in att.items() if main in l})
+    return dict(raids=raids, att=att)
+
+
+@app.post('/api/signup')
+async def set_signup(request: Request):
+    u = user(request)
+    b = await request.json()
+    server = b.get('server', '')
+    if not u or u['access'].get(server) != 'officer':
+        raise HTTPException(403, 'Only officers can set the launch sign-up')
+    url = str(b.get('url', '')).strip()[:500]
+    if url and not url.startswith('https://'):
+        raise HTTPException(400, 'Use a full https:// link')
+    v = dict(title=str(b.get('title', '')).strip()[:120], url=url, due=str(b.get('due', ''))[:40], by=u['name'], at=time.time()) if url else None
+    store.put('glask-signup-' + server, v, f"{u['name']} ({u['id']})")
+    return v or {}
 
 
 @app.post('/api/raid-delete')

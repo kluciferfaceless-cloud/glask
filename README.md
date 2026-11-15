@@ -15,6 +15,7 @@ Not DKP or attendance; those live elsewhere.
 | Level | Who | Sees | Can change |
 |---|---|---|---|
 | Officer | The Faceless: Raid Lead, Management, Leadership. Faceless Fury: Leadership, Raid Leaders, DKP Team | Everything for their guild | Everything for their guild |
+| Member | Anyone else in either Discord | Their own character page only: gear, achievements, AA, own parse vs anonymous class averages, launch sign-up, uploads for their own files | Their own inventory and achievement files, raid logs |
 | Recruitment | Recruitment Team in either Discord | Overview, Roster, Gear, Achievements, Applications, Uploads (no PIPs, Cleanup, Performance, Launch planning) | Inventories, achievement exports, raid logs, attendance |
 
 Each person only sees the guild(s) where they hold a role. Roles are checked at every sign-in (sessions last 12 hours).
