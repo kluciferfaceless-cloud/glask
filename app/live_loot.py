@@ -297,3 +297,9 @@ def start(data, aa, store=None):
             time.sleep(max(60, wait))
             refresh(data, aa, store=store)
     threading.Thread(target=loop, daemon=True).start()
+
+    def apps_loop():                           # applications change between raids: check them every hour
+        while True:
+            time.sleep(3600)
+            refresh_apps(data)
+    threading.Thread(target=apps_loop, daemon=True).start()
