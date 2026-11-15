@@ -196,6 +196,8 @@ def member_guild(g, main, kv):
             mkv[k] = {c: b for c, b in v.items() if c in own}
         elif kind in ('signup', 'hidden'):
             mkv[k] = v
+        elif kind == 'seen':
+            mkv[k] = {c: a for c, a in v.items() if c in own}
         elif kind == 'uploads':
             mkv[k] = [x for x in v if x.get('uid')]   # filtered per user below
     return out, mkv
@@ -528,8 +530,12 @@ async def raid_add(request: Request):
     who = f"{u['name']} ({u['id']})"
     with REC_LOCK:
         rk, ak = 'glask-raids-' + server, 'glask-att-' + server
-        raids = [r for r in (store.get(rk) or []) if not (r.get('id') == raid['id'] and r.get('date') == raid['date'])]
-        raid['uploaded_by'] = u['id']
+        raids = store.get(rk) or []
+        same = next((r for r in raids if r.get('id') == raid['id'] and r.get('date') == raid['date']), None)
+        if same and len(same.get('players', [])) > len(raid['players']):
+            raid = same                               # the same night was already uploaded from a fuller log: keep that one
+        raids = [r for r in raids if not (r.get('id') == raid['id'] and r.get('date') == raid['date'])]
+        raid.setdefault('uploaded_by', u['id'])
         raids.append(raid)
         att = {}
         for r in raids:
@@ -590,6 +596,41 @@ async def set_tracked(request: Request):
         cur = dict(TRACK_DEFAULT, **(store.get('glask-trackach-all') or {}))
         cur[code] = names
         store.put('glask-trackach-all', cur, f"{u['name']} ({u['id']})")
+    return cur
+
+
+@app.post('/api/ach-seen')
+async def ach_seen(request: Request):
+    """Merge achievements heard in a log ("Your guildmate X has completed Y achievement.") into the guild's record."""
+    u = user(request)
+    b = await request.json()
+    server, seen = b.get('server', ''), b.get('seen') or {}
+    lvl = (u or {}).get('access', {}).get(server)
+    if not u or not lvl:
+        raise HTTPException(403, "You don't have access to that guild")
+    if lvl == 'member' and not my_main(u, server):
+        raise HTTPException(403, 'Link your character first')
+    g = next((x for x in DATA['guilds'] if x['server'] == server), None)
+    known = {c['n'].lower() for m in g['members'] for c in m['chars']} if g else set()
+    with REC_LOCK:
+        k = 'glask-seen-' + server
+        cur = store.get(k) or {}
+        n = 0
+        for ch, achs in list(seen.items())[:2000]:
+            ch = str(ch).lower()[:40]
+            if ch not in known or not isinstance(achs, dict):
+                continue
+            row = cur.setdefault(ch, {})
+            for a, d in list(achs.items())[:500]:
+                a, d = str(a)[:120], str(d)[:10]
+                if a not in row or d < row[a]:
+                    row[a] = d; n += 1
+        store.put(k, cur, f"{u['name']} ({u['id']})")
+    if lvl == 'member':
+        main = my_main(u, server)
+        m = next((x for x in g['members'] if x['main'] == main), None)
+        own = {c['n'].lower() for c in m['chars']} if m else set()
+        return {c: a for c, a in cur.items() if c in own}
     return cur
 
 

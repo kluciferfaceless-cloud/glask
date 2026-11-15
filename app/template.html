@@ -156,6 +156,7 @@ D.guilds.forEach(x=>{const cal=(D.aa||{})[x.server];if(!cal||!cal.code)return;x.
   x.members.forEach(m=>{m.cur=(m.cur||[]).filter(i=>i[5]===cal.code);const mine=m.cur.filter(i=>i[2]===m.main);m.cur_main=mine.length;
     m.cur_slots=[...new Set(mine.filter(i=>i[4]&&i[4]!=='Not gear').flatMap(i=>i[4].split('/')))].sort()})});
 applySlots();
+try{applySeen()}catch(e){}
 function otherServer(gi){return D.guilds[gi].server==='Mischief'?'Teek':'Mischief'}
 function lootRefresh(){alertBox('Reading the loot sheets…');fetch('/api/loot-refresh',{method:'POST'}).then(r=>r.ok?r.json():Promise.reject(r.status)).then(s=>{const bad=Object.entries(s).filter(([k,v])=>!v.ok);if(bad.length)alertBox('Loot refresh failed: '+bad.map(([k,v])=>k+': '+v.msg).join(' · '));else{alertBox('Loot refreshed. Reloading…');setTimeout(()=>location.reload(),800)}}).catch(e=>alertBox('Loot refresh failed ('+e+')'))}
 function gIdx(s){const i=D.guilds.findIndex(x=>x.server===s);return i<0?G:i}
@@ -498,32 +499,46 @@ const RX={TS:/^\[\w{3} (\w{3}) (\d+) (\d\d):(\d\d):(\d\d) (\d{4})\] (.*)$/,
  SLAIN:/^(.+?) (?:has been slain by|have been slain by) (.+?)!$/, OWNER:/^(.+?)`s (?:pet|warder|ward)$/, RANK:/(?: Rk\. ?[IVX]+| [IVXL]+| Effect)+$/};
 const MONI={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
 function logSettings(){return Object.assign({owner:'Klucifer',ownerRL:true},lsGet('glask-logsettings')||{})}
-async function parseRaidFile(f,gi){
+// ---- client-side EverQuest log reader ----
+// Reads any eqlog (one raid or weeks of play): splits combat into raid nights (6 AM cutoff, like the loot sheets), keeps nights
+// where at least RAID_MIN guild characters fought, and collects "Your guildmate X has completed Y achievement." lines.
+const RAID_MIN=10, GM_RX=/^Your guildmate (\S+) has completed (.+) achievement\.$/;
+function nightOf(t){const d=new Date((t-6*3600)*1000);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+async function parseLogFile(f,gi){
   const x=D.guilds[gi],roster={};x.members.forEach(m=>m.chars.forEach(c=>roster[c.n.toLowerCase()]={cls:c.c,main:m.main,alt:c.a,n:c.n}));
   const st=logSettings(),me=st.owner;const isP=n=>!!roster[n.toLowerCase()];
   const own=a=>{if(/^(you|your)$/i.test(a))return me;const m=a.match(RX.OWNER);if(m)return /^your$/i.test(m[1])?me:m[1];return a};
-  const P={};const get=n=>P[n]||(P[n]={dmg:0,heal:0,over:0,acts:[],deaths:0,sp:{}});const norm=s=>s.trim().replace(RX.RANK,'');
-  let first=null,last=null,carry='';const reader=f.stream().pipeThrough(new TextDecoderStream('latin1')).getReader();
+  const N={};const night=t=>{const k=nightOf(t);return N[k]||(N[k]={P:{},first:null,last:null})};
+  const get=(n,t)=>{const nt=night(t);return nt.P[n]||(nt.P[n]={dmg:0,heal:0,over:0,acts:[],deaths:0,sp:{}})};
+  const hit=t=>{const nt=night(t);nt.first??=t;nt.last=t};const norm=s=>s.trim().replace(RX.RANK,'');
+  const seen={};let carry='';const reader=f.stream().pipeThrough(new TextDecoderStream('latin1')).getReader();
   while(true){const{value,done}=await reader.read();if(done)break;const lines=(carry+value).split('\n');carry=lines.pop();
     for(const raw of lines){const m=raw.replace(/\r$/,'').match(RX.TS);if(!m)continue;const msg=m[7];
       const t=new Date(+m[6],MONI[m[1]],+m[2],+m[3],+m[4],+m[5]).getTime()/1000;let k;
-      if((k=msg.match(RX.MELEE))){const src=own(k[1]),tgt=k[2];if(isP(src)&&!isP(tgt)&&!RX.OWNER.test(tgt)){const p=get(src);p.dmg+=+k[3];p.acts.push(t);if(k[5]&&!RX.OWNER.test(k[1]))p.sp[norm(k[5])]=(p.sp[norm(k[5])]||0)+1;first??=t;last=t}continue}
-      if((k=msg.match(RX.DOT))){const tgt=k[1];const src=k[3]?me:own(k[5]||'You');if(isP(src)&&!isP(tgt)&&!RX.OWNER.test(tgt)){const p=get(src);p.dmg+=+k[2];p.acts.push(t);if(!RX.OWNER.test(k[5]||''))p.sp[norm(k[4])]=(p.sp[norm(k[4])]||0)+1;first??=t;last=t}continue}
-      if((k=msg.match(RX.HEAL))){const src=own(k[1]);if(isP(src)){const p=get(src),a=+k[3],tot=+(k[4]||k[3]);p.heal+=a;p.over+=tot-a;p.acts.push(t);if(k[5]&&!RX.OWNER.test(k[1]))p.sp[norm(k[5])]=(p.sp[norm(k[5])]||0)+1}continue}
-      if((k=msg.match(RX.SLAIN))){const who=k[1]==='You'?me:k[1];if(isP(who))get(who).deaths++}}}
-  if(first==null)return null;
-  const fight=Math.max(1,last-first);
-  // class played: spells -> class (>=3 casters, >=60% one guild class), player -> class (>=80% of >=200 casts)
-  const votes={};for(const[n,p]of Object.entries(P)){const c=roster[n.toLowerCase()].cls;for(const s in p.sp){(votes[s]??={})[c]=(votes[s][c]||0)+1}}
-  const scls={};for(const[s,v]of Object.entries(votes)){const e=Object.entries(v).sort((a,b)=>b[1]-a[1]);const tot=e.reduce((a,b)=>a+b[1],0);if(e[0][1]>=3&&e[0][1]/tot>=.6)scls[s]=e[0][0]}
-  const players=Object.entries(P).map(([n,p])=>{const ts=p.acts.sort((a,b)=>a-b);let active=0,s0=null,e0=null;for(const u of ts){if(s0==null){s0=e0=u}else if(u-e0<=12)e0=u;else{active+=e0-s0+1;s0=e0=u}}if(s0!=null)active+=e0-s0+1;
-    const tally={};for(const[s,k]of Object.entries(p.sp))if(scls[s])tally[scls[s]]=(tally[scls[s]]||0)+k;const te=Object.entries(tally).sort((a,b)=>b[1]-a[1]);const tt=te.reduce((a,b)=>a+b[1],0);
-    const r=roster[n.toLowerCase()];const played=te.length&&te[0][1]>=200&&te[0][1]/tt>=.8?te[0][0]:r.cls;
-    return {name:r.n,main:r.main,dump_cls:r.cls,played,box:r.alt,dmg:p.dmg,heal:p.heal,overheal:p.over,active:Math.round(active),uptime:Math.min(1,active/fight),deaths:p.deaths,sdps:Math.round(p.dmg/Math.max(active,1))}});
-  const d=new Date((first-6*3600)*1000);const date=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  const ownerMain=roster[me.toLowerCase()]?roster[me.toLowerCase()].main:me;
-  return {id:f.name.replace(/\.txt$/i,''),date,seconds:Math.round(fight),raid_leader:st.ownerRL?ownerMain:null,players,uploaded:true};
-}
+      if(msg.startsWith('Your guildmate ')){if((k=msg.match(GM_RX))){const c=k[1].toLowerCase(),d=new Date(t*1000).toISOString().slice(0,10);(seen[c]??={});if(!seen[c][k[2]]||d<seen[c][k[2]])seen[c][k[2]]=d}continue}
+      if((k=msg.match(RX.MELEE))){const src=own(k[1]),tgt=k[2];if(isP(src)&&!isP(tgt)&&!RX.OWNER.test(tgt)){const p=get(src,t);p.dmg+=+k[3];p.acts.push(t);if(k[5]&&!RX.OWNER.test(k[1]))p.sp[norm(k[5])]=(p.sp[norm(k[5])]||0)+1;hit(t)}continue}
+      if((k=msg.match(RX.DOT))){const tgt=k[1];const src=k[3]?me:own(k[5]||'You');if(isP(src)&&!isP(tgt)&&!RX.OWNER.test(tgt)){const p=get(src,t);p.dmg+=+k[2];p.acts.push(t);if(!RX.OWNER.test(k[5]||''))p.sp[norm(k[4])]=(p.sp[norm(k[4])]||0)+1;hit(t)}continue}
+      if((k=msg.match(RX.HEAL))){const src=own(k[1]);if(isP(src)){const p=get(src,t),a=+k[3],tot=+(k[4]||k[3]);p.heal+=a;p.over+=tot-a;p.acts.push(t);if(k[5]&&!RX.OWNER.test(k[1]))p.sp[norm(k[5])]=(p.sp[norm(k[5])]||0)+1}continue}
+      if((k=msg.match(RX.SLAIN))){const who=k[1]==='You'?me:k[1];if(isP(who))get(who,t).deaths++}}}
+  const ownerMain=roster[(me||'').toLowerCase()]?roster[me.toLowerCase()].main:me;const raids=[];let skipped=0;
+  for(const[date,nt]of Object.entries(N).sort()){
+    const fighters=Object.values(nt.P).filter(p=>p.dmg>0).length;if(nt.first==null||fighters<RAID_MIN){if(nt.first!=null)skipped++;continue}
+    const fight=Math.max(1,nt.last-nt.first);
+    // class played: spells -> class (>=3 casters, >=60% one guild class), player -> class (>=80% of >=200 casts)
+    const votes={};for(const[n,p]of Object.entries(nt.P)){const c=roster[n.toLowerCase()].cls;for(const s in p.sp){(votes[s]??={})[c]=(votes[s][c]||0)+1}}
+    const scls={};for(const[s,v]of Object.entries(votes)){const e=Object.entries(v).sort((a,b)=>b[1]-a[1]);const tot=e.reduce((a,b)=>a+b[1],0);if(e[0][1]>=3&&e[0][1]/tot>=.6)scls[s]=e[0][0]}
+    const players=Object.entries(nt.P).map(([n,p])=>{const ts=p.acts.sort((a,b)=>a-b);let active=0,s0=null,e0=null;for(const u of ts){if(s0==null){s0=e0=u}else if(u-e0<=12)e0=u;else{active+=e0-s0+1;s0=e0=u}}if(s0!=null)active+=e0-s0+1;
+      const tally={};for(const[s,k]of Object.entries(p.sp))if(scls[s])tally[scls[s]]=(tally[scls[s]]||0)+k;const te=Object.entries(tally).sort((a,b)=>b[1]-a[1]);const tt=te.reduce((a,b)=>a+b[1],0);
+      const r=roster[n.toLowerCase()];const played=te.length&&te[0][1]>=200&&te[0][1]/tt>=.8?te[0][0]:r.cls;
+      return {name:r.n,main:r.main,dump_cls:r.cls,played,box:r.alt,dmg:p.dmg,heal:p.heal,overheal:p.over,active:Math.round(active),uptime:Math.min(1,active/fight),deaths:p.deaths,sdps:Math.round(p.dmg/Math.max(active,1))}});
+    raids.push({id:'Raid night',date,seconds:Math.round(fight),raid_leader:st.ownerRL?ownerMain:null,players,uploaded:true,source:f.name})}
+  return {raids,seen,skipped}}
+async function parseRaidFile(f,gi){const r=await parseLogFile(f,gi);return r.raids.sort((a,b)=>b.players.length-a.players.length)[0]||null}
+async function saveSeen(gi,seen){const x=D.guilds[gi];try{const res=await fetch('/api/ach-seen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({server:x.server,seen})});
+  if(!res.ok){let d='';try{d=(await res.json()).detail}catch(e){}return {ok:false,msg:d||('server said '+res.status)}}KV['glask-seen-'+x.server]=await res.json();applySeen();return {ok:true}}catch(e){return {ok:false,msg:'could not reach Glask'}}}
+// achievements heard in logs ("Your guildmate ... has completed ...") count as "seen" for that person
+function applySeen(){D.guilds.forEach(x=>{const S=KV['glask-seen-'+x.server]||{};x.members.forEach(m=>m.chars.forEach(c=>{const s=S[c.n.toLowerCase()];if(!s)return;
+  m.flags=m.flags||{};m.vq_seen=m.vq_seen||{};m.raid_ach=m.raid_ach||{};for(const[a,d]of Object.entries(s)){m.flags[a]=m.flags[a]||d;m.vq_seen[a]=m.vq_seen[a]||d;m.raid_ach[a]=m.raid_ach[a]||d}}))})}
 async function uploadRaidLog(ev,gi){const f=ev.target.files[0];if(!f)return;alertBox('Reading '+f.name+'… (big logs take a few seconds)');
   const r=await parseRaidFile(f,gi);const x=D.guilds[gi];
   if(!r||!r.players.length){alertBox('No guild members found in that log.');return}
@@ -621,8 +636,11 @@ async function handleFiles(files){let nOk=0,nBad=0;for(const f of files){let kin
      const u16=(raw[0]===0xff&&raw[1]===0xfe)||(raw[0]===0xfe&&raw[1]===0xff);
      let head=u16?new TextDecoder(raw[0]===0xff?'utf-16le':'utf-16be').decode(await f.slice(0,2000000).arrayBuffer()):await f.slice(0,2000000).text();head=head.replace(/^\ufeff/,'');
      if(u16){kind='Raid log?';throw new Error('This file is saved as UTF-16 (usually from re-saving it in Notepad or Word). Upload the original eqlog file from your EverQuest Logs folder, or re-save it as UTF-8.')}
-     if(/\[\w{3} \w{3} +\d+ \d\d:\d\d:\d\d \d{4}\]/.test(head)){kind='Raid log';const gi=/_teek/i.test(f.name)?gIdx('Teek'):/_mischief/i.test(f.name)?gIdx('Mischief'):G;const r=await parseRaidFile(f,gi);
-       if(!r||!r.players.length)msg='No guild members found doing anything in it.';else{const x=D.guilds[gi];SAVES.push({k:'glask-raids-'+x.server,pr:saveRaid(gi,r)});ok=true;msg=`${x.server} raid ${r.date}: ${r.players.length} players, ${Math.round(r.seconds/60)} min`}}
+     if(/\[\w{3} \w{3} +\d+ \d\d:\d\d:\d\d \d{4}\]/.test(head)){kind='EverQuest log';const gi=/_teek/i.test(f.name)?gIdx('Teek'):/_mischief/i.test(f.name)?gIdx('Mischief'):G;const x=D.guilds[gi];
+       ent.kind='Reading log…';render();const L=await parseLogFile(f,gi);const na=Object.values(L.seen).reduce((a,s)=>a+Object.keys(s).length,0);
+       L.raids.forEach(r=>SAVES.push({k:'glask-raids-'+x.server,pr:saveRaid(gi,r)}));if(na)SAVES.push({k:'glask-seen-'+x.server,pr:saveSeen(gi,L.seen)});
+       if(!L.raids.length&&!na)msg=`No raid nights (${RAID_MIN}+ guild members fighting) or guildmate achievements found.`;
+       else{ok=true;msg=`${x.server}: ${L.raids.length?`${L.raids.length} raid night${L.raids.length>1?'s':''} (${L.raids.map(r=>r.date.slice(5)+' · '+r.players.length+' players').join(', ')})`:'no raid nights'}${na?` · ${na} guildmate achievement${na>1?'s':''}`:''}${L.skipped?` · ${L.skipped} small night${L.skipped>1?'s':''} skipped`:''}`}}
      else if(looksLikeDump(head)){kind='Guild dump';const t=await f.text();const gi=guildFor(f.name,t);const res=applyDump(gi,t,f.name);
        if(!res)msg='No rows found.';else{lsSet('glask-dump-'+D.guilds[gi].server,{name:f.name,text:t,at:new Date().toISOString()});ok=true;msg=`${D.guilds[gi].server}: ${res.chars} characters, ${res.mains} people`}}
      else{const first=(head.split(/\r?\n/).find(l=>l.trim())||'').slice(0,90);msg=`Couldn't tell what this file is (${fmt(f.size)} bytes). It starts with: "${first}". Raid logs are EverQuest's eqlog_Name_server.txt, with lines like [Thu Nov 12 22:28:33 2026].`}}}catch(e){msg='Error: '+e.message}
