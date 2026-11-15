@@ -112,6 +112,9 @@ footer{color:var(--dim);font-size:11.5px;text-align:center;padding:20px}
 .bar6 i.sme{box-shadow:inset 0 -2px 0 var(--warn)}.bar6 span{font-size:11px;color:var(--mute);margin-left:6px}
 .seg.stg{flex-wrap:wrap}button.more.on{border-color:var(--ember);color:var(--ember2)}
 @media(max-width:1100px){.board{grid-template-columns:1fr}}
+#pipModal{display:none;position:fixed;inset:0;z-index:20;overflow:auto;padding:40px 16px;pointer-events:none}#pipModal.open{display:block}
+#pipModal .pm{pointer-events:auto;max-width:760px;margin:0 auto;background:#141212;border:1px solid var(--line);border-radius:12px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+#pipModal label{font-size:12px;color:var(--mute);display:flex;flex-direction:column;gap:4px}
 .me{display:flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap}.me img{width:28px;height:28px;border-radius:50%}
 .me span{display:flex;flex-direction:column;line-height:1.15}.me small{color:var(--mute);font-size:11px}.me a{color:var(--mute);text-decoration:none;font-size:16px;padding:4px}
 @media(max-width:1100px){.me span{display:none}}
@@ -134,6 +137,8 @@ footer{color:var(--dim);font-size:11.5px;text-align:center;padding:20px}
 <footer id="foot"></footer>
 <div class="shade" id="shade"></div>
 <aside class="drawer" id="drawer"></aside>
+<div class="shade" id="pipShade" style="z-index:19" onclick="closePip()"></div>
+<div id="pipModal"></div>
 <script id="data" type="application/json">__DATA__</script>
 <script id="me" type="application/json">__ME__</script>
 <script id="kv" type="application/json">__STORE__</script>
@@ -241,7 +246,7 @@ function overview(){
    ${(()=>{const roleOf=c=>(ROLES.find(r=>r[1].includes(c))||['Other'])[0];const per={};activeRaiders.forEach(m=>{const c=classOf(m.main,m.cls);(per[roleOf(c)]??={})[c]=(per[roleOf(c)][c]||0)+1});
      const sl=ROLES.map(([n,_,col])=>[n,Object.values(per[n]||{}).reduce((a,b)=>a+b,0),col]);if(per.Other)sl.push(['Other',Object.values(per.Other).reduce((a,b)=>a+b,0),'#7d756f']);
      return pieCard('Active raiders by role','Class from the guild dump, unless an officer set a raid class. Hover a slice for its share.',sl,activeRaiders.length,'raiders',n=>Object.entries(per[n]||{}).sort((a,b)=>b[1]-a[1]).map(([c,k])=>`<span style="white-space:nowrap">${c} ${k}</span>`).join(' · '))})()}</div>
-  <div class="card"><h3>Performance Improvement Plans <span class="n">${pips.length}</span></h3>${pips.length?`<table><tr><th>Member</th><th>Status</th><th>Concern</th><th>Review</th></tr>${pips.map(([m,p])=>`<tr class="click" onclick="profile('${esc(m.main)}')"><td>${esc(m.main)}</td><td><span class="tag red">${esc(p.status)}</span></td><td>${esc(p.concern)}</td><td>${esc(p.review||'')}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nobody on a PIP. Open one from any profile.</div>'}</div>
+  <div class="card"><h3>Performance Improvement Plans <span class="n">${pips.length}</span></h3>${pips.length?`<table><tr><th>Member</th><th>Status</th><th>Concern</th><th>Review</th></tr>${pips.map(([m,p])=>`<tr class="click" onclick="openPip(G,'${esc(m.main)}')"><td>${esc(m.main)}</td><td><span class="tag red">${esc(p.status)}</span></td><td>${esc(p.concern)}</td><td>${esc(p.review||'')}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nobody on a PIP. Open one from any profile.</div>'}</div>
   <div class="card"><h3>Recruits awaiting a rank decision <span class="n">${x.recruits.length}</span></h3><div class="hint">Applicant rank, or a main whose note still says "Recruit". The application window is <b>6 raids attended</b>, counted from raid logs uploaded to Glask since their recruit date. "Raids held" is from the loot sheet, for context. <label class="more" style="margin:0 0 0 6px;cursor:pointer;display:inline-block">Upload raid log<input type="file" accept=".txt" style="display:none" onchange="uploadRaidLog(event,G)"></label></div>
    <table><tr><th>Name</th><th>Class</th><th>Rank now</th><th>Recruited</th><th class="num">Attended</th><th class="num">Raids held</th><th>Last seen</th></tr>
    ${[...x.recruits].sort((a,b)=>(b.raids??99)-(a.raids??99)).map(r=>{const promoted=!/applicant|recruit|fnf|trial/i.test(r.rank);const n=r.raids;
@@ -393,8 +398,8 @@ function perf(){
    <p style="color:var(--mute);font-size:13px">Each player is compared with the <b>median of their class</b> in this raid (mains only; boxes and anyone active under 30% of the fight are left out of the median). Because of personas, class comes from the <b>spells each person cast in this log</b>, not the guild dump; anyone whose class differs is tagged so an officer can confirm. DPS classes use SDPS (damage over their own active time); Clerics and Shamans use healing per active second. Tank DPS is shown for reference only. ${r.raid_leader?`<b>${esc(r.raid_leader)}</b> was raid leading, so their characters are tagged and left out of medians and the watch list.`:''} ${owner?`The log owner shows as “You” in the log, so their ${kfmt(owner.dmg)} damage isn't credited to anyone yet.`:''}</p></div></div>
   <div class="grid2"><div class="card"><h3>Watch list <span class="n">${watch.length}</span></h3><div class="hint">Non-box, non-tank players under 70% of class median, active less than half the fight, or 2+ deaths.</div>
    <table><tr><th>Player</th><th>Class</th><th class="num">vs class</th><th>Flags</th></tr>${watch.map(p=>`<tr class="click" onclick="profile('${esc(mainOf(p.name)||p.name)}')"><td>${esc(p.name)}</td><td>${esc(p.cls)}</td><td class="num">${p.pct}%</td><td>${perfFlags(p)}</td></tr>`).join('')}</table></div>
-   <div class="card"><h3>On a Performance Improvement Plan <span class="n">${pips.length}</span></h3><div class="hint">Open a PIP from anyone's profile.</div>
-   ${pips.length?`<table><tr><th>Member</th><th>Concern</th><th>Review</th></tr>${pips.map(([m,p])=>`<tr class="click" onclick="profile('${esc(m.main)}')"><td>${esc(m.main)}</td><td>${esc(p.concern)}</td><td>${esc(p.review||'')}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nobody yet.</div>'}</div></div>
+   <div class="card"><h3>On a Performance Improvement Plan <span class="n">${pips.length}</span></h3><div class="hint">Click someone to open their PIP. Start one from anyone's profile.</div>
+   ${pips.length?`<table><tr><th>Member</th><th>Concern</th><th>Review</th></tr>${pips.map(([m,p])=>`<tr class="click" onclick="openPip(G,'${esc(m.main)}')"><td>${esc(m.main)}</td><td>${esc(p.concern)}</td><td>${esc(p.review||'')}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nobody yet.</div>'}</div></div>
   ${classes.map(cls=>{const grp=ps.filter(p=>p.cls===cls).sort((a,b)=>b.val-a.val);const med=grp[0].median;
     return `<div class="card"><h3>${esc(cls)} ${TANKS.has(cls)?'<span class="tag">tank · DPS for reference</span>':''}<span style="color:var(--dim);font-size:12px;text-transform:none;letter-spacing:0">class median ${kfmt(med)} ${grp[0].metric==='hps'?'HPS':'SDPS'}</span></h3>
     <table>${grp.map(p=>`<tr class="click" onclick="profile('${esc(mainOf(p.name)||p.name)}')"><td style="width:140px">${esc(p.name)}</td><td style="width:40%"><div class="rankbar" style="margin:0"><span class="tr"><span class="fl" style="display:block;width:${Math.min(100,(p.pct||0)/2)}%;background:${(p.pct||0)<70?'var(--ember)':'var(--bone)'}"></span></span></div></td><td class="num" style="width:70px">${p.pct}%</td><td class="num" style="width:80px">${kfmt(p.val)}</td><td class="num" style="width:50px">#${p.rank}/${p.of}</td><td>${perfFlags(p)}</td></tr>`).join('')}</table></div>`}).join('')}`;
@@ -459,22 +464,40 @@ async function editTracked(gi){const {code,names}=trackedList(gi);const v=prompt
 function raidAchCard(m,gi){const rr=D.guilds[gi].raid_ref;if(!rr||!rr.length)return '';const got=m.raid_ach||{};
   return `<div class="card"><h3>Raid achievements · Rain of Fear onward</h3><div class="hint">“Conqueror” achievements per expansion, from Klucifer's export as the full list. Seen = Glask has a “Your guildmate … has completed” line for one of ${esc(m.main)}'s characters.</div>
   ${[...rr].reverse().map(([xp,list])=>{const n=list.filter(a=>['yes','seen'].includes(hasAch(m,a,gi))).length;return `<details><summary><b>${esc(xp)}</b><span class="c">${n} / ${list.length} ${achOf(m,gi)?'done':'seen'}</span></summary><div class="inner">${list.map(a=>`${achCell(hasAch(m,a,gi),got[a])} ${esc(a)}`).join('<br>')}</div></details>`}).join('')}</div>`}
-function perfCard(m,gi){let h=perfCard0(m,gi);if(!isOff(gi))h=h.replace(/<div class="card"><h3>Performance Improvement Plan[\s\S]*?<\/form><\/div>/,'');return h}
+function perfCard(m,gi){let h=perfCard0(m,gi);if(!isOff(gi))h=h.replace(/<div class="card"><h3>Performance Improvement Plan[\s\S]*?<\/button><\/div>/,'');return h}
 function perfCard0(m,gi){
   const x=D.guilds[gi]; const names=new Set(m.chars.map(c=>c.n));
   const rows=[];allRaids(gi).forEach(r=>r.players.forEach(p=>{if(names.has(p.name)||(p.rl&&p.main===m.main))rows.push([r,p])}));
   const pip=pipOf(gi,m.main)||{};
   return `<div class="card"><h3>Performance vs class</h3>${rows.length?`<table><tr><th>Raid</th><th>Char</th><th class="num">vs class</th><th class="num">Rank</th><th class="num">${'Value'}</th><th>Flags</th></tr>${rows.map(([r,p])=>`<tr><td>${esc(r.date)}</td><td>${esc(p.name)}</td><td class="num">${p.pct}%</td><td class="num">#${p.rank}/${p.of}</td><td class="num">${kfmt(p.val)} ${p.metric==='hps'?'HPS':'SDPS'}</td><td>${perfFlags(p)}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Not in any loaded raid log.</div>'}</div>
-  <div class="card"><h3>Performance Improvement Plan ${pip.status&&pip.status!=='Closed'?'<span class="tag red">'+esc(pip.status)+'</span>':''}</h3>
-   <form onsubmit="event.preventDefault();savePip(${gi},'${esc(m.main)}',this)" class="app"><dl>
-   <dt>Status</dt><dd><select name="status">${['None','Open','Improving','Closed'].map(s=>`<option ${pip.status===s?'selected':''}>${s}</option>`).join('')}</select></dd>
-   <dt>Started</dt><dd><input name="start" type="date" value="${esc(pip.start||'')}"></dd>
-   <dt>Concern</dt><dd><input name="concern" style="width:100%" placeholder="e.g. positioning on Yaran, uptime on Dock" value="${esc(pip.concern||'')}"></dd>
-   <dt>Targets</dt><dd><textarea name="targets" rows="3" style="width:100%" placeholder="e.g. ≥80% of bard median over 4 raids; no Tail Strike deaths">${esc(pip.targets||'')}</textarea></dd>
-   <dt>Review date</dt><dd><input name="review" type="date" value="${esc(pip.review||'')}"></dd>
-   <dt>Officer notes</dt><dd><textarea name="notes" rows="3" style="width:100%">${esc(pip.notes||'')}</textarea></dd></dl>
-   <button class="more" type="submit">Save PIP</button></form></div>`;
+  <div class="card"><h3>Performance Improvement Plan ${pip.status&&pip.status!=='None'?`<span class="tag ${pip.status==='Closed'?'':'red'}">${esc(pip.status)}</span>`:''}</h3>
+   ${pip.status&&pip.status!=='None'?`<div style="margin-bottom:8px">${esc(pip.concern||'')}${pip.review?` · review ${esc(pip.review)}`:''} · ${(pip.log||[]).filter(n=>!n.auto).length} note${(pip.log||[]).filter(n=>!n.auto).length===1?'':'s'}</div>`:'<div class="hint">No PIP for this person.</div>'}
+   <button class="more" onclick="openPip(${gi},'${esc(m.main)}')">${pip.status&&pip.status!=='None'?'Open PIP':'Start a PIP'}</button></div>`;
 }
+function openPip(gi,main){const m=D.guilds[gi].members.find(x=>x.main===main);if(!m)return;const p=pipOf(gi,main)||{};
+  const log=[...(p.log||[])];if(p.notes&&!log.some(n=>n.legacy))log.unshift({by:'earlier notes',at:0,text:p.notes,legacy:true});
+  const when=t=>t?new Date(t*1000).toLocaleString([], {month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}):'';
+  const inp='background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:6px;width:100%;box-sizing:border-box';
+  $('#pipModal').innerHTML=`<div class="pm"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px"><div><h2 style="margin:0">PIP · ${esc(main)}</h2>
+    <div style="color:var(--mute);font-size:13px">${esc(m.cls)} · ${esc(m.rank)} · ${esc(D.guilds[gi].guild)}${p.opened_by?` · opened by ${esc(p.opened_by)}${p.created?' '+when(p.created):''}`:''}</div></div>
+    <div style="display:flex;gap:8px"><button class="more" onclick="closePip();profile('${esc(main)}')">Profile</button><button class="x" onclick="closePip()">Close</button></div></div>
+   <form onsubmit="event.preventDefault();pipSet(${gi},'${esc(main)}',this)" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:14px">
+    <label>Status<select name="status" style="${inp}">${['None','Open','Improving','Closed'].map(s=>`<option ${(p.status||'None')===s?'selected':''}>${s}</option>`).join('')}</select></label>
+    <label>Started<input name="start" type="date" value="${esc(p.start||'')}" style="${inp}"></label>
+    <label>Review date<input name="review" type="date" value="${esc(p.review||'')}" style="${inp}"></label>
+    <label style="grid-column:1/-1">Concern<input name="concern" value="${esc(p.concern||'')}" placeholder="e.g. positioning on Yaran, uptime on Dock" style="${inp}"></label>
+    <label style="grid-column:1/-1">Targets<textarea name="targets" rows="3" placeholder="e.g. at least 80% of the bard median over 4 raids" style="${inp}">${esc(p.targets||'')}</textarea></label>
+    <div style="grid-column:1/-1"><button class="more" type="submit">Save plan</button></div></form>
+   <h3 style="margin:18px 0 8px;font:600 13px Inter;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)">Notes <span class="n" style="background:var(--ember);color:#fff;border-radius:999px;padding:1px 9px;font-size:12px;letter-spacing:0">${log.filter(n=>!n.auto).length}</span></h3>
+   <form onsubmit="event.preventDefault();pipNote(${gi},'${esc(main)}',this)"><textarea name="t" rows="3" placeholder="Add a note: what you saw, what you discussed, next steps…" style="${inp}"></textarea><button class="more" type="submit" style="margin-top:6px">Add note</button></form>
+   <div style="margin-top:12px">${log.slice().reverse().map(n=>n.auto?`<div style="font-size:12px;color:var(--dim);padding:6px 0;border-top:1px solid var(--line)">${when(n.at)} · ${esc(n.by)} · ${esc(n.text)}</div>`
+     :`<div style="padding:10px 0;border-top:1px solid var(--line)"><div style="display:flex;gap:8px;align-items:center"><span class="tag ${n.legacy?'':'ok'}">${esc(n.by)}</span><span style="color:var(--dim);font-size:12px">${n.legacy?'from before notes were dated':when(n.at)}</span></div><div style="white-space:pre-wrap;margin-top:6px">${esc(n.text)}</div></div>`).join('')||'<div class="hint">No notes yet.</div>'}</div></div>`;
+  $('#pipModal').classList.add('open');$('#pipShade').classList.add('open')}
+function closePip(){$('#pipModal').classList.remove('open');$('#pipShade').classList.remove('open')}
+async function pipPost(gi,main,body){const r=await fetch('/api/pip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({server:D.guilds[gi].server,main},body))});
+  if(!r.ok){let d='';try{d=(await r.json()).detail}catch(e){}alertBox('Not saved: '+(d||r.status));return false}KV[pipKey(gi,main)]=await r.json();return true}
+async function pipSet(gi,main,f){if(await pipPost(gi,main,{op:'set',fields:Object.fromEntries(new FormData(f).entries())})){alertBox('PIP saved for '+main);openPip(gi,main);render();if($('#drawer').classList.contains('open')&&$('#drawer').dataset.main===main)profile(main)}}
+async function pipNote(gi,main,f){if(!f.t.value.trim())return;if(await pipPost(gi,main,{op:'note',text:f.t.value})){openPip(gi,main)}}
 function savePip(gi,main,f){const p=Object.fromEntries(new FormData(f).entries());kvSet(pipKey(gi,main),p);alertBox('PIP saved for '+main+(p.status==='None'?'':' · '+p.status));profile(main)}
 
 

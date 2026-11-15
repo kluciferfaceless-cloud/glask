@@ -634,6 +634,41 @@ async def ach_seen(request: Request):
     return cur
 
 
+@app.post('/api/pip')
+async def pip_change(request: Request):
+    """One change to a Performance Improvement Plan: update its fields, or add a note (notes are never overwritten)."""
+    u = user(request)
+    b = await request.json()
+    server, main, op = b.get('server', ''), str(b.get('main', ''))[:40], b.get('op')
+    if not u or u['access'].get(server) != 'officer':
+        raise HTTPException(403, 'Only officers can change PIPs')
+    who = u['name']; now = time.time()
+    with REC_LOCK:
+        k = f'glask-pip-{server}-{main}'
+        p = store.get(k) or {}
+        log = p.setdefault('log', [])
+        if p.get('notes') and not any(n.get('legacy') for n in log):     # free-text notes from before entries existed
+            log.insert(0, dict(by='earlier notes', at=p.get('created') or 0, text=p.pop('notes'), legacy=True))
+        if op == 'set':
+            f = b.get('fields') or {}
+            changed = []
+            for key in ('status', 'start', 'concern', 'targets', 'review'):
+                if key in f and str(f[key])[:2000] != str(p.get(key, '')):
+                    p[key] = str(f[key])[:2000]; changed.append(key)
+            p.setdefault('created', now); p.setdefault('opened_by', who)
+            if changed:
+                log.append(dict(by=who, at=now, text='Updated ' + ', '.join(changed) + (f" (status: {p.get('status')})" if 'status' in changed else ''), auto=True))
+        elif op == 'note':
+            text = str(b.get('text', '')).strip()[:3000]
+            if not text:
+                raise HTTPException(400, 'Empty note')
+            log.append(dict(by=who, at=now, text=text))
+        else:
+            raise HTTPException(400, 'Unknown change')
+        store.put(k, p, f"{who} ({u['id']})")
+    return p
+
+
 @app.post('/api/raid-delete')
 async def raid_delete(request: Request):
     """Leadership only: remove a raid log (and the attendance it added) so a bad upload stops affecting the data."""
