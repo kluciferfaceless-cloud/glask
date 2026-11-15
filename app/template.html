@@ -174,13 +174,13 @@ const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"]/g,c=>
 const g=()=>D.guilds[G];
 const fmt=n=>Number(n).toLocaleString();
 const ago=d=>d==null?'never':d===0?'today':d===1?'yesterday':d+'d ago';
-const ALLVIEWS=[['overview','Overview'],['cleanup','Cleanup'],['roster','Roster'],['gear','Gear'],['perf','Performance'],['ach','Achievements'],['launch','Launch planning'],['apps','Applications'],['recruit','Recruitment'],['uploads','⇪ Uploads']];
+const ALLVIEWS=[['overview','Overview'],['cleanup','Cleanup'],['roster','Roster'],['perf','Performance'],['ach','Achievements'],['launch','Launch planning'],['recruit','Recruitment'],['uploads','⇪ Uploads']];
 
 function lootDate(t,tab){return /^\d{4}-\d\d-\d\d/.test(t)?t.slice(0,10):(t||tab)}
 
 function openNav(){$('#navDrawer').classList.add('open');$('#navShade').classList.add('open')}
 function closeNav(){$('#navDrawer').classList.remove('open');$('#navShade').classList.remove('open')}
-const RECRUIT_VIEWS=['overview','roster','gear','ach','apps','recruit','uploads'];
+const RECRUIT_VIEWS=['overview','roster','ach','recruit','uploads'];
 function viewsFor(gi){return isMem(gi)?[['me','My character']]:(isOff(gi)?ALLVIEWS:ALLVIEWS.filter(v=>RECRUIT_VIEWS.includes(v[0]))).concat([['me','My character']])}
 let VIEWS=ALLVIEWS;
 function renderShell(){VIEWS=viewsFor(G);{const s=document.querySelector('.search');if(s)s.style.display=isMem(G)?'none':''}if(!VIEWS.some(v=>v[0]===V))V=VIEWS[0][0];
@@ -286,7 +286,12 @@ function cleanup(){
   ${inact.map(m=>`<tr class="click" onclick="profile('${esc(m.main)}')"><td>${esc(m.main)}</td><td>${esc(m.rank)}</td><td>${esc(m.cls)}</td><td class="num">${m.chars.length}</td><td class="num">${ago(m.days)}</td></tr>`).join('')}</table></div>`;
 }
 
-function roster(){
+let gearOpen=(()=>{try{return localStorage.getItem('glask-gear-open')!=='0'}catch(e){return true}})();
+function gearBox(){return `<details class="card" style="padding:0" ${gearOpen?'open':''} ontoggle="gearOpen=this.open;try{localStorage.setItem('glask-gear-open',this.open?'1':'0')}catch(e){}">
+  <summary style="padding:14px 16px;cursor:pointer;font:600 13px Inter;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)">Gear check · ${esc(xpacNow(G).xpac||g().stats.xpac)} <span style="text-transform:none;letter-spacing:0;font-weight:400">(click to ${gearOpen?'hide':'show'})</span></summary>
+  <div style="padding:0 16px 4px">${gear()}</div></details>`}
+function roster(){return roster0()+gearBox()}
+function roster0(){
   const x=g(); const ranks=[...new Set(x.members.map(m=>m.rank))];
   let rows=x.members.filter(m=>(!rosterRank||m.rank===rosterRank)&&(!rosterFilter||m.chars.some(c=>c.n.toLowerCase().includes(rosterFilter))));
   const k=rosterSort.k,d=rosterSort.d;
@@ -407,7 +412,20 @@ function vqCard(m,gi){const V2=D.guilds[gi].vanq||[];if(!V2.length)return '';con
      return `<details><summary>${full?'<span class="tag ok">✓</span>':''}<span style="color:var(--text)">${esc(e.event)}</span><span class="c">${k} / ${e.subs.length}</span></summary><div class="inner">${e.subs.map(s=>`${achCell(vqStatus(m,s.name,gi),(m.vq_seen||{})[s.name])} <b style="color:var(--text)">${esc(s.name)}</b> · ${esc(s.desc)}`).join('<br>')}</div></details>`}).join('')}
    </div></details>`}).join('')}</div>`}
 let achX=null;
-function ach(){const x=g();const V2=x.vanq||[];if(!V2.length)return '<div class="card">No raid achievement reference loaded.</div>';
+function flagGuildCard(){const x=g(),gi=G,{code,names}=trackedList(gi),xn=xpacNow(gi).xpac||code;
+  const edit=isOff(gi)?`<button class="more" onclick="editTracked(${gi})">Edit list</button>`:'';
+  if(!names.length)return `<div class="card"><h3>Flagging · important ${esc(xn)} achievements ${edit}</h3><div class="hint" style="margin:0">No tracked achievements set for ${esc(xn)} yet.</div></div>`;
+  const pop=x.members.filter(m=>!NONRAID.test(m.rank)&&m.days!=null&&m.days<=D.inactive_days).sort((a,b)=>a.main.localeCompare(b.main));
+  const st=(m,a)=>{const ax=achOf(m,gi);return ax?(ax.done.includes(a)?'yes':'no'):((m.flags||{})[a]||(m.raid_ach||{})[a]?'seen':null)};
+  const tot=names.map(a=>pop.filter(m=>['yes','seen'].includes(st(m,a))).length);const full=pop.filter(m=>names.every(a=>['yes','seen'].includes(st(m,a)))).length;
+  const unk=pop.filter(m=>!achOf(m,gi)).length;
+  const cell=s=>s==='yes'||s==='seen'?'<span class="tag ok">✓</span>':s==='no'?'<span class="tag red">✗</span>':'<span style="color:var(--dim)">?</span>';
+  return `<div class="card"><h3>Flagging · important ${esc(xn)} achievements <span style="display:flex;gap:8px;align-items:center"><span class="n">${full}/${pop.length}</span>${edit}</span></h3>
+   <div class="hint">${full} of ${pop.length} active raiders have all ${names.length}. ✓ done · ✗ missing (from their achievement export) · ? no export yet (${unk}). Click a name for their profile.</div>
+   <div style="overflow-x:auto"><table><tr><th>Main</th><th>Class</th>${names.map((a,i)=>`<th class="num" title="${esc(a)}">${esc(a.replace(/ The Outer Brood /,' ').replace(/^Underfoot /,''))}<div style="font-weight:400;color:var(--dim)">${tot[i]}/${pop.length}</div></th>`).join('')}</tr>
+   ${pop.map(m=>`<tr class="click" onclick="profile('${esc(m.main)}')"><td>${esc(m.main)}</td><td>${esc(m.cls)}</td>${names.map(a=>`<td class="num">${cell(st(m,a))}</td>`).join('')}</tr>`).join('')}</table></div></div>`}
+function ach(){return flagGuildCard()+ach0()}
+function ach0(){const x=g();const V2=x.vanq||[];if(!V2.length)return '<div class="card">No raid achievement reference loaded.</div>';
   if(!achX||!V2.find(v=>v[0]===achX))achX=V2[V2.length-1][0];const evs=V2.find(v=>v[0]===achX)[1];
   const pop=x.members.filter(m=>!NONRAID.test(m.rank)&&m.days!=null&&m.days<=D.inactive_days);const withX=pop.filter(m=>achOf(m)).length;
   return `<div class="glask"><div class="who">GLASK</div><div><p><em>“Choose which trials the Faceless will face.”</em> Vanquisher sub-achievements for <b>${esc(achX)}</b>, checked against the <b>${pop.length}</b> active raiders.</p>
@@ -752,7 +770,10 @@ async function recOp(gi,id,op,extra={}){const p=pipeline(gi).find(z=>z.id===id);
   const r=await fetch('/api/rec',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({server:D.guilds[gi].server,id,op,name:p?.name||id},extra))});
   if(!r.ok){let d='';try{d=(await r.json()).detail}catch(e){}alertBox('Not saved: '+(d||r.status));return false}
   const j=await r.json();KV['glask-rec-'+j.server]=j.recs;if(V==='recruit')render();if($('#drawer').classList.contains('open')&&$('#drawer').dataset.rec===id)recCard(gi,id);return true}
-function recruit(){const gi=G,x=D.guilds[gi],S=recSet(gi),off=isOff(gi);let P=pipeline(gi);
+let recSub='board';
+function recruit(){const tabs=`<div class="seg" style="margin-bottom:14px;display:inline-flex">${[['board','Recruitment board'],['apps','Applications']].map(([k,l])=>`<button class="${recSub===k?'on':''}" onclick="recSub='${k}';render()">${l}</button>`).join('')}</div>`;
+  return tabs+(recSub==='apps'?apps():recruit0())}
+function recruit0(){const gi=G,x=D.guilds[gi],S=recSet(gi),off=isOff(gi);let P=pipeline(gi);
   if(recFilter)P=P.filter(p=>(p.name+' '+p.cls+' '+(p.rec.officer||'')).toLowerCase().includes(recFilter.toLowerCase()));
   const col=k=>P.filter(p=>p.col===k).sort((a,b)=>(b.applied||'').localeCompare(a.applied||''));
   const card=p=>{const cn=classNeed(gi,p.cls);return `<div class="rc" onclick="recCard(${gi},'${esc(p.id)}')">
@@ -870,7 +891,7 @@ function signupSetter(){const x=g(),s=signupOf(G)||{};if(!isOff(G))return '';
 async function setSignup(f){const r=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({server:g().server,title:f.t.value,url:f.u.value,due:f.d.value})});
   if(!r.ok){let d='';try{d=(await r.json()).detail}catch(e){}alertBox('Not saved: '+(d||r.status));return}const j=await r.json();KV['glask-signup-'+g().server]=j.url?j:null;alertBox('Sign-up link saved');render()}
 
-function render(){renderShell();$('#view').innerHTML={overview,cleanup,roster,gear,perf,ach,launch,apps,recruit,uploads,me}[V]()}
+function render(){renderShell();$('#view').innerHTML={overview,cleanup,roster,perf,ach,launch,recruit,uploads,me}[V]()}
 render();
 </script>
 </body>
