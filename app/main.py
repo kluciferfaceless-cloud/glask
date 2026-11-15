@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from .store import Store
-from . import live_loot, item_slots
+from . import live_loot
 
 ROOT = Path(__file__).resolve().parent.parent
 DISCORD_API = 'https://discord.com/api/v10'
@@ -456,7 +456,6 @@ async def rec_settings(request: Request):
 @app.on_event('startup')
 def _start_live_loot():
     live_loot.start(DATA, AA)
-    item_slots.start(store, AA)
 
 
 @app.post('/api/loot-refresh')

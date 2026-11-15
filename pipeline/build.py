@@ -64,7 +64,10 @@ def learn(path, who):
 def slot_of(item):
     m = TOKEN.match(item)
     if m: return m.group(1).capitalize()
-    return SLOTMAP.get(item)
+    if SLOTMAP.get(item): return SLOTMAP[item]
+    import sys; sys.path.insert(0, '/home/claude/glask-repo')
+    from app.itemdb import slot
+    return slot(item)
 
 
 def load_dump(path):
@@ -172,7 +175,7 @@ def build(guild, server, dump, loot_path, apps):
                 sl = slot_of(x['item'])
                 if is_cur:
                     cur.append([when(x), x['item'], c['name'], x['cost'], sl, xc, 1 if 'alt' in x['tab'].lower() else 0])
-                if c['name'] == mem['main'] and sl:
+                if c['name'] == mem['main'] and sl and sl != 'Not gear':
                     for s1 in sl.split('/'):
                         if s1 not in slot_last:
                             slot_last[s1] = [when(x), x['item'], code_of(server, x, tabx)]
@@ -187,7 +190,7 @@ def build(guild, server, dump, loot_path, apps):
             days=(TODAY - last).days if last else None,
             chars=[dict(n=c['name'], l=c['level'], c=c['cls'], r=c['rank'], a=c['alt'], s=c['last'], z=c['zone'], note=c['note']) for c in cs],
             loot_n=n_all, dkp=dkp, cur=cur, cur_main=len(main_cur),
-            cur_slots=sorted({s1 for i in main_cur if i[4] for s1 in i[4].split('/')}),
+            cur_slots=sorted({s1 for i in main_cur if i[4] and i[4] != 'Not gear' for s1 in i[4].split('/')}),
             slot_last=slot_last, app=app, inv=INV.get(mem['main'])))
     out_members.sort(key=lambda m: m['main'].lower())
 

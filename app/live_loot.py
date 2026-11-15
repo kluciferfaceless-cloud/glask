@@ -7,6 +7,7 @@ import collections, datetime, io, json, os, re, threading, time
 import httpx
 
 from pipeline.parse_loot import parse as parse_workbook
+from . import itemdb
 
 SHEETS = {
     'Mischief': os.environ.get('MISCHIEF_LOOT_SHEET', '1pir-iBjwI9fCCb2lNd4X0RZyTelqI4bgYHck6wfK_CQ'),   # TF DKP Sheet 3.0
@@ -97,7 +98,7 @@ def rollup(server, guild, rows, aa, slotmap):
 
     def slot_of(item):
         m = TOKEN_RE.match(item)
-        return m.group(1).capitalize() if m else slotmap.get(item)
+        return m.group(1).capitalize() if m else (slotmap.get(item) or itemdb.slot(item))
 
     by = collections.defaultdict(list)
     for x in loot:
@@ -110,12 +111,12 @@ def rollup(server, guild, rows, aa, slotmap):
                 xc = code_of(x); sl = slot_of(x['item'])
                 if xc in keep:
                     cur.append([when(x), x['item'], c['n'], x['cost'], sl, xc, 1 if 'alt' in x['tab'].lower() else 0])
-                if c['n'] == mem['main'] and sl:
+                if c['n'] == mem['main'] and sl and sl != 'Not gear':
                     for s1 in sl.split('/'):
                         slot_last.setdefault(s1, [when(x), x['item'], xc])
         mine = [i for i in cur if i[2] == mem['main']]
         mem.update(loot_n=n_all, dkp=dkp, cur=cur, cur_main=len(mine),
-                   cur_slots=sorted({s for i in mine if i[4] for s in i[4].split('/')}), slot_last=slot_last)
+                   cur_slots=sorted({s for i in mine if i[4] and i[4] != 'Not gear' for s in i[4].split('/')}), slot_last=slot_last)
 
     def night(t):
         try:
