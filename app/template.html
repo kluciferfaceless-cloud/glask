@@ -126,11 +126,15 @@ const D=JSON.parse(document.getElementById('data').textContent);
 const ME=JSON.parse(document.getElementById('me').textContent);
 const KV=JSON.parse(document.getElementById('kv').textContent);
 function otherServer(gi){return D.guilds[gi].server==='Mischief'?'Teek':'Mischief'}
+function gIdx(s){const i=D.guilds.findIndex(x=>x.server===s);return i<0?G:i}
 function isOff(gi){return ME.access[D.guilds[gi].server]==='officer'}
 function kvGet(k){return k in KV?KV[k]:null}
-function kvSet(k,v){KV[k]=v;fetch('/api/kv',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:k,value:v})})
-  .then(r=>{if(r.status===401){alertBox('Your sign-in expired. Sign in again to save.');setTimeout(()=>location.href='/login',2500)}else if(!r.ok)r.json().then(j=>alertBox('Not saved: '+(j.detail||r.status))).catch(()=>alertBox('Not saved ('+r.status+')'))})
-  .catch(()=>alertBox('Glask could not reach the server. That change was not saved.'))}
+let SAVES=null;
+async function kvPost(k,v){try{const r=await fetch('/api/kv',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:k,value:v})});
+  if(r.ok)return {ok:true};if(r.status===401)return {ok:false,msg:'your sign-in expired, sign in again',auth:true};
+  let d='';try{d=(await r.json()).detail}catch(e){}return {ok:false,msg:d||('server said '+r.status)}}catch(e){return {ok:false,msg:'could not reach Glask'}}}
+function kvSet(k,v){KV[k]=v;const pr=kvPost(k,v);
+  if(SAVES)SAVES.push({k,pr});else pr.then(r=>{if(!r.ok){alertBox('Not saved: '+r.msg);if(r.auth)setTimeout(()=>location.href='/login',2500)}});return pr}
 let G=0, V='overview', inactiveRank='Raider', rosterSort={k:'main',d:1}, rosterRank='', rosterFilter='';
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const g=()=>D.guilds[G];
@@ -312,7 +316,7 @@ function perf(){
    <p style="color:var(--mute);font-size:13px">Each player is compared with the <b>median of their class</b> in this raid (mains only; boxes and anyone active under 30% of the fight are left out of the median). Because of personas, class comes from the <b>spells each person cast in this log</b>, not the guild dump; anyone whose class differs is tagged so an officer can confirm. DPS classes use SDPS (damage over their own active time); Clerics and Shamans use healing per active second. Tank DPS is shown for reference only. ${r.raid_leader?`<b>${esc(r.raid_leader)}</b> was raid leading, so their characters are tagged and left out of medians and the watch list.`:''} ${owner?`The log owner shows as “You” in the log, so their ${kfmt(owner.dmg)} damage isn't credited to anyone yet.`:''}</p></div></div>
   <div class="grid2"><div class="card"><h3>Watch list <span class="n">${watch.length}</span></h3><div class="hint">Non-box, non-tank players under 70% of class median, active less than half the fight, or 2+ deaths.</div>
    <table><tr><th>Player</th><th>Class</th><th class="num">vs class</th><th>Flags</th></tr>${watch.map(p=>`<tr class="click" onclick="profile('${esc(mainOf(p.name)||p.name)}')"><td>${esc(p.name)}</td><td>${esc(p.cls)}</td><td class="num">${p.pct}%</td><td>${perfFlags(p)}</td></tr>`).join('')}</table></div>
-   <div class="card"><h3>On a Performance Improvement Plan <span class="n">${pips.length}</span></h3><div class="hint">Open a PIP from anyone's profile. (Prototype: PIPs are saved in this browser only.)</div>
+   <div class="card"><h3>On a Performance Improvement Plan <span class="n">${pips.length}</span></h3><div class="hint">Open a PIP from anyone's profile.</div>
    ${pips.length?`<table><tr><th>Member</th><th>Concern</th><th>Review</th></tr>${pips.map(([m,p])=>`<tr class="click" onclick="profile('${esc(m.main)}')"><td>${esc(m.main)}</td><td>${esc(p.concern)}</td><td>${esc(p.review||'')}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nobody yet.</div>'}</div></div>
   ${classes.map(cls=>{const grp=ps.filter(p=>p.cls===cls).sort((a,b)=>b.val-a.val);const med=grp[0].median;
     return `<div class="card"><h3>${esc(cls)} ${TANKS.has(cls)?'<span class="tag">tank · DPS for reference</span>':''}<span style="color:var(--dim);font-size:12px;text-transform:none;letter-spacing:0">class median ${kfmt(med)} ${grp[0].metric==='hps'?'HPS':'SDPS'}</span></h3>
@@ -487,9 +491,11 @@ function uploads(){return `<div class="glask"><div class="who">GLASK</div><div><
   <label id="drop" style="display:block;border:2px dashed #4a3a33;border-radius:14px;padding:46px 20px;text-align:center;cursor:pointer;background:#141111;margin-bottom:16px" ondragover="event.preventDefault();this.style.borderColor='var(--ember)'" ondragleave="this.style.borderColor='#4a3a33'" ondrop="event.preventDefault();this.style.borderColor='#4a3a33';handleFiles(event.dataTransfer.files)">
    <div style="font:700 18px Cinzel,serif;color:var(--bone);letter-spacing:.08em">DROP FILES HERE</div><div style="color:var(--mute);margin-top:6px">or click to choose · .txt files from your EverQuest folder</div>
    <input type="file" multiple accept=".txt,.csv" style="display:none" onchange="handleFiles(this.files)"></label>
-  <div class="card"><h3>This session <span class="n">${upLog.length}</span></h3>${upLog.length?`<table><tr><th>File</th><th>Detected as</th><th>Result</th></tr>${upLog.map(u=>`<tr><td>${esc(u.f)}</td><td>${esc(u.kind)}</td><td style="color:${u.ok?'var(--text)':'var(--ember2)'}">${esc(u.msg)}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nothing uploaded yet.</div>'}
-  <div class="hint" style="margin:10px 0 0">Prototype: uploads are saved in this browser only. Once Glask is hosted they'll go to a shared database every officer sees.</div></div>`}
-async function handleFiles(files){for(const f of files){let kind='unknown',msg='',ok=false;try{
+  ${upLog.length?`<div class="card"><h3>Just now <span class="n">${upLog.length}</span></h3><table><tr><th>File</th><th>Detected as</th><th>Status</th><th>Result</th></tr>${upLog.map(u=>`<tr><td>${esc(u.f)}</td><td>${esc(u.kind)}</td><td>${stTag(u.st)}</td><td style="color:${u.ok?'var(--text)':'var(--ember2)'}">${esc(u.msg)}</td></tr>`).join('')}</table></div>`:''}
+  ${(()=>{const h=D.guilds.flatMap(x=>(KV['glask-uploads-'+x.server]||[])).sort((a,b)=>b.at-a.at).slice(0,40);
+   return `<div class="card"><h3>Saved to Glask <span class="n">${h.length}</span></h3><div class="hint">Everything uploaded by any officer, newest first. These are stored on the server, so they show up for everyone.</div>${h.length?`<table><tr><th>When</th><th>Who</th><th>File</th><th>Detected as</th><th>Result</th></tr>${h.map(u=>`<tr><td style="white-space:nowrap">${new Date(u.at*1000).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</td><td>${esc(u.by)}</td><td>${esc(u.file)}</td><td>${esc(u.kind)}</td><td>${esc(u.msg)}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nothing uploaded yet.</div>'}</div>`})()}`}
+function stTag(s){return s==='saving'?'<span class="tag">Saving…</span>':s==='saved'?'<span class="tag ok">✓ Saved</span>':s==='failed'?'<span class="tag red">Not saved</span>':'<span class="tag warn">Skipped</span>'}
+async function handleFiles(files){let nOk=0,nBad=0;for(const f of files){let kind='unknown',msg='',ok=false;SAVES=[];const ent={f:f.name,kind:'Reading…',msg:'',ok:true,st:'saving'};upLog.unshift(ent);render();try{
    if(/-Inventory\.txt$/i.test(f.name)){kind='Inventory';const ch=f.name.split('_')[0];const t=await f.text();const inv=parseInv(t);const gi=guildFor(f.name,'');const m=memberForChar(gi,ch);
      if(!inv.length)msg="Couldn't read any worn slots.";else if(!m)msg=`${ch} isn't on the ${D.guilds[gi].server} roster.`;else{m.inv=inv;lsSet(invKey(gi,m),inv);ok=true;msg=`${ch} → ${m.main} (${D.guilds[gi].server}): ${inv.length} slots`}}
    else if(/-Achievements\.txt$/i.test(f.name)){kind='Achievements';const ch=f.name.split('_')[0];const t=await f.text();const gi=guildFor(f.name,'');const m=memberForChar(gi,ch);const a=parseAchExport(t,D.guilds[gi]._wanted);
@@ -499,13 +505,21 @@ async function handleFiles(files){for(const f of files){let kind='unknown',msg='
      const r=analyzeQ(q0,gi).filter(z=>z.m);ok=true;msg=`${x.server}: ${rows.length-1} responses, ${r.filter(z=>z.status==='Available').length} available, ${r.filter(z=>z.status==='Unavailable').length} unavailable`}}
 
    else{const head=await f.slice(0,300000).text();
-     if(/^\[\w{3} \w{3} \d+ \d\d:\d\d:\d\d \d{4}\]/m.test(head)){kind='Raid log';const gi=/_teek/i.test(f.name)?1:/_mischief/i.test(f.name)?0:G;const r=await parseRaidFile(f,gi);
+     if(/^\[\w{3} \w{3} \d+ \d\d:\d\d:\d\d \d{4}\]/m.test(head)){kind='Raid log';const gi=/_teek/i.test(f.name)?gIdx('Teek'):/_mischief/i.test(f.name)?gIdx('Mischief'):G;const r=await parseRaidFile(f,gi);
        if(!r||!r.players.length)msg='No guild members found doing anything in it.';else{const x=D.guilds[gi];const raids=lsGet('glask-raids-'+x.server)||[];const i=raids.findIndex(q=>q.id===r.id&&q.date===r.date);if(i>=0)raids[i]=r;else raids.push(r);lsSet('glask-raids-'+x.server,raids);
          const st=lsGet('glask-att-'+x.server)||{};st[r.date]=[...new Set([...(st[r.date]||[]),...r.players.map(p=>p.main)])];lsSet('glask-att-'+x.server,st);ok=true;msg=`${x.server} raid ${r.date}: ${r.players.length} players, ${Math.round(r.seconds/60)} min`}}
      else if(looksLikeDump(head)){kind='Guild dump';const t=await f.text();const gi=guildFor(f.name,t);const res=applyDump(gi,t,f.name);
        if(!res)msg='No rows found.';else{lsSet('glask-dump-'+D.guilds[gi].server,{name:f.name,text:t,at:new Date().toISOString()});ok=true;msg=`${D.guilds[gi].server}: ${res.chars} characters, ${res.mains} people`}}
      else msg="Couldn't tell what this file is."}}catch(e){msg='Error: '+e.message}
-  upLog.unshift({f:f.name,kind,msg,ok});render()}}
+  const saves=SAVES;SAVES=null;Object.assign(ent,{kind,msg,ok});
+  if(!ok){ent.st='skipped';nBad++;render();continue}
+  render();const res=await Promise.all(saves.map(s=>s.pr));const bad=res.find(r=>!r.ok);
+  if(bad){ent.st='failed';ent.ok=false;ent.msg+=' · NOT SAVED: '+bad.msg;nBad++}else{ent.st='saved';nOk++;
+    const srv=saves.length?saves[0].k.split('-')[2]:D.guilds[G].server;
+    fetch('/api/upload-log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({server:srv,file:f.name,kind,msg})})
+      .then(r=>r.ok?r.json():null).then(j=>{if(j){KV['glask-uploads-'+j.server]=j.list;render()}})}
+  render()}
+  if(nOk||nBad)alertBox(nBad?`${nOk} saved · ${nBad} not saved. See the list on Uploads.`:`${nOk} file${nOk>1?'s':''} saved to Glask. Every officer can see ${nOk>1?'them':'it'} now.`)}
 // re-apply saved dumps on load
 D.guilds.forEach((x,gi)=>{const s=lsGet('glask-dump-'+x.server);if(s&&s.text&&(!D.built||s.at>D.built)){try{applyDump(gi,s.text,s.name)}catch(e){}}});
 

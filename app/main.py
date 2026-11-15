@@ -181,6 +181,24 @@ async def put_kv(request: Request):
     return {'ok': True}
 
 
+@app.post('/api/upload-log')
+async def upload_log(request: Request):
+    u = user(request)
+    if not u:
+        raise HTTPException(401, 'Sign in again')
+    b = await request.json()
+    server = b.get('server', '')
+    if server not in u['access']:
+        raise HTTPException(403, "You don't have access to that guild")
+    key = 'glask-uploads-' + server
+    lst = store.get(key) or []
+    lst.insert(0, dict(at=time.time(), by=u['name'], file=str(b.get('file', ''))[:200],
+                       kind=str(b.get('kind', ''))[:40], msg=str(b.get('msg', ''))[:300]))
+    lst = lst[:200]
+    store.put(key, lst, f"{u['name']} ({u['id']})")
+    return {'server': server, 'list': lst}
+
+
 @app.get('/api/audit')
 def audit(request: Request):
     u = user(request)
