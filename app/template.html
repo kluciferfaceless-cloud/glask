@@ -525,13 +525,17 @@ async function handleFiles(files){let nOk=0,nBad=0;for(const f of files){let kin
      const gi=(()=>{let best=G,bn=-1;D.guilds.forEach((x,i)=>{const n=analyzeQ(q0,i).filter(r=>r.m).length;if(n>bn){bn=n;best=i}});return best})();const x=D.guilds[gi];const list=(lsGet('glask-q-'+x.server)||[]).filter(z=>z.id!==q0.id);list.unshift(q0);lsSet('glask-q-'+x.server,list);
      const r=analyzeQ(q0,gi).filter(z=>z.m);ok=true;msg=`${x.server}: ${rows.length-1} responses, ${r.filter(z=>z.status==='Available').length} available, ${r.filter(z=>z.status==='Unavailable').length} unavailable`}}
 
-   else{const head=await f.slice(0,300000).text();
-     if(/^\[\w{3} \w{3} \d+ \d\d:\d\d:\d\d \d{4}\]/m.test(head)){kind='Raid log';const gi=/_teek/i.test(f.name)?gIdx('Teek'):/_mischief/i.test(f.name)?gIdx('Mischief'):G;const r=await parseRaidFile(f,gi);
+   else{const raw=new Uint8Array(await f.slice(0,4).arrayBuffer());
+     if(raw[0]===0x50&&raw[1]===0x4b){kind='Zip file';throw new Error('This is a .zip. Unzip it first and upload the .txt inside.')}
+     const u16=(raw[0]===0xff&&raw[1]===0xfe)||(raw[0]===0xfe&&raw[1]===0xff);
+     let head=u16?new TextDecoder(raw[0]===0xff?'utf-16le':'utf-16be').decode(await f.slice(0,2000000).arrayBuffer()):await f.slice(0,2000000).text();head=head.replace(/^\ufeff/,'');
+     if(u16){kind='Raid log?';throw new Error('This file is saved as UTF-16 (usually from re-saving it in Notepad or Word). Upload the original eqlog file from your EverQuest Logs folder, or re-save it as UTF-8.')}
+     if(/\[\w{3} \w{3} +\d+ \d\d:\d\d:\d\d \d{4}\]/.test(head)){kind='Raid log';const gi=/_teek/i.test(f.name)?gIdx('Teek'):/_mischief/i.test(f.name)?gIdx('Mischief'):G;const r=await parseRaidFile(f,gi);
        if(!r||!r.players.length)msg='No guild members found doing anything in it.';else{const x=D.guilds[gi];const raids=lsGet('glask-raids-'+x.server)||[];const i=raids.findIndex(q=>q.id===r.id&&q.date===r.date);if(i>=0)raids[i]=r;else raids.push(r);lsSet('glask-raids-'+x.server,raids);
          const st=lsGet('glask-att-'+x.server)||{};st[r.date]=[...new Set([...(st[r.date]||[]),...r.players.map(p=>p.main)])];lsSet('glask-att-'+x.server,st);ok=true;msg=`${x.server} raid ${r.date}: ${r.players.length} players, ${Math.round(r.seconds/60)} min`}}
      else if(looksLikeDump(head)){kind='Guild dump';const t=await f.text();const gi=guildFor(f.name,t);const res=applyDump(gi,t,f.name);
        if(!res)msg='No rows found.';else{lsSet('glask-dump-'+D.guilds[gi].server,{name:f.name,text:t,at:new Date().toISOString()});ok=true;msg=`${D.guilds[gi].server}: ${res.chars} characters, ${res.mains} people`}}
-     else msg="Couldn't tell what this file is."}}catch(e){msg='Error: '+e.message}
+     else{const first=(head.split(/\r?\n/).find(l=>l.trim())||'').slice(0,90);msg=`Couldn't tell what this file is (${fmt(f.size)} bytes). It starts with: "${first}". Raid logs are EverQuest's eqlog_Name_server.txt, with lines like [Thu Nov 12 22:28:33 2026].`}}}catch(e){msg='Error: '+e.message}
   const saves=SAVES;SAVES=null;Object.assign(ent,{kind,msg,ok});
   if(!ok){ent.st='skipped';nBad++;render();continue}
   render();const res=await Promise.all(saves.map(s=>s.pr));const bad=res.find(r=>!r.ok);
