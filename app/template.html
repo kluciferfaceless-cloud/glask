@@ -634,7 +634,7 @@ function pipeline(gi=G){const x=D.guilds[gi],R=recs(gi),S=recSet(gi),out={};
     if(p.m){p.name=p.m.main;p.cls=p.cls||p.m.cls;p.inGuild=true}
     p.member=p.m&&!p.recruit&&!/applicant|trial/i.test(p.m.rank);
     const start=p.recruit?.start||p.applied;p.raidDates=p.m?attendedSince(p.m.main,start,gi):[];p.raidsN=p.raidDates.length;
-    const aa=+(String(p.app?.aa||'').replace(/[^\d]/g,''))||0, lv=+(p.app?.level||p.m?.level||0);
+    const aa=+(String(p.app?.aa||'').replace(/[^\d]/g,''))||0, lv=+(p.m?.level||p.app?.level||0);
     p.flags=[];if(S.aa&&aa&&aa<S.aa)p.flags.push(`AA ${fmt(aa)} < ${fmt(S.aa)}`);if(S.level&&lv&&lv<S.level)p.flags.push(`Level ${lv} < ${S.level}`);
     if(p.rec.contact==='unreachable')p.flags.push("Can't reach");
     const vs=Object.values(p.rec.votes||{});p.votes={promote:vs.filter(v=>v.vote==='promote').length,extend:vs.filter(v=>v.vote==='extend').length,decline:vs.filter(v=>v.vote==='decline').length};
@@ -679,7 +679,7 @@ function recCard(gi,id){const p=pipeline(gi).find(z=>z.id===id);if(!p)return;con
   $('#drawer').dataset.rec=id;
   $('#drawer').innerHTML=`<div class="dh"><button class="x" onclick="closeP()">Close</button><h2>${esc(p.name)} <span class="tag">${esc(p.cls||'?')}</span></h2>
    <div style="color:var(--mute)">${D.guilds[gi].guild} · ${p.applied?'applied '+esc(p.applied):''}${p.rankNow?' · rank '+esc(p.rankNow):' · not in guild yet'} ${p.m?`· <a href="#" onclick="event.preventDefault();profile('${esc(p.m.main)}')" style="color:var(--ember2)">full profile</a>`:''}</div>
-   <div class="facts"><div><b>${p.raidsN} / ${S.raids}</b><span>trial raids attended</span></div><div><b>${esc(a.aa?fmt(+String(a.aa).replace(/[^\d]/g,'')):'?')}</b><span>AA on application</span></div><div><b>${esc(a.level||p.m?.level||'?')}</b><span>level</span></div><div><b>${cn.n}</b><span>active ${esc(p.cls||'')}s · ${cn.rn} ${esc(cn.role.toLowerCase())}</span></div></div></div>
+   <div class="facts"><div><b>${p.raidsN} / ${S.raids}</b><span>trial raids attended</span></div><div><b>${esc(a.aa?fmt(+String(a.aa).replace(/[^\d]/g,'')):'?')}</b><span>AA on application</span></div><div><b>${esc(p.m?.level||a.level||'?')}</b><span>level${p.m?' now':' on application'}</span></div><div><b>${cn.n}</b><span>active ${esc(p.cls||'')}s · ${cn.rn} ${esc(cn.role.toLowerCase())}</span></div></div></div>
    <div class="db">
    ${p.promotedInDump?`<div class="card" style="border-color:#2d4a33"><b>Rank is now ${esc(p.rankNow)} in the guild dump.</b> ${off?`<button class="more" onclick="recOp(${gi},'${esc(id)}','stage',{stage:'promoted'})">Mark promoted</button>`:''}</div>`:''}
    ${p.flags.length?`<div class="card" style="border-color:#5a2a20">${p.flags.map(f=>`<span class="tag red">${esc(f)}</span>`).join(' ')}</div>`:''}
