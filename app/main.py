@@ -1,5 +1,5 @@
 """Glask web server: Discord sign-in, role-based access per guild, shared storage."""
-import json, os, secrets, time
+import json, os, secrets, threading, time
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -197,6 +197,87 @@ async def upload_log(request: Request):
     lst = lst[:200]
     store.put(key, lst, f"{u['name']} ({u['id']})")
     return {'server': server, 'list': lst}
+
+
+REC_LOCK = threading.Lock()
+STAGES = ['new', 'claimed', 'interview', 'trial', 'decision', 'promoted', 'declined', 'withdrew']
+CHECKS = ['welcome', 'discord', 'requirements', 'dkp', 'raidbuilder', 'thread']
+
+
+@app.post('/api/rec')
+async def rec(request: Request):
+    """One change to an applicant's recruitment record, merged on the server so officers never overwrite each other."""
+    u = user(request)
+    if not u:
+        raise HTTPException(401, 'Sign in again')
+    b = await request.json()
+    server, rid, op = b.get('server', ''), str(b.get('id', '')).lower()[:60], b.get('op', '')
+    level = u['access'].get(server)
+    if not level or not rid:
+        raise HTTPException(403, "You don't have access to that guild")
+    officer = level == 'officer'
+    who = u['name']
+    now = time.time()
+    with REC_LOCK:
+        key = 'glask-rec-' + server
+        recs = store.get(key) or {}
+        r = recs.setdefault(rid, dict(name=b.get('name', rid), notes=[], votes={}, checks={}, history=[]))
+        if op == 'stage':
+            st = b.get('stage')
+            if st not in STAGES:
+                raise HTTPException(400, 'Unknown stage')
+            if st in ('promoted', 'declined') and not officer:
+                raise HTTPException(403, 'Only officers can make the final decision')
+            r['stage'] = st
+            r['history'].append(dict(at=now, by=who, text='Moved to ' + st))
+            if st in ('promoted', 'declined', 'withdrew'):
+                r['decision'] = dict(result=st, by=who, at=now, why=str(b.get('why', ''))[:500])
+        elif op == 'claim':
+            r['officer'] = who if not b.get('release') else None
+            if not r.get('stage') or r['stage'] == 'new':
+                r['stage'] = 'claimed'
+            r['history'].append(dict(at=now, by=who, text='Released' if b.get('release') else 'Claimed'))
+        elif op == 'field':
+            f = b.get('field')
+            if f not in ('recruited_by', 'contact', 'sme'):
+                raise HTTPException(400, 'Unknown field')
+            r[f] = str(b.get('value', ''))[:200]
+        elif op == 'check':
+            c = b.get('check')
+            if c not in CHECKS:
+                raise HTTPException(400, 'Unknown checklist item')
+            r['checks'][c] = dict(by=who, at=now) if b.get('value') else None
+        elif op == 'note':
+            text = str(b.get('text', '')).strip()[:2000]
+            if text:
+                r['notes'].append(dict(at=now, by=who, text=text, kind=b.get('kind', 'note') if b.get('kind') in ('note', 'sme') else 'note'))
+        elif op == 'vote':
+            if not officer:
+                raise HTTPException(403, 'Only officers vote')
+            v = b.get('vote')
+            if v not in ('promote', 'extend', 'decline', None):
+                raise HTTPException(400, 'Unknown vote')
+            if v:
+                r['votes'][u['id']] = dict(name=who, vote=v, at=now, why=str(b.get('why', ''))[:500])
+            else:
+                r['votes'].pop(u['id'], None)
+        else:
+            raise HTTPException(400, 'Unknown change')
+        r['updated'] = now
+        store.put(key, recs, f"{who} ({u['id']})")
+    return {'server': server, 'recs': recs}
+
+
+@app.post('/api/rec-settings')
+async def rec_settings(request: Request):
+    u = user(request)
+    b = await request.json()
+    server = b.get('server', '')
+    if not u or u['access'].get(server) != 'officer':
+        raise HTTPException(403, 'Only officers can change requirements')
+    v = dict(level=int(b.get('level') or 0), aa=int(b.get('aa') or 0), raids=int(b.get('raids') or 6))
+    store.put('glask-recset-' + server, v, f"{u['name']} ({u['id']})")
+    return v
 
 
 @app.get('/api/audit')

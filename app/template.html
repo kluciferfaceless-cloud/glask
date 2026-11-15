@@ -96,6 +96,17 @@ footer{color:var(--dim);font-size:11.5px;text-align:center;padding:20px}
 @media(max-width:1100px){#menuBtn{display:flex}nav#nav{display:none}.bar{gap:10px;padding:10px 14px}.brand small{display:none}.brand h1{font-size:17px}.pagetitle{display:block}
  .search{order:10;flex-basis:100%;margin-left:0}.search input{width:100%!important}.sugg{left:0;right:0;width:auto}#gsel{margin-left:auto}}
 @media(max-width:600px){main{padding:14px}.brand .logo{width:30px;height:30px}.kpis{grid-template-columns:repeat(2,1fr)}.facts{grid-template-columns:repeat(2,1fr)}table{font-size:12px}td,th{padding:6px 5px}.card{padding:12px}.glask{padding:12px;gap:8px;flex-direction:column}}
+.board{display:grid;grid-template-columns:repeat(6,minmax(170px,1fr));gap:12px;overflow-x:auto;padding-bottom:8px}
+.bcol{background:#141111;border:1px solid var(--line);border-radius:10px;padding:10px;min-height:120px}
+.bcol h4{margin:2px 4px 10px;font:600 12px Inter;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);display:flex;justify-content:space-between}
+.bcol h4 span{color:var(--dim)}.bcol .empty{color:var(--dim);text-align:center;padding:12px}
+.rc{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:8px;cursor:pointer}.rc:hover{border-color:var(--ember)}
+.rc .rt{display:flex;justify-content:space-between;align-items:center;gap:6px}.rc .rm{color:var(--mute);font-size:12px;margin-top:3px}
+.rc .rf{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}.rc .rf .tag{font-size:11px}
+.bar6{display:flex;align-items:center;gap:3px;margin-top:8px}.bar6 i{flex:1;height:6px;border-radius:3px;background:#2a2321}.bar6 i.on{background:var(--ember)}
+.bar6 i.sme{box-shadow:inset 0 -2px 0 var(--warn)}.bar6 span{font-size:11px;color:var(--mute);margin-left:6px}
+.seg.stg{flex-wrap:wrap}button.more.on{border-color:var(--ember);color:var(--ember2)}
+@media(max-width:1100px){.board{grid-template-columns:1fr}}
 .me{display:flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap}.me img{width:28px;height:28px;border-radius:50%}
 .me span{display:flex;flex-direction:column;line-height:1.15}.me small{color:var(--mute);font-size:11px}.me a{color:var(--mute);text-decoration:none;font-size:16px;padding:4px}
 @media(max-width:1100px){.me span{display:none}}
@@ -140,13 +151,13 @@ const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"]/g,c=>
 const g=()=>D.guilds[G];
 const fmt=n=>Number(n).toLocaleString();
 const ago=d=>d==null?'never':d===0?'today':d===1?'yesterday':d+'d ago';
-const ALLVIEWS=[['overview','Overview'],['cleanup','Cleanup'],['roster','Roster'],['gear','Gear'],['perf','Performance'],['ach','Achievements'],['launch','Launch planning'],['apps','Applications'],['uploads','⇪ Uploads']];
+const ALLVIEWS=[['overview','Overview'],['cleanup','Cleanup'],['roster','Roster'],['gear','Gear'],['perf','Performance'],['ach','Achievements'],['launch','Launch planning'],['apps','Applications'],['recruit','Recruitment'],['uploads','⇪ Uploads']];
 
 function lootDate(t,tab){return /^\d{4}-\d\d-\d\d/.test(t)?t.slice(0,10):(t||tab)}
 
 function openNav(){$('#navDrawer').classList.add('open');$('#navShade').classList.add('open')}
 function closeNav(){$('#navDrawer').classList.remove('open');$('#navShade').classList.remove('open')}
-const RECRUIT_VIEWS=['overview','roster','gear','ach','apps','uploads'];
+const RECRUIT_VIEWS=['overview','roster','gear','ach','apps','recruit','uploads'];
 function viewsFor(gi){return isOff(gi)?ALLVIEWS:ALLVIEWS.filter(v=>RECRUIT_VIEWS.includes(v[0]))}
 let VIEWS=ALLVIEWS;
 function renderShell(){VIEWS=viewsFor(G);if(!VIEWS.some(v=>v[0]===V))V='overview';
@@ -601,7 +612,102 @@ $('#q').oninput=e=>{const q=e.target.value.trim().toLowerCase();const s=$('#sugg
   s.style.display='block'};
 document.addEventListener('click',e=>{if(!e.target.closest('.search'))$('#sugg').style.display='none'});
 
-function render(){renderShell();$('#view').innerHTML={overview,cleanup,roster,gear,perf,ach,launch,apps,uploads}[V]()}
+// ---- Recruitment board ----
+const STAGES=[['new','New applications'],['claimed','Claimed'],['interview','Interviewing'],['trial','Trial raids'],['decision','Decision'],['done','Done']];
+const DONE={promoted:['Promoted','ok'],declined:['Declined','red'],withdrew:['Withdrew','warn']};
+const CHECKLIST=[['welcome','Welcomed in guild chat'],['discord','Discord roles: Member + Apps'],['requirements','Raid requirements explained'],['dkp','DKP rules explained'],['raidbuilder','Registered on Raid Builder'],['thread','Officer thread created']];
+const CLSAB={Warrior:'WAR',Paladin:'PAL','Shadow Knight':'SHD',Monk:'MNK',Rogue:'ROG',Berserker:'BER',Ranger:'RNG',Beastlord:'BST',Wizard:'WIZ',Magician:'MAG',Necromancer:'NEC',Bard:'BRD',Enchanter:'ENC',Cleric:'CLR',Shaman:'SHM',Druid:'DRU'};
+let recFilter='';
+function recs(gi=G){return KV['glask-rec-'+D.guilds[gi].server]||{}}
+function recSet(gi=G){return Object.assign({level:0,aa:0,raids:6},KV['glask-recset-'+D.guilds[gi].server]||{})}
+function normCls(c){c=(c||'').trim();const k=Object.keys(CLSAB).find(x=>x.toLowerCase()===c.toLowerCase()||c.toLowerCase().startsWith(x.toLowerCase().slice(0,5)));return k||c}
+function mdy(s){const m=(s||'').match(/(\d+)\/(\d+)\/(\d{2,4})/);if(!m)return '';const y=m[3].length===2?'20'+m[3]:m[3];return `${y}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`}
+function daysSince(iso){return iso?Math.floor((Date.now()-new Date(iso+'T12:00:00'))/864e5):null}
+// Everyone in the pipeline: recent applications, applicants/recruits in the dump, and anyone with a record
+function pipeline(gi=G){const x=D.guilds[gi],R=recs(gi),S=recSet(gi),out={};
+  const add=(id,o)=>{id=id.toLowerCase();out[id]=Object.assign(out[id]||{id},o)};
+  x.apps.forEach(a=>{const d=mdy(a.date);if(daysSince(d)>60&&!R[(a.member||a.name).toLowerCase()]&&!x.recruits.some(r=>r.main===a.member))return;
+    const nm=a.member||(a.name||'').split(/\s+-\s+|\/|\(|,/)[0].trim().slice(0,30)||a.name;add(nm,{name:nm,app:a,applied:d,cls:normCls(a.cls)})});
+  x.recruits.forEach(r=>add(r.main,{name:r.main,recruit:r,applied:out[r.main.toLowerCase()]?.applied||r.start,cls:r.cls,inGuild:true}));
+  Object.entries(R).forEach(([id,r])=>add(id,{name:r.name||id,rec:r}));
+  return Object.values(out).map(p=>{p.rec=R[p.id]||{};p.m=x.members.find(m=>m.main.toLowerCase()===p.id||m.chars.some(c=>c.n.toLowerCase()===p.id));
+    if(p.m){p.name=p.m.main;p.cls=p.cls||p.m.cls;p.inGuild=true}
+    p.member=p.m&&!p.recruit&&!/applicant|trial/i.test(p.m.rank);
+    const start=p.recruit?.start||p.applied;p.raidDates=p.m?attendedSince(p.m.main,start,gi):[];p.raidsN=p.raidDates.length;
+    const aa=+(String(p.app?.aa||'').replace(/[^\d]/g,''))||0, lv=+(p.app?.level||p.m?.level||0);
+    p.flags=[];if(S.aa&&aa&&aa<S.aa)p.flags.push(`AA ${fmt(aa)} < ${fmt(S.aa)}`);if(S.level&&lv&&lv<S.level)p.flags.push(`Level ${lv} < ${S.level}`);
+    if(p.rec.contact==='unreachable')p.flags.push("Can't reach");
+    const vs=Object.values(p.rec.votes||{});p.votes={promote:vs.filter(v=>v.vote==='promote').length,extend:vs.filter(v=>v.vote==='extend').length,decline:vs.filter(v=>v.vote==='decline').length};
+    // stage: explicit choice wins; otherwise inferred from the dump and raid logs
+    let st=p.rec.stage;
+    if(DONE[st])p.col='done';
+    else{if(!st)st=p.inGuild?'trial':'new';if(st==='trial'&&p.raidsN>=S.raids)st='decision';if(['new','claimed','interview'].includes(st)&&p.recruit)st='trial';p.col=st}
+    p.rankNow=p.m?.rank||'';p.promotedInDump=p.m&&p.col!=='done'&&!/applicant|recruit|trial/i.test(p.m.rank)&&!/recruit/i.test(p.m.note||'')&&p.recruit===undefined&&p.rec.stage;
+    p.age=daysSince(p.applied);return p})
+  .filter(p=>!(p.member&&!p.rec.stage))
+  .filter(p=>p.col!=='done'||(Date.now()/1000-(p.rec.decision?.at||0))<45*864e2)}
+function classNeed(gi,cls){const x=D.guilds[gi];const act=x.members.filter(m=>m.days!=null&&m.days<=D.inactive_days&&!/applicant|fnf|alt/i.test(m.rank));
+  const n=act.filter(m=>m.cls===cls).length;const role=ROLES.find(r=>r[1].includes(cls));const rn=role?act.filter(m=>role[1].includes(m.cls)).length:0;
+  return {n,role:role?role[0]:'',rn,total:act.length}}
+async function recOp(gi,id,op,extra={}){const p=pipeline(gi).find(z=>z.id===id);
+  const r=await fetch('/api/rec',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({server:D.guilds[gi].server,id,op,name:p?.name||id},extra))});
+  if(!r.ok){let d='';try{d=(await r.json()).detail}catch(e){}alertBox('Not saved: '+(d||r.status));return false}
+  const j=await r.json();KV['glask-rec-'+j.server]=j.recs;if(V==='recruit')render();if($('#drawer').classList.contains('open')&&$('#drawer').dataset.rec===id)recCard(gi,id);return true}
+function recruit(){const gi=G,x=D.guilds[gi],S=recSet(gi),off=isOff(gi);let P=pipeline(gi);
+  if(recFilter)P=P.filter(p=>(p.name+' '+p.cls+' '+(p.rec.officer||'')).toLowerCase().includes(recFilter.toLowerCase()));
+  const col=k=>P.filter(p=>p.col===k).sort((a,b)=>(b.applied||'').localeCompare(a.applied||''));
+  const card=p=>{const cn=classNeed(gi,p.cls);return `<div class="rc" onclick="recCard(${gi},'${esc(p.id)}')">
+    <div class="rt"><b>${esc(p.name)}</b><span class="tag">${esc(CLSAB[p.cls]||p.cls||'?')}</span></div>
+    <div class="rm">${p.applied?`applied ${p.age===0?'today':p.age+'d ago'}`:''}${p.rec.officer?` · ${esc(p.rec.officer)}`:''}</div>
+    ${p.col==='trial'||p.col==='decision'?`<div class="bar6">${Array.from({length:S.raids},(_,i)=>`<i class="${i<p.raidsN?'on':''}${i===2?' sme':''}"></i>`).join('')}<span>${p.raidsN}/${S.raids}</span></div>`:''}
+    <div class="rf">${p.col==='trial'&&p.raidsN>=3&&!p.rec.sme?'<span class="tag warn">SME check-in due</span>':''}${p.flags.map(f=>`<span class="tag red">${esc(f)}</span>`).join('')}
+    ${Object.values(p.votes).some(Boolean)?`<span class="tag">▲${p.votes.promote} ◆${p.votes.extend} ▼${p.votes.decline}</span>`:''}${p.col==='done'?`<span class="tag ${DONE[p.rec.stage][1]}">${DONE[p.rec.stage][0]}</span>`:''}
+    ${cn.n<=1&&p.cls?`<span class="tag ok">need: ${cn.n} active ${esc(p.cls)}</span>`:''}</div></div>`};
+  return `<div class="glask"><div class="who">GLASK</div><div><p><em>“New faces for the Faceless.”</em> Every applicant from the application sheet, the guild dump and your notes, from first contact to promotion. Raids count from uploaded raid logs since they applied; the SME check-in comes due after raid 3.</p>
+   <p style="color:var(--mute);font-size:13px">Requirements for ${esc(x.server)}: level ${S.level||'not set'}, AA ${S.aa?fmt(S.aa):'not set'}, ${S.raids} trial raids. ${off?`<a href="#" onclick="event.preventDefault();recSettings(${gi})" style="color:var(--ember2)">Change</a>`:''}</p></div></div>
+   <div class="filters"><input placeholder="Filter by name, class or officer…" value="${esc(recFilter)}" oninput="recFilter=this.value;clearTimeout(window._rf);window._rf=setTimeout(()=>{render();const i=document.querySelector('.filters input');i.focus();i.setSelectionRange(i.value.length,i.value.length)},250)"></div>
+   <div class="board">${STAGES.map(([k,l])=>{const c=col(k);return `<div class="bcol"><h4>${l} <span>${c.length}</span></h4>${c.map(card).join('')||'<div class="empty">—</div>'}</div>`}).join('')}</div>`}
+function recSettings(gi){const S=recSet(gi);const lv=prompt('Minimum level for '+D.guilds[gi].server+' applicants (0 = none):',S.level);if(lv===null)return;
+  const aa=prompt('Minimum AA (0 = none):',S.aa);if(aa===null)return;const rd=prompt('Trial raids before a decision:',S.raids);if(rd===null)return;
+  fetch('/api/rec-settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({server:D.guilds[gi].server,level:lv,aa,raids:rd})})
+   .then(r=>r.ok?r.json():Promise.reject(r.status)).then(v=>{KV['glask-recset-'+D.guilds[gi].server]=v;render();alertBox('Requirements saved')}).catch(e=>alertBox('Not saved ('+e+')'))}
+function threadTitle(p){const d=(p.applied||'').split('-');return `[${p.raidsN}R - ${d[1]||'MM'}.${d[2]||'DD'}.${(d[0]||'YY').slice(2)} ${p.name} (${CLSAB[p.cls]||p.cls||'?'})]`}
+function recCard(gi,id){const p=pipeline(gi).find(z=>z.id===id);if(!p)return;const r=p.rec,S=recSet(gi),off=isOff(gi),cn=classNeed(gi,p.cls),a=p.app||{};
+  const when=t=>new Date(t*1000).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+  const myVote=Object.entries(r.votes||{}).find(([k])=>k===ME.id)?.[1]?.vote;
+  const stageBtns=STAGES.filter(s=>s[0]!=='done').map(([k,l])=>`<button class="${p.col===k?'on':''}" onclick="recOp(${gi},'${esc(id)}','stage',{stage:'${k}'})">${l.replace(' applications','').replace(' raids','')}</button>`).join('');
+  $('#drawer').dataset.rec=id;
+  $('#drawer').innerHTML=`<div class="dh"><button class="x" onclick="closeP()">Close</button><h2>${esc(p.name)} <span class="tag">${esc(p.cls||'?')}</span></h2>
+   <div style="color:var(--mute)">${D.guilds[gi].guild} · ${p.applied?'applied '+esc(p.applied):''}${p.rankNow?' · rank '+esc(p.rankNow):' · not in guild yet'} ${p.m?`· <a href="#" onclick="event.preventDefault();profile('${esc(p.m.main)}')" style="color:var(--ember2)">full profile</a>`:''}</div>
+   <div class="facts"><div><b>${p.raidsN} / ${S.raids}</b><span>trial raids attended</span></div><div><b>${esc(a.aa?fmt(+String(a.aa).replace(/[^\d]/g,'')):'?')}</b><span>AA on application</span></div><div><b>${esc(a.level||p.m?.level||'?')}</b><span>level</span></div><div><b>${cn.n}</b><span>active ${esc(p.cls||'')}s · ${cn.rn} ${esc(cn.role.toLowerCase())}</span></div></div></div>
+   <div class="db">
+   ${p.promotedInDump?`<div class="card" style="border-color:#2d4a33"><b>Rank is now ${esc(p.rankNow)} in the guild dump.</b> ${off?`<button class="more" onclick="recOp(${gi},'${esc(id)}','stage',{stage:'promoted'})">Mark promoted</button>`:''}</div>`:''}
+   ${p.flags.length?`<div class="card" style="border-color:#5a2a20">${p.flags.map(f=>`<span class="tag red">${esc(f)}</span>`).join(' ')}</div>`:''}
+   <div class="card"><h3>Stage</h3><div class="seg stg">${stageBtns}</div>
+    <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">${r.officer?`Recruitment officer: <b>${esc(r.officer)}</b> ${r.officer===ME.name?`<button class="more" onclick="recOp(${gi},'${esc(id)}','claim',{release:1})">Release</button>`:''}`:`<button class="more" onclick="recOp(${gi},'${esc(id)}','claim')">Claim this applicant</button>`}
+     <label style="color:var(--mute)">Recruited by <input value="${esc(r.recruited_by||'')}" onchange="recOp(${gi},'${esc(id)}','field',{field:'recruited_by',value:this.value})" style="background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:4px 8px;width:140px"></label>
+     <label style="color:var(--mute)"><input type="checkbox" ${r.contact==='unreachable'?'checked':''} onchange="recOp(${gi},'${esc(id)}','field',{field:'contact',value:this.checked?'unreachable':''})"> Can't reach them</label></div></div>
+   ${a.name?`<div class="card"><h3>Application</h3><dl class="app">${Object.entries(a).filter(([k,v])=>v&&!['in_guild','member'].includes(k)).map(([k,v])=>`<dt>${esc(k.replace(/_/g,' '))}</dt><dd>${esc(v)}</dd>`).join('')}</dl></div>`:''}
+   <div class="card"><h3>Onboarding checklist <span class="n">${CHECKLIST.filter(c=>r.checks?.[c[0]]).length}/${CHECKLIST.length}</span></h3>
+    ${CHECKLIST.map(([k,l])=>{const c=r.checks?.[k];return `<label style="display:block;padding:4px 0"><input type="checkbox" ${c?'checked':''} onchange="recOp(${gi},'${esc(id)}','check',{check:'${k}',value:this.checked})"> ${l} ${c?`<span style="color:var(--dim);font-size:12px">· ${esc(c.by)}, ${when(c.at)}</span>`:''}</label>`}).join('')}
+    <div style="margin-top:8px;color:var(--mute);font-size:13px">Thread title: <code>${esc(threadTitle(p))}</code> <button class="more" onclick="navigator.clipboard.writeText('${esc(threadTitle(p))}');alertBox('Copied')">Copy</button> · In-game note: <code>Applicant - ${esc((p.applied||'').slice(5).replace('-','.'))}.${esc((p.applied||'').slice(2,4))}</code></div></div>
+   <div class="card"><h3>Trial raids</h3>${p.raidDates.length?p.raidDates.map((d,i)=>`<span class="tag ${i<S.raids?'ok':''}">${i+1}: ${esc(d)}</span>`).join(' '):'<div class="hint" style="margin:0">No raids yet. Raids count when a raid log that includes them is uploaded.</div>'}
+    ${p.raidsN>=3?`<div style="margin-top:10px">${r.sme?`SME check-in done by <b>${esc(r.sme)}</b>`:`<span class="tag warn">SME check-in due</span> <button class="more" onclick="const n=prompt('Who did the SME check-in?','${esc(ME.name)}');if(n)recOp(${gi},'${esc(id)}','field',{field:'sme',value:n})">Mark done</button>`}</div>`:''}</div>
+   <div class="card"><h3>Officer vote <span class="n">${Object.keys(r.votes||{}).length}</span></h3>
+    ${Object.values(r.votes||{}).map(v=>`<div style="padding:4px 0"><span class="tag ${v.vote==='promote'?'ok':v.vote==='decline'?'red':'warn'}">${v.vote}</span> <b>${esc(v.name)}</b> ${v.why?'· '+esc(v.why):''} <span style="color:var(--dim);font-size:12px">${when(v.at)}</span></div>`).join('')||'<div class="hint" style="margin:0">No votes yet.</div>'}
+    ${off?`<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">${['promote','extend','decline'].map(v=>`<button class="more ${myVote===v?'on':''}" onclick="const w=prompt('Why? (optional)','');if(w!==null)recOp(${gi},'${esc(id)}','vote',{vote:'${v}',why:w})">${v==='promote'?'▲ Promote':v==='extend'?'◆ Extend trial':'▼ Decline'}</button>`).join('')}${myVote?`<button class="more" onclick="recOp(${gi},'${esc(id)}','vote',{vote:null})">Clear my vote</button>`:''}</div>
+     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px">Final decision: ${Object.entries(DONE).map(([k,[l]])=>`<button class="more" onclick="const w=prompt('${l}: reason for the record','');if(w!==null)recOp(${gi},'${esc(id)}','stage',{stage:'${k}',why:w})">${l}</button>`).join('')}</div>`:'<div class="hint" style="margin:8px 0 0">Officers vote and make the final call. Add your read on them in the notes.</div>'}
+    ${r.decision?`<div style="margin-top:10px"><span class="tag ${DONE[r.decision.result]?.[1]||''}">${esc(r.decision.result)}</span> by ${esc(r.decision.by)}, ${when(r.decision.at)}${r.decision.why?' · '+esc(r.decision.why):''}</div>`:''}</div>
+   <div class="card"><h3>Notes <span class="n">${(r.notes||[]).length}</span></h3>
+    ${(r.notes||[]).slice().reverse().map(n=>`<div style="padding:8px 0;border-bottom:1px solid var(--line)"><b>${esc(n.by)}</b> ${n.kind==='sme'?'<span class="tag">SME</span>':''} <span style="color:var(--dim);font-size:12px">${when(n.at)}</span><div style="white-space:pre-wrap;margin-top:4px">${esc(n.text)}</div></div>`).join('')||'<div class="hint" style="margin:0">No notes yet. Interview takeaways, who vouches for them, anything shady.</div>'}
+    <form onsubmit="event.preventDefault();const t=this.t.value;if(t.trim())recOp(${gi},'${esc(id)}','note',{text:t,kind:this.k.checked?'sme':'note'})" style="margin-top:10px">
+     <textarea name="t" rows="3" style="width:100%;box-sizing:border-box;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px" placeholder="Add a note…"></textarea>
+     <label style="color:var(--mute);font-size:13px"><input type="checkbox" name="k"> SME check-in note</label> <button class="more" type="submit">Add note</button></form></div>
+   ${(r.history||[]).length?`<div class="card"><h3>History</h3>${r.history.slice().reverse().map(h=>`<div style="font-size:13px;color:var(--mute);padding:2px 0">${when(h.at)} · ${esc(h.by)} · ${esc(h.text)}</div>`).join('')}</div>`:''}
+   </div>`;
+  $('#drawer').classList.add('open');$('#shade').classList.add('open')}
+
+function render(){renderShell();$('#view').innerHTML={overview,cleanup,roster,gear,perf,ach,launch,apps,recruit,uploads}[V]()}
 render();
 </script>
 </body>
