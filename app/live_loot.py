@@ -16,6 +16,51 @@ SHEETS = {
 XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 TOKEN_RE = re.compile(r'(?i)^Obscured (?:[A-Za-z\' ]+? )?(Head|Arms|Wrist|Hands|Chest|Legs|Feet) Armor')
 STATUS = {}          # server -> dict(ok, at, msg, entries, nights)
+QSTATUS = {}         # sheet id -> dict(ok, at, msg, rows)
+# launch sign-up sheets read live (officers add more on Launch planning); first tab = form responses
+QSHEETS_DEFAULT = {'Teek': [dict(id='17gFCNHKS4nWrKoEsFKG0AfzyxALYNVifWKTwnB_hG6g', title='Underfoot Launch', date='2026-09-15')]}
+
+
+def qsheets(store, server):
+    lst = store.get('glask-qsheets-' + server) if store else None
+    return lst if lst is not None else QSHEETS_DEFAULT.get(server, [])
+
+
+def fetch_q(sheet, token):
+    import csv
+    r = httpx.get(f"https://www.googleapis.com/drive/v3/files/{sheet['id']}/export", params={'mimeType': 'text/csv'},
+                  headers={'Authorization': 'Bearer ' + token}, timeout=60)
+    if r.status_code in (403, 404):
+        raise RuntimeError("not shared with Glask's service account (share it as Viewer)")
+    r.raise_for_status()
+    rows = [x for x in csv.reader(io.StringIO(r.content.decode('utf-8-sig'))) if any(c.strip() for c in x)]
+    if not rows:
+        raise RuntimeError('the first tab is empty')
+    hdr = rows[0]
+    data = [x + [''] * (len(hdr) - len(x)) for x in rows[1:]]
+    return dict(id=sheet.get('title') or sheet['id'], title=sheet.get('title') or 'Launch sign-up', date=sheet.get('date', ''),
+                header=hdr, rows=data, sheet=sheet['id'], live=True)
+
+
+def refresh_q(data, store, servers=None, token=None):
+    try:
+        token = token or _token()
+    except Exception as e:
+        return QSTATUS
+    for server in servers or SHEETS:
+        g = next((x for x in data['guilds'] if x['server'] == server), None)
+        if not g:
+            continue
+        for sh in qsheets(store, server):
+            try:
+                q = fetch_q(sh, token)
+                with _lock:
+                    g['questionnaires'] = [q] + [x for x in g.get('questionnaires', []) if x.get('sheet') != sh['id'] and x.get('id') != q['id']]
+                    g['questionnaires'].sort(key=lambda x: x.get('date', ''), reverse=True)
+                QSTATUS[sh['id']] = dict(ok=True, at=time.time(), msg=f"{len(q['rows'])} responses", rows=len(q['rows']))
+            except Exception as e:
+                QSTATUS[sh['id']] = dict(ok=False, at=time.time(), msg=str(e)[:200])
+    return QSTATUS
 _lock = threading.Lock()
 
 
@@ -135,8 +180,8 @@ def rollup(server, guild, rows, aa, slotmap):
     return len(loot), len(order)
 
 
-def refresh(data, aa, servers=None):
-    """Fetch and apply every loot sheet. Returns STATUS."""
+def refresh(data, aa, servers=None, store=None):
+    """Fetch and apply every loot sheet (and launch sign-up sheet). Returns STATUS."""
     try:
         tok = _token()
     except Exception as e:
@@ -154,6 +199,7 @@ def refresh(data, aa, servers=None):
             STATUS[server] = dict(ok=True, at=time.time(), msg=f'{n} loot entries from {nights} tabs', entries=n)
         except Exception as e:
             STATUS[server] = dict(ok=False, at=time.time(), msg=str(e)[:200])
+    refresh_q(data, store, servers, tok)
     return STATUS
 
 
@@ -172,17 +218,17 @@ def next_run(now=None):
     return d
 
 
-def start(data, aa):
+def start(data, aa, store=None):
     if not os.environ.get('GOOGLE_SERVICE_ACCOUNT_JSON'):
         for s in SHEETS:
             STATUS[s] = dict(ok=False, at=None, msg='Live loot is off: GOOGLE_SERVICE_ACCOUNT_JSON is not set. Showing the Nov 14 snapshot.')
         return
 
     def loop():
-        refresh(data, aa)                      # on startup, so a redeploy never falls back to the snapshot
+        refresh(data, aa, store=store)         # on startup, so a redeploy never falls back to the snapshot
         while True:
             from zoneinfo import ZoneInfo
             wait = (next_run() - datetime.datetime.now(ZoneInfo('America/New_York'))).total_seconds()
             time.sleep(max(60, wait))
-            refresh(data, aa)
+            refresh(data, aa, store=store)
     threading.Thread(target=loop, daemon=True).start()

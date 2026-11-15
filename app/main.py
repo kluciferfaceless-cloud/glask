@@ -240,6 +240,8 @@ def index(request: Request):
     kv.update({k: v for k, v in full.items() if k == 'glask-slots-all' or (k.startswith(('glask-logsettings-', 'glask-qcount-')) and can(u, k, False))})
     data = dict(DATA, guilds=guilds)
     data['loot_status'] = {g['server']: live_loot.STATUS.get(g['server']) for g in allowed}
+    data['qsheets'] = {g['server']: [dict(s, status=live_loot.QSTATUS.get(s['id'])) for s in live_loot.qsheets(store, g['server'])]
+                       for g in allowed if u['access'][g['server']] == 'officer'}
     data['aa'] = dict(buffer=AA['buffer'], **{g['server']: current_xpac(g['server']) for g in allowed})
     for k in [k for k in kv if k.startswith('glask-inv-')]:
         kv[k] = tag_inv(kv[k])
@@ -669,6 +671,31 @@ async def pip_change(request: Request):
     return p
 
 
+@app.post('/api/qsheet')
+async def qsheet(request: Request):
+    """Officers link (or unlink) a launch sign-up Google Sheet that Glask reads live."""
+    u = user(request)
+    b = await request.json()
+    server = b.get('server', '')
+    if not u or u['access'].get(server) != 'officer':
+        raise HTTPException(403, 'Only officers can link sign-up sheets')
+    m = re.search(r'/d/([A-Za-z0-9_-]{20,})', str(b.get('url', ''))) or re.match(r'^([A-Za-z0-9_-]{20,})$', str(b.get('url', '')).strip())
+    with REC_LOCK:
+        lst = list(live_loot.qsheets(store, server))
+        if b.get('remove'):
+            lst = [s for s in lst if s['id'] != b['remove']]
+        else:
+            if not m:
+                raise HTTPException(400, 'Paste the Google Sheet link (docs.google.com/spreadsheets/d/...)')
+            sid = m.group(1)
+            lst = [s for s in lst if s['id'] != sid] + [dict(id=sid, title=str(b.get('title', '')).strip()[:80] or 'Launch sign-up',
+                                                             date=time.strftime('%Y-%m-%d'))]
+        store.put('glask-qsheets-' + server, lst, f"{u['name']} ({u['id']})")
+    if not b.get('remove'):
+        threading.Thread(target=live_loot.refresh_q, args=(DATA, store, [server]), daemon=True).start()
+    return [dict(s, status=live_loot.QSTATUS.get(s['id'])) for s in lst]
+
+
 @app.post('/api/raid-delete')
 async def raid_delete(request: Request):
     """Leadership only: remove a raid log (and the attendance it added) so a bad upload stops affecting the data."""
@@ -798,7 +825,7 @@ async def rec_settings(request: Request):
 
 @app.on_event('startup')
 def _start_live_loot():
-    live_loot.start(DATA, AA)
+    live_loot.start(DATA, AA, store)
 
 
 @app.post('/api/loot-refresh')
@@ -807,7 +834,7 @@ def loot_refresh(request: Request):
     if not u or 'officer' not in u['access'].values():
         raise HTTPException(403, 'Only officers can refresh')
     servers = [s for s, lvl in u['access'].items() if lvl == 'officer']
-    return live_loot.refresh(DATA, AA, servers)
+    return live_loot.refresh(DATA, AA, servers, store)
 
 
 @app.get('/api/audit')

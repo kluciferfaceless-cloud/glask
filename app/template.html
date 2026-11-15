@@ -708,7 +708,16 @@ function analyzeQ(q,gi=G){const x=D.guilds[gi],c=qCols(q);const idx={};x.members
 function qTag(st){return st==='Available'?'<span class="tag ok" style="border-color:#2d6a3a;background:#173022;color:#8fd19e">Available</span>':st==='Unavailable'?'<span class="tag red" style="background:#3a1a14">Unavailable</span>':''}
 function latestQStatus(m,gi=G){const qs=allQ(gi);if(!qs.length)return null;const r=analyzeQ(qs[0],gi).find(z=>z.m&&z.m.main===m.main);return r?r.status:null}
 let qIdx=0,qFilter='all';
-function launch(){return signupSetter()+launch0()}
+function qSheetsCard(){const x=g();if(!isOff(G))return '';const L=(D.qsheets||{})[x.server]||[];
+  const inp='background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:6px';
+  const when=t=>t?new Date(t*1000).toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'}):'';
+  return fold('q-live','Sign-up sheets read live',`<div class="hint">Glask re-reads these Google Sheets with the loot sheets (Mon/Tue/Thu/Fri 10 AM Eastern, and on <b>Refresh now</b>). It uses the first tab (the form responses). Share each sheet with Glask's service account email as a Viewer.</div>
+   ${L.length?`<table><tr><th>Title</th><th>Sheet</th><th>Status</th><th></th></tr>${L.map(s=>`<tr><td>${esc(s.title)}</td><td><a href="https://docs.google.com/spreadsheets/d/${esc(s.id)}" target="_blank" rel="noopener" style="color:var(--ember2)">open</a></td><td>${s.status?(s.status.ok?`<span class="tag ok">${esc(s.status.msg)}</span> <span style="color:var(--dim);font-size:12px">${when(s.status.at)}</span>`:`<span class="tag red">${esc(s.status.msg)}</span>`):'<span style="color:var(--dim)">not read yet</span>'}</td><td><button class="more" onclick="qSheet({remove:'${esc(s.id)}'})">Unlink</button></td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">No sheets linked.</div>'}
+   <form onsubmit="event.preventDefault();qSheet({url:this.u.value,title:this.t.value})" style="display:grid;grid-template-columns:2fr 1fr auto;gap:8px;margin-top:10px"><input name="u" placeholder="https://docs.google.com/spreadsheets/d/…" style="${inp}"><input name="t" placeholder="Title, e.g. House of Thule Launch" style="${inp}"><button class="more" type="submit">Link sheet</button></form>`,false)}
+async function qSheet(body){const r=await fetch('/api/qsheet',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({server:g().server},body))});
+  if(!r.ok){let d='';try{d=(await r.json()).detail}catch(e){}alertBox('Not saved: '+(d||r.status));return}D.qsheets=D.qsheets||{};D.qsheets[g().server]=await r.json();
+  alertBox(body.remove?'Unlinked':'Linked. Glask is reading it now; reload in a minute to see the responses.');render()}
+function launch(){return signupSetter()+qSheetsCard()+launch0()}
 function launch0(){const x=g(),qs=allQ();
   const up=`<label class="more" style="margin:0;cursor:pointer">Upload responses (.csv)<input type="file" accept=".csv" style="display:none" onchange="handleFiles(this.files)"></label>`;
   if(!qs.length)return `<div class="glask"><div class="who">GLASK</div><div><p><em>“Who will stand at the gates when they open?”</em> No ${x.server} launch questionnaire loaded yet.</p><p style="color:var(--mute);font-size:13px">In Google Sheets open the form's responses, then File → Download → CSV, and drop it here or on the Uploads tab. (Or share the sheet with me and I'll load it.)</p></div></div>${up}`;
