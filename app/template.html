@@ -96,6 +96,10 @@ footer{color:var(--dim);font-size:11.5px;text-align:center;padding:20px}
 @media(max-width:1100px){#menuBtn{display:flex}nav#nav{display:none}.bar{gap:10px;padding:10px 14px}.brand small{display:none}.brand h1{font-size:17px}.pagetitle{display:block}
  .search{order:10;flex-basis:100%;margin-left:0}.search input{width:100%!important}.sugg{left:0;right:0;width:auto}#gsel{margin-left:auto}}
 @media(max-width:600px){main{padding:14px}.brand .logo{width:30px;height:30px}.kpis{grid-template-columns:repeat(2,1fr)}.facts{grid-template-columns:repeat(2,1fr)}table{font-size:12px}td,th{padding:6px 5px}.card{padding:12px}.glask{padding:12px;gap:8px;flex-direction:column}}
+.aag{margin-top:7px;min-width:90px}.aat{position:relative;height:6px;border-radius:3px;background:linear-gradient(90deg,#c8452c,#d9a441 50%,#6fae7c)}
+.aat i{position:absolute;top:-4px;width:4px;height:14px;margin-left:-2px;background:#f2e8d8;border-radius:2px;box-shadow:0 0 0 1px #000}
+.aat b{position:absolute;top:-2px;width:1px;height:10px;background:rgba(0,0,0,.7)}.aag.big .aat{height:10px}.aag.big .aat i{top:-4px;height:18px}
+.aal{display:flex;justify-content:space-between;font-size:11px;color:var(--mute);margin-top:4px}
 .board{display:grid;grid-template-columns:repeat(6,minmax(170px,1fr));gap:12px;overflow-x:auto;padding-bottom:8px}
 .bcol{background:#141111;border:1px solid var(--line);border-radius:10px;padding:10px;min-height:120px}
 .bcol h4{margin:2px 4px 10px;font:600 12px Inter;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);display:flex;justify-content:space-between}
@@ -262,7 +266,7 @@ function apps(){
   const x=g();
   return `<div class="card"><h3>Recent ${x.server} applications <span class="n">${x.apps.length}</span></h3><div class="hint">Newest first, from the ${x.server} application sheet. "In guild" means that character is in today's guild dump.</div>
   <table><tr><th>Date</th><th>Character</th><th>Class</th><th class="num">Lvl</th><th class="num">AA</th><th>Prior</th><th>Status</th></tr>
-  ${x.apps.map(a=>`<tr ${a.member?`class="click" onclick="profile('${esc(a.member)}')"`:''}><td>${esc(a.date.split(' ')[0])}</td><td>${esc(a.name)}</td><td>${esc(a.cls)}</td><td class="num">${esc(a.level)}</td><td class="num">${esc(a.aa)}</td><td style="max-width:320px;color:var(--mute)">${esc((a.prior||'').slice(0,140))}</td><td>${a.in_guild?'<span class="tag ok">in guild</span>':'<span class="tag">not in guild</span>'}</td></tr>`).join('')}</table></div>`;
+  ${x.apps.map(a=>`<tr ${a.member?`class="click" onclick="profile('${esc(a.member)}')"`:''}><td>${esc(a.date.split(' ')[0])}</td><td>${esc(a.name)}</td><td>${esc(a.cls)}</td><td class="num">${esc(a.level)}</td><td class="num">${esc(a.aa)}${aaGauge(G,a.cls,a.aa)}</td><td style="max-width:320px;color:var(--mute)">${esc((a.prior||'').slice(0,140))}</td><td>${a.in_guild?'<span class="tag ok">in guild</span>':'<span class="tag">not in guild</span>'}</td></tr>`).join('')}</table></div>`;
 }
 
 
@@ -618,6 +622,15 @@ const DONE={promoted:['Promoted','ok'],declined:['Declined','red'],withdrew:['Wi
 const CHECKLIST=[['welcome','Welcomed in guild chat'],['discord','Discord roles: Member + Apps'],['requirements','Raid requirements explained'],['dkp','DKP rules explained'],['raidbuilder','Registered on Raid Builder'],['thread','Officer thread created']];
 const CLSAB={Warrior:'WAR',Paladin:'PAL','Shadow Knight':'SHD',Monk:'MNK',Rogue:'ROG',Berserker:'BER',Ranger:'RNG',Beastlord:'BST',Wizard:'WIZ',Magician:'MAG',Necromancer:'NEC',Bard:'BRD',Enchanter:'ENC',Cleric:'CLR',Shaman:'SHM',Druid:'DRU'};
 let recFilter='';
+// AA temperature gauge: red at the class's autogrant for this expansion, green at max AA available
+function aaRef(gi,cls){const r=(D.aa||{})[D.guilds[gi].server];cls=normCls(cls);if(!r||!r.ag[cls])return null;return {ag:r.ag[cls],max:r.max[cls],buf:D.aa.buffer||400,xpac:r.xpac,thru:r.ag_through,cls}}
+function aaHeat(gi,cls,aa){const r=aaRef(gi,cls);aa=+String(aa||'').replace(/[^\d]/g,'');if(!r||!aa)return null;
+  const p=Math.max(0,Math.min(1,(aa-r.ag)/(r.max-r.ag)));const c=aa<r.ag+r.buf?'red':p>=.85?'ok':'warn';
+  return Object.assign(r,{aa,p,c,word:c==='red'?(aa<r.ag?'below autogrant':'near autogrant'):c==='ok'?'near max':'middle'})}
+function aaGauge(gi,cls,aa,big){const h=aaHeat(gi,cls,aa);if(!h)return big?'<div class="hint" style="margin:0">No AA on file for this class.</div>':'';
+  const tick=Math.max(0,Math.min(1,h.buf/(h.max-h.ag)))*100;
+  const tip=`${fmt(h.aa)} AA · ${h.cls} autogrant ${fmt(h.ag)} (through ${h.thru}) · max ${fmt(h.max)} in ${h.xpac}`;
+  return `<div class="aag${big?' big':''}" title="${esc(tip)}"><div class="aat"><i style="left:${(h.p*100).toFixed(1)}%"></i><b style="left:${tick.toFixed(1)}%"></b></div>${big?`<div class="aal"><span>Autogrant ${fmt(h.ag)}</span><span>Max ${fmt(h.max)}</span></div><div style="margin-top:6px"><span class="tag ${h.c}">${fmt(h.aa)} AA · ${h.word}</span> <span style="color:var(--mute);font-size:13px">${h.aa>=h.ag?fmt(h.aa-h.ag)+' over':fmt(h.ag-h.aa)+' under'} the ${esc(h.cls)} autogrant, ${fmt(Math.max(0,h.max-h.aa))} from max</span></div>`:''}</div>`}
 function recs(gi=G){return KV['glask-rec-'+D.guilds[gi].server]||{}}
 function recSet(gi=G){return Object.assign({level:0,aa:0,raids:6},KV['glask-recset-'+D.guilds[gi].server]||{})}
 function normCls(c){c=(c||'').trim();const k=Object.keys(CLSAB).find(x=>x.toLowerCase()===c.toLowerCase()||c.toLowerCase().startsWith(x.toLowerCase().slice(0,5)));return k||c}
@@ -635,7 +648,7 @@ function pipeline(gi=G){const x=D.guilds[gi],R=recs(gi),S=recSet(gi),out={};
     p.member=p.m&&!p.recruit&&!/applicant|trial/i.test(p.m.rank);
     const start=p.recruit?.start||p.applied;p.raidDates=p.m?attendedSince(p.m.main,start,gi):[];p.raidsN=p.raidDates.length;
     const aa=+(String(p.app?.aa||'').replace(/[^\d]/g,''))||0, lv=+(p.m?.level||p.app?.level||0);
-    p.flags=[];if(S.aa&&aa&&aa<S.aa)p.flags.push(`AA ${fmt(aa)} < ${fmt(S.aa)}`);if(S.level&&lv&&lv<S.level)p.flags.push(`Level ${lv} < ${S.level}`);
+    p.flags=[];{const h=aaHeat(gi,p.cls,p.app?.aa);if(h&&h.aa<h.ag+h.buf)p.flags.push(h.aa<h.ag?'AA below autogrant':`AA < autogrant +${h.buf}`)}if(S.aa&&aa&&aa<S.aa)p.flags.push(`AA ${fmt(aa)} < ${fmt(S.aa)}`);if(S.level&&lv&&lv<S.level)p.flags.push(`Level ${lv} < ${S.level}`);
     if(p.rec.contact==='unreachable')p.flags.push("Can't reach");
     const vs=Object.values(p.rec.votes||{});p.votes={promote:vs.filter(v=>v.vote==='promote').length,extend:vs.filter(v=>v.vote==='extend').length,decline:vs.filter(v=>v.vote==='decline').length};
     // stage: explicit choice wins; otherwise inferred from the dump and raid logs
@@ -659,6 +672,7 @@ function recruit(){const gi=G,x=D.guilds[gi],S=recSet(gi),off=isOff(gi);let P=pi
   const card=p=>{const cn=classNeed(gi,p.cls);return `<div class="rc" onclick="recCard(${gi},'${esc(p.id)}')">
     <div class="rt"><b>${esc(p.name)}</b><span class="tag">${esc(CLSAB[p.cls]||p.cls||'?')}</span></div>
     <div class="rm">${p.applied?`applied ${p.age===0?'today':p.age+'d ago'}`:''}${p.rec.officer?` · ${esc(p.rec.officer)}`:''}</div>
+    ${aaGauge(gi,p.cls,p.app?.aa)}
     ${p.col==='trial'||p.col==='decision'?`<div class="bar6">${Array.from({length:S.raids},(_,i)=>`<i class="${i<p.raidsN?'on':''}${i===2?' sme':''}"></i>`).join('')}<span>${p.raidsN}/${S.raids}</span></div>`:''}
     <div class="rf">${p.col==='trial'&&p.raidsN>=3&&!p.rec.sme?'<span class="tag warn">SME check-in due</span>':''}${p.flags.map(f=>`<span class="tag red">${esc(f)}</span>`).join('')}
     ${Object.values(p.votes).some(Boolean)?`<span class="tag">▲${p.votes.promote} ◆${p.votes.extend} ▼${p.votes.decline}</span>`:''}${p.col==='done'?`<span class="tag ${DONE[p.rec.stage][1]}">${DONE[p.rec.stage][0]}</span>`:''}
@@ -683,6 +697,7 @@ function recCard(gi,id){const p=pipeline(gi).find(z=>z.id===id);if(!p)return;con
    <div class="db">
    ${p.promotedInDump?`<div class="card" style="border-color:#2d4a33"><b>Rank is now ${esc(p.rankNow)} in the guild dump.</b> ${off?`<button class="more" onclick="recOp(${gi},'${esc(id)}','stage',{stage:'promoted'})">Mark promoted</button>`:''}</div>`:''}
    ${p.flags.length?`<div class="card" style="border-color:#5a2a20">${p.flags.map(f=>`<span class="tag red">${esc(f)}</span>`).join(' ')}</div>`:''}
+   <div class="card"><h3>AA vs ${esc(p.cls||'class')} autogrant</h3>${aaGauge(gi,p.cls,a.aa,1)}<div class="hint" style="margin:8px 0 0">AA from their application. Red is the ${esc(D.guilds[gi].server)} autogrant for their class, green is the max AA available in ${esc((aaRef(gi,p.cls)||{}).xpac||'this expansion')}. The marker line is autogrant +${(D.aa||{}).buffer||400}, the soft bar for applying.</div></div>
    <div class="card"><h3>Stage</h3><div class="seg stg">${stageBtns}</div>
     <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">${r.officer?`Recruitment officer: <b>${esc(r.officer)}</b> ${r.officer===ME.name?`<button class="more" onclick="recOp(${gi},'${esc(id)}','claim',{release:1})">Release</button>`:''}`:`<button class="more" onclick="recOp(${gi},'${esc(id)}','claim')">Claim this applicant</button>`}
      <label style="color:var(--mute)">Recruited by <input value="${esc(r.recruited_by||'')}" onchange="recOp(${gi},'${esc(id)}','field',{field:'recruited_by',value:this.value})" style="background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:4px 8px;width:140px"></label>

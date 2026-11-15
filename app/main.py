@@ -42,6 +42,7 @@ store = Store()
 TEMPLATE = (ROOT / 'app' / 'template.html').read_text()
 MASK = (ROOT / 'app' / 'mask.b64').read_text().strip()
 DATA = json.loads((ROOT / 'data' / 'glask.json').read_text())
+DATA['aa'] = json.loads((ROOT / 'data' / 'aa.json').read_text())
 
 
 def user(request):
