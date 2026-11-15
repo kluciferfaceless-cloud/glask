@@ -37,7 +37,7 @@ def _xm(x):
 XPAC = {'Mischief': _xm, 'Teek': lambda x: xpac_at('Teek', x['time']) if x['time'][:10] else x['time'][:7]}
 def code_of(server, x, tabx):
     if server == 'Mischief':
-        return tabx.get(x['tab'].lower().replace('copy of ', '').strip(), '') or (xpac_at(server, x['time']) if x['time'][:10] else '')
+        return xpac_at(server, x['time']) if re.match(r'\d{4}-\d\d-\d\d', x['time'][:10]) else tabx.get(x['tab'].lower().replace('copy of ', '').strip(), '')
     return XPAC[server](x)
 SLOT_WORDS = {'head': 'Head', 'arms': 'Arms', 'wrist': 'Wrist', 'hands': 'Hands', 'chest': 'Chest', 'legs': 'Legs', 'feet': 'Feet'}
 TOKEN = re.compile(r'(?i)^Obscured (?:[A-Za-z\' ]+? )?(Head|Arms|Wrist|Hands|Chest|Legs|Feet) Armor')
@@ -150,7 +150,7 @@ def build(guild, server, dump, loot_path, apps):
             lastx = xp
         tabx[t] = xp if xp and not re.match(r'^\d{4}-\d\d$', xp) else lastx
     def when(x):
-        if x['time'][:10]: return x['time'][:10]
+        if re.match(r'\d{4}-\d\d-\d\d', x['time'][:10]): return x['time'][:10]
         m = re.match(r'^(.*?)\s*(\d{2,4})$', x['tab'].strip())
         if m:
             d = m.group(2); md = d[0] + '/' + d[1:] if len(d) in (2, 3) else d[:2] + '/' + d[2:]
@@ -179,8 +179,9 @@ def build(guild, server, dump, loot_path, apps):
                     cur.append([when(x), x['item'], c['name'], x['cost'], sl, xc, 1 if 'alt' in x['tab'].lower() else 0])
                 if c['name'] == mem['main'] and sl and sl != 'Not gear':
                     for s1 in sl.split('/'):
-                        if s1 not in slot_last:
-                            slot_last[s1] = [when(x), x['item'], code_of(server, x, tabx)]
+                        w = when(x); old = slot_last.get(s1)
+                        if not old or (re.match(r'\d{4}-', w) and (not re.match(r'\d{4}-', old[0]) or w > old[0])):
+                            slot_last[s1] = [w, x['item'], code_of(server, x, tabx)]
         app = None
         for c in cs:
             if c['name'].lower() in apps:

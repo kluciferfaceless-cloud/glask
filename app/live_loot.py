@@ -84,7 +84,7 @@ def rollup(server, guild, rows, aa, slotmap):
     def code_of(x):
         d = x['time'][:10]
         if server == 'Mischief':
-            return tabx.get(x['tab'].lower().replace('copy of ', '').strip(), '') or (xpac_at(d) if re.match(r'\d{4}-\d\d-\d\d', d) else '')
+            return xpac_at(d) if re.match(r'\d{4}-\d\d-\d\d', d) else tabx.get(x['tab'].lower().replace('copy of ', '').strip(), '')
         return xpac_at(d) if re.match(r'\d{4}-\d\d-\d\d', d) else ''
 
     def when(x):
@@ -115,7 +115,9 @@ def rollup(server, guild, rows, aa, slotmap):
                     cur.append([when(x), x['item'], c['n'], x['cost'], sl, xc, 1 if 'alt' in x['tab'].lower() else 0])
                 if c['n'] == mem['main'] and sl and sl != 'Not gear':
                     for s1 in sl.split('/'):
-                        slot_last.setdefault(s1, [when(x), x['item'], xc])
+                        w = when(x); old = slot_last.get(s1)
+                        if not old or (re.match(r'\d{4}-', w) and (not re.match(r'\d{4}-', old[0]) or w > old[0])):
+                            slot_last[s1] = [w, x['item'], xc]   # newest date looted wins
         mine = [i for i in cur if i[2] == mem['main']]
         mem.update(loot_n=n_all, dkp=dkp, cur=cur, cur_main=len(mine),
                    cur_slots=sorted({s for i in mine if i[4] and i[4] != 'Not gear' for s in i[4].split('/')}), slot_last=slot_last)

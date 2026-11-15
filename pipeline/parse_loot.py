@@ -11,7 +11,7 @@ def parse(path):
             cells=[str(c).strip().lower() if c is not None else '' for c in r]
             if 'item' in cells and 'goes to' in cells: hdr=cells; hrow=i; break
         if not hdr: skipped.append(name); continue
-        ii=hdr.index('item'); gi=hdr.index('goes to'); ti=hdr.index('time') if 'time' in hdr else None
+        ii=hdr.index('item'); gi=hdr.index('goes to'); ti=hdr.index('time') if 'time' in hdr else hdr.index('date') if 'date' in hdr else None   # date looted (column is 'Time' or 'Date')
         ni=hdr.index('npc') if 'npc' in hdr else None
         n=0
         for r in ws.iter_rows(min_row=hrow+1,values_only=True):
@@ -19,7 +19,7 @@ def parse(path):
             item=r[ii]; to=r[gi]
             if not item or not to: continue
             cost=None   # Glask doesn't use DKP: costs are never read
-            out.append(dict(tab=name,time=str(r[ti]) if ti is not None and r[ti] else '',item=str(item).strip(),npc=str(r[ni]).strip() if ni is not None and r[ni] else '',to=str(to).strip(),cost=cost))
+            out.append(dict(tab=name,time=(str(r[ti])[:19] if ti is not None and r[ti] is not None and hasattr(r[ti],'year') else (str(r[ti]).strip() if ti is not None and r[ti] else '')),item=str(item).strip(),npc=str(r[ni]).strip() if ni is not None and r[ni] else '',to=str(to).strip(),cost=cost))
             n+=1
         if n: used.append((name,n))
     return out,used,skipped
