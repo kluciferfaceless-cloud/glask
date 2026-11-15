@@ -16,15 +16,29 @@ def pdate(s):
 
 
 # ---- gear helpers ----
-XPAC_NAME = {'Mischief': 'The Outer Brood', 'Teek': 'Underfoot'}
-CURRENT = {'Mischief': lambda x: x['tab'].lower().replace('copy of ', '').startswith('tob'),
-           'Teek': lambda x: x['time'][:10] >= '2026-10-10'}
+# Current expansion comes from Daybreak's unlock calendar (data/aa.json in the Glask repo).
+# Each loot entry is tagged with its expansion code; the app keeps only the code that is current right now.
+_AA = json.load(open('/home/claude/glask-repo/data/aa.json'))
+def xpac_at(server, day):
+    c = None
+    for code, at in _AA['schedule'][server]:
+        if at[:10] <= day[:10]: c = code
+    return c
+_now = {s: xpac_at(s, TODAY.isoformat()) for s in ('Mischief', 'Teek')}
+_codes = {s: [c for c, _ in _AA['schedule'][s]] for s in _AA['schedule']}
+_keep = {s: set(_codes[s][_codes[s].index(_now[s]):][:2]) | {_now[s]} for s in _now}   # current + the next one
+_keep = {s: _keep[s] | {_codes[s][max(0, _codes[s].index(_now[s]) - 1)]} for s in _now}  # + previous, for context
+XPAC_NAME = {s: _AA['names'][_now[s]] for s in _now}
 def _xm(x):
     t = x['tab'].lower().replace('copy of ', '')
-    for p, n in (('tob', 'ToB'), ('ls', 'LS'), ('tol', 'ToL'), ('nos', 'NoS'), ('cotf', 'CotF'), ('tds', 'TDS')):
+    for p, n in (('tob', 'TOB'), ('sor', 'SoR'), ('fof', 'FoF'), ('ls', 'LS'), ('tol', 'ToL'), ('nos', 'NoS'), ('cotf', 'CotF'), ('tds', 'TDS')):
         if t.startswith(p): return n
     return x['time'][:7]
-XPAC = {'Mischief': _xm, 'Teek': lambda x: 'UF' if x['time'][:10] >= '2026-10-10' else x['time'][:7]}
+XPAC = {'Mischief': _xm, 'Teek': lambda x: xpac_at('Teek', x['time']) if x['time'][:10] else x['time'][:7]}
+def code_of(server, x, tabx):
+    if server == 'Mischief':
+        return tabx.get(x['tab'].lower().replace('copy of ', '').strip(), '') or (xpac_at(server, x['time']) if x['time'][:10] else '')
+    return XPAC[server](x)
 SLOT_WORDS = {'head': 'Head', 'arms': 'Arms', 'wrist': 'Wrist', 'hands': 'Hands', 'chest': 'Chest', 'legs': 'Legs', 'feet': 'Feet'}
 TOKEN = re.compile(r'(?i)^Obscured (?:[A-Za-z\' ]+? )?(Head|Arms|Wrist|Hands|Chest|Legs|Feet) Armor')
 SLOTMAP = {}   # item name -> slot, learned from uploaded inventories (worn items only)
@@ -153,14 +167,15 @@ def build(guild, server, dump, loot_path, apps):
         for c in cs:
             for x in loot_by.get(c['name'].lower(), []):
                 n_all += 1; dkp += x['cost'] or 0
-                is_cur = CURRENT[server](x)
+                xc = code_of(server, x, tabx)
+                is_cur = xc in _keep[server]
                 sl = slot_of(x['item'])
                 if is_cur:
-                    cur.append([when(x), x['item'], c['name'], x['cost'], sl])
+                    cur.append([when(x), x['item'], c['name'], x['cost'], sl, xc])
                 if c['name'] == mem['main'] and sl:
                     for s1 in sl.split('/'):
                         if s1 not in slot_last:
-                            slot_last[s1] = [when(x), x['item'], tabx.get(x['tab'].lower().replace('copy of ', '').strip(), '') if server == 'Mischief' else XPAC[server](x)]
+                            slot_last[s1] = [when(x), x['item'], code_of(server, x, tabx)]
         app = None
         for c in cs:
             if c['name'].lower() in apps:

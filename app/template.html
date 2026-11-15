@@ -140,6 +140,10 @@ footer{color:var(--dim);font-size:11.5px;text-align:center;padding:20px}
 const D=JSON.parse(document.getElementById('data').textContent);
 const ME=JSON.parse(document.getElementById('me').textContent);
 const KV=JSON.parse(document.getElementById('kv').textContent);
+// Gear: keep only loot from the expansion that's current on Daybreak's calendar right now
+D.guilds.forEach(x=>{const cal=(D.aa||{})[x.server];if(!cal||!cal.code)return;x.stats.xpac=cal.xpac;
+  x.members.forEach(m=>{m.cur=(m.cur||[]).filter(i=>i[5]===cal.code);const mine=m.cur.filter(i=>i[2]===m.main);m.cur_main=mine.length;
+    m.cur_slots=[...new Set(mine.filter(i=>i[4]).flatMap(i=>i[4].split('/')))].sort()})});
 function otherServer(gi){return D.guilds[gi].server==='Mischief'?'Teek':'Mischief'}
 function gIdx(s){const i=D.guilds.findIndex(x=>x.server===s);return i<0?G:i}
 function isOff(gi){return ME.access[D.guilds[gi].server]==='officer'}
