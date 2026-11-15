@@ -159,8 +159,9 @@ applySlots();
 function otherServer(gi){return D.guilds[gi].server==='Mischief'?'Teek':'Mischief'}
 function lootRefresh(){alertBox('Reading the loot sheets…');fetch('/api/loot-refresh',{method:'POST'}).then(r=>r.ok?r.json():Promise.reject(r.status)).then(s=>{const bad=Object.entries(s).filter(([k,v])=>!v.ok);if(bad.length)alertBox('Loot refresh failed: '+bad.map(([k,v])=>k+': '+v.msg).join(' · '));else{alertBox('Loot refreshed. Reloading…');setTimeout(()=>location.reload(),800)}}).catch(e=>alertBox('Loot refresh failed ('+e+')'))}
 function gIdx(s){const i=D.guilds.findIndex(x=>x.server===s);return i<0?G:i}
-function isMem(gi){return ME.access[D.guilds[gi].server]==='member'}
-function isOff(gi){return ME.access[D.guilds[gi].server]==='officer'}
+let AS_MEMBER=false;   // "My character" is always shown exactly as a member sees it, whatever your rank
+function isMem(gi){return AS_MEMBER||ME.access[D.guilds[gi].server]==='member'}
+function isOff(gi){if(AS_MEMBER)return false;return ME.access[D.guilds[gi].server]==='officer'}
 function kvGet(k){return k in KV?KV[k]:null}
 let SAVES=null;
 async function kvPost(k,v){try{const r=await fetch('/api/kv',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:k,value:v})});
@@ -841,7 +842,8 @@ function memberUploadCard(gi){const own=D.guilds.flatMap(x=>(KV['glask-uploads-'
     <input type="file" multiple accept=".txt" style="display:none" onchange="handleFiles(this.files)"></label>
    ${upLog.length?`<table><tr><th>File</th><th>Detected as</th><th>Status</th><th>Result</th></tr>${upLog.map(u=>`<tr><td>${esc(u.f)}</td><td>${esc(u.kind)}</td><td>${stTag(u.st)}</td><td style="color:${u.ok?'var(--text)':'var(--ember2)'}">${esc(u.msg)}</td></tr>`).join('')}</table>`:''}
    ${own.length?`<div class="hint" style="margin:10px 0 4px">Your recent uploads</div>${own.map(u=>`<div style="font-size:13px;color:var(--mute)">${new Date(u.at*1000).toLocaleDateString([], {month:'short',day:'numeric'})} · ${esc(u.file)} · ${esc(u.kind)}</div>`).join('')}`:''}</div>`}
-function me(){const gi=G,x=D.guilds[gi],l=(ME.links||{})[x.server];
+function me(){AS_MEMBER=true;try{return me0()}finally{AS_MEMBER=false}}
+function me0(){const gi=G,x=D.guilds[gi],l=(ME.links||{})[x.server];
   if(!l)return `<div class="glask"><div class="who">GLASK</div><div><p><em>“Show me your face.”</em> Which character is yours in ${esc(x.guild)}?</p>
     <form onsubmit="event.preventDefault();linkChar(${gi},this)" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><input name="c" placeholder="Your main's name" autocomplete="off" style="background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 10px;min-width:220px"><button class="more" type="submit">Link my character</button></form>
     <p style="color:var(--mute);font-size:13px;margin-top:10px">If your Discord username matches the one on your guild application, you're linked right away. Otherwise an officer approves it, usually within a day. You only ever see your own character here.</p></div></div>`;
