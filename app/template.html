@@ -96,6 +96,8 @@ footer{color:var(--dim);font-size:11.5px;text-align:center;padding:20px}
 @media(max-width:1100px){#menuBtn{display:flex}nav#nav{display:none}.bar{gap:10px;padding:10px 14px}.brand small{display:none}.brand h1{font-size:17px}.pagetitle{display:block}
  .search{order:10;flex-basis:100%;margin-left:0}.search input{width:100%!important}.sugg{left:0;right:0;width:auto}#gsel{margin-left:auto}}
 @media(max-width:600px){main{padding:14px}.brand .logo{width:30px;height:30px}.kpis{grid-template-columns:repeat(2,1fr)}.facts{grid-template-columns:repeat(2,1fr)}table{font-size:12px}td,th{padding:6px 5px}.card{padding:12px}.glask{padding:12px;gap:8px;flex-direction:column}}
+.card>h3.ct{cursor:pointer;user-select:none;justify-content:flex-start}.card>h3.ct>:last-child:not(:only-child),.card>h3.ct>span:last-child{margin-left:auto}.card>h3.ct::before{content:'▾';display:inline-block;width:14px;margin-right:6px;color:var(--dim);transition:transform .15s}
+.card.cz>h3.ct::before{transform:rotate(-90deg)}.card.cz>h3.ct{margin-bottom:0}.card.cz>*:not(h3){display:none!important}
 .bang{display:inline-block;color:#fff;background:var(--ember);border-radius:50%;width:16px;height:16px;line-height:16px;text-align:center;font-size:12px;margin:0 4px 0 2px;cursor:help}
 .aag{margin-top:7px;min-width:90px}.aat{position:relative;height:6px;border-radius:3px;background:linear-gradient(90deg,#c8452c,#d9a441 50%,#6fae7c)}
 .aat i{position:absolute;top:-4px;width:4px;height:14px;margin-left:-2px;background:#f2e8d8;border-radius:2px;box-shadow:0 0 0 1px #000}
@@ -957,6 +959,13 @@ function signupSetter(){const x=g(),s=signupOf(G)||{};if(!isOff(G))return '';
 async function setSignup(f){const r=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({server:g().server,title:f.t.value,url:f.u.value,due:f.d.value})});
   if(!r.ok){let d='';try{d=(await r.json()).detail}catch(e){}alertBox('Not saved: '+(d||r.status));return}const j=await r.json();KV['glask-signup-'+g().server]=j.url?j:null;alertBox('Sign-up link saved');render()}
 
+// every titled card can be collapsed by clicking its title; state remembered per page + card title
+function cardKey(c,h){const where=c.closest('#drawer')?'drawer':c.closest('#pipModal')?'pip':V;
+  return 'glask-cz-'+where+':'+(h.childNodes[0]?.textContent||h.textContent).replace(/[\d,./×]+/g,'').replace(/\s+/g,' ').trim().slice(0,60)}
+function enhanceCards(root=document){root.querySelectorAll('.card').forEach(c=>{if(c.dataset.cz||c.tagName==='DETAILS')return;const h=c.querySelector(':scope>h3');if(!h)return;
+  c.dataset.cz='1';h.classList.add('ct');const k=cardKey(c,h);try{if(localStorage.getItem(k)==='1')c.classList.add('cz')}catch(e){}
+  h.addEventListener('click',e=>{if(e.target.closest('button,a,input,select,label,textarea'))return;c.classList.toggle('cz');try{localStorage.setItem(k,c.classList.contains('cz')?'1':'0')}catch(e){}})})}
+new MutationObserver(()=>{clearTimeout(window._ecT);window._ecT=setTimeout(()=>enhanceCards(),0)}).observe(document.body,{childList:true,subtree:true});
 function render(){renderShell();$('#view').innerHTML={overview,cleanup,roster,perf,ach,launch,recruit,uploads,me}[V]()}
 render();
 </script>
