@@ -115,6 +115,7 @@ def index(request: Request):
     u = user(request)
     if not u:
         return page('<p>The Faceless sees all. Sign in to continue.</p><a class="btn" href="/login">Sign in with Discord</a>'
+                    + '<p style="font-size:13px"><a href="/privacy" style="color:#a8957d">Privacy policy</a> · <a href="/terms" style="color:#a8957d">Terms of use</a></p>'
                     + ('<p><a href="/dev-login" style="color:#a8957d">Dev sign-in</a></p>' if DEV_LOGIN else ''))
     allowed = [g for g in DATA['guilds'] if g['server'] in u['access']]
     if not allowed:
@@ -129,6 +130,83 @@ def index(request: Request):
     html = (TEMPLATE.replace('__DATA__', safe(data)).replace('__MASK__', MASK)
             .replace('__ME__', safe(me)).replace('__STORE__', safe(kv)))
     return HTMLResponse(html, headers={'Cache-Control': 'no-store'})
+
+
+LEGAL_CSS = ("<style>body{margin:0;background:#120d0b;color:#e8dccb;font:16px/1.6 system-ui,sans-serif}"
+             "main{max-width:760px;margin:0 auto;padding:40px 22px 80px}h1{letter-spacing:.08em}h2{margin-top:32px;font-size:19px;color:#f0d9a8}"
+             "a{color:#e0704f}small{color:#a8957d}li{margin:4px 0}</style>")
+UPDATED = 'November 15, 2026'
+
+
+def legal(title, body):
+    return HTMLResponse(f"<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+                        f"<title>{title} · Glask</title>{LEGAL_CSS}</head><body><main><h1>{title}</h1><small>Last updated {UPDATED}</small>{body}"
+                        "<p style='margin-top:40px'><a href='/privacy'>Privacy policy</a> · <a href='/terms'>Terms of use</a> · <a href='/'>Glask</a></p></main></body></html>")
+
+
+@app.get('/privacy', response_class=HTMLResponse)
+def privacy():
+    return legal('Privacy policy', """
+<p>Glask is a guild management tool run by Klucifer, Guild Leader of The Faceless (Mischief), for the officers and recruitment team of
+The Faceless and Faceless Fury, two EverQuest guilds. It is a volunteer, non-commercial project and is not affiliated with Daybreak Games or Discord.</p>
+
+<h2>What Glask gets from Discord when you sign in</h2>
+<ul><li>Your Discord user ID, username or display name, and avatar.</li>
+<li>Your roles in The Faceless and Faceless Fury Discord servers, only so Glask can decide what you're allowed to see. Glask does not see your
+roles in any other server.</li></ul>
+<p>Glask asks Discord only for the <code>identify</code> and <code>guilds.members.read</code> permissions. It does not get your email address, your
+messages, your friends list or your list of servers, and it never posts anything or joins a server as you. Discord's sign-in token is used once at
+sign-in to read the information above and is not stored.</p>
+
+<h2>What Glask keeps about you as a user</h2>
+<ul><li>A sign-in cookie in your browser that holds your Discord ID, name, avatar and access level. It expires after 12 hours or when you sign out.</li>
+<li>A change log: when you sign in, and what you save or change (for example uploads, notes, checklist items and votes), recorded with your Discord name and ID.
+Notes, votes and uploads you make are shown to other officers with your name on them.</li></ul>
+
+<h2>Guild information Glask shows to officers</h2>
+<p>To do its job, Glask displays information about guild members and applicants to signed-in officers and, in part, the recruitment team:</p>
+<ul><li>In-game guild roster details: character names, levels, classes, ranks, last-online dates, zones and guild notes.</li>
+<li>Loot records from the guild loot sheets, and raid performance and attendance parsed from raid logs that officers upload.</li>
+<li>Answers given on the guild application forms, including Discord handles, and launch-planning questionnaire answers.</li>
+<li>Inventory and achievement files that officers or members upload.</li>
+<li>Officer notes, recruitment votes and decisions, and performance improvement plans.</li></ul>
+<p>Access is limited by Discord role: officers see their own guild's information; the recruitment team sees a smaller set and cannot see
+performance improvement plans. People without those roles cannot see anything.</p>
+
+<h2>Where it's stored and who else is involved</h2>
+<ul><li>Glask runs on Railway (railway.com), which hosts the app and its database in the United States.</li>
+<li>Glask reads the guild's Google Sheets (loot, applications, questionnaires) through a read-only Google service account.</li>
+<li>Discord handles sign-in.</li></ul>
+<p>Nothing is sold, shared with advertisers or used to train AI models. There is no advertising or tracking in Glask.</p>
+
+<h2>Keeping and deleting information</h2>
+<p>Information stays in Glask while it's useful to the guild. You can ask Klucifer (in either guild Discord) to see what Glask holds about you, to correct it,
+or to delete it. Removing someone from the guild's Discord roles removes their access at their next sign-in. You can also revoke Glask at any time in
+Discord under User Settings → Authorized Apps.</p>
+
+<h2>Changes</h2>
+<p>If this policy changes, the date at the top changes, and meaningful changes are announced in the guild Discords.</p>""")
+
+
+@app.get('/terms', response_class=HTMLResponse)
+def terms():
+    return legal('Terms of use', """
+<p>These terms cover using Glask, the guild management tool for The Faceless and Faceless Fury. By signing in you agree to them.</p>
+<h2>Who can use it</h2>
+<p>Glask is for officers and recruitment team members of The Faceless and Faceless Fury. Access comes from your Discord roles and ends when those roles do.
+It is currently a pilot, so features and data may change or be reset.</p>
+<h2>Using it responsibly</h2>
+<ul><li>Information in Glask about members and applicants is for running the guild. Don't copy it out to share publicly or with people outside guild leadership.</li>
+<li>Keep notes, votes and plans professional and about in-game conduct and performance.</li>
+<li>Only upload files you have the right to share, such as your own logs or files members have given you for this purpose.</li>
+<li>Don't try to access parts of Glask your role doesn't allow, or interfere with how it runs.</li></ul>
+<h2>No warranty</h2>
+<p>Glask is a free, volunteer-run tool provided as-is. It may have bugs, be unavailable, or show incomplete information, so check anything important
+before acting on it. To the extent the law allows, the people who run Glask aren't liable for losses from using it.</p>
+<h2>Not affiliated</h2>
+<p>EverQuest is a trademark of Daybreak Game Company. Glask is not affiliated with or endorsed by Daybreak Games or Discord.</p>
+<h2>Changes and contact</h2>
+<p>These terms may be updated; the date at the top will change. Questions go to Klucifer in either guild Discord.</p>""")
 
 
 @app.get('/login')

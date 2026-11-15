@@ -177,7 +177,7 @@ function renderShell(){VIEWS=viewsFor(G);if(!VIEWS.some(v=>v[0]===V))V='overview
   $('#meChip').innerHTML=`${ME.avatar?`<img src="${ME.avatar}" alt="">`:''}<span>${esc(ME.name)}<small>${isOff(G)?'Officer':'Recruitment'}</small></span><a href="/logout" title="Sign out">⏻</a>`;
   $('#ptitle').textContent=(VIEWS.find(v=>v[0]===V)||['',''])[1].replace('⇪ ','');
   const ls=(D.loot_status||{})[g().server];
-  $('#foot').innerHTML=`Loot: ${ls&&ls.ok?`from the ${g().server} loot sheet, read ${new Date(ls.at*1000).toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'})}, next read Mon/Tue/Thu/Fri 10 AM Eastern (${fmt(g().stats.loot_nights)} tabs)`:`<span style="color:var(--ember2)">${ls&&ls.msg?esc(ls.msg):'snapshot'}</span>`}${isOff(G)?` · <a href="#" onclick="event.preventDefault();lootRefresh()" style="color:var(--ember2)">Refresh now</a>`:''} · Guild dumps from ${D.generated} and application sheet · inactive = no character online in ${D.inactive_days}+ days`;
+  $('#foot').innerHTML=`Loot: ${ls&&ls.ok?`from the ${g().server} loot sheet, read ${new Date(ls.at*1000).toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'})}, next read Mon/Tue/Thu/Fri 10 AM Eastern (${fmt(g().stats.loot_nights)} tabs)`:`<span style="color:var(--ember2)">${ls&&ls.msg?esc(ls.msg):'snapshot'}</span>`}${isOff(G)?` · <a href="#" onclick="event.preventDefault();lootRefresh()" style="color:var(--ember2)">Refresh now</a>`:''} · Guild dumps from ${D.generated} and application sheet · <a href="/privacy" style="color:inherit">Privacy</a> · <a href="/terms" style="color:inherit">Terms</a> · inactive = no character online in ${D.inactive_days}+ days`;
 }
 
 function glaskSay(){
