@@ -318,7 +318,7 @@ function roster0(){
 
 function apps(){
   const x=g();
-  return `<div class="card"><h3>Recent ${x.server} applications <span class="n">${x.apps.length}</span></h3><div class="hint">Newest first, from the ${x.server} application sheet. "In guild" means that character is in today's guild dump.</div>
+  return `<div class="card"><h3>Recent ${x.server} applications <span class="n">${x.apps.length}</span></h3><div class="hint">Newest first, from the ${x.server} application sheet. "In guild" means that character is in today's guild dump. ${(()=>{const s=(D.app_status||{})[x.server];return s?(s.ok?`<span class="tag ok">read live ${new Date(s.at*1000).toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'})}</span> (Mon/Tue/Thu/Fri 10 AM Eastern, or Refresh now at the bottom of the page)`:`<span class="tag red">${esc(s.msg)}</span>`):'<span class="tag">snapshot from Nov 14</span>'})()}</div>
   <table><tr><th>Date</th><th>Character</th><th>Class</th><th class="num">Lvl</th><th class="num">AA</th><th>Prior</th><th>Status</th></tr>
   ${x.apps.map(a=>`<tr ${a.member?`class="click" onclick="profile('${esc(a.member)}')"`:''}><td>${esc(a.date.split(' ')[0])}</td><td>${esc(a.name)}</td><td>${esc(a.cls)}</td><td class="num">${esc(a.level)}</td><td class="num">${esc(a.aa)}${aaGauge(G,a.cls,a.aa)}</td><td style="max-width:320px;color:var(--mute)">${esc((a.prior||'').slice(0,140))}</td><td>${a.in_guild?'<span class="tag ok">in guild</span>':'<span class="tag">not in guild</span>'}</td></tr>`).join('')}</table></div>`;
 }

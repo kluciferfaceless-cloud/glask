@@ -42,6 +42,70 @@ def fetch_q(sheet, token):
                 header=hdr, rows=data, sheet=sheet['id'], live=True)
 
 
+APPSHEETS = {'Mischief': os.environ.get('MISCHIEF_APP_SHEET', '14tCqL1MuJAm9Q-d_aQ3TSOQn0QSjaNpDvJ12X9X3otY'),   # Faceless Mischief Application
+             'Teek': os.environ.get('TEEK_APP_SHEET', '1yBHGooneh0qRU5Xm8q0ScXlYkQaZkncBjMO9QmTvSgs')}         # Faceless 25th Application
+ASTATUS = {}
+# application form questions -> Glask field, matched by words in the column header (so reordering questions is fine)
+APP_COLS = [('name', r'character name|char.*name|^name'), ('cls', r'class'), ('level', r'level'), ('aa', r'\baa\b|alternate adv'),
+            ('boxes', r'box'), ('discord', r'discord'), ('prior', r'prior|previous|other guild'), ('racing', r'racing'),
+            ('latest_xpac', r'latest expansion|completed on a prior'), ('notes', r'^notes|anything else|comment')]
+
+
+def _pd(s):
+    m = re.match(r'(\d{1,2})/(\d{1,2})/(\d{4})', s or '')
+    return datetime.date(int(m.group(3)), int(m.group(1)), int(m.group(2))) if m else datetime.date(1900, 1, 1)
+
+
+def refresh_apps(data, servers=None, token=None):
+    import csv
+    try:
+        token = token or _token()
+    except Exception:
+        return ASTATUS
+    for server in servers or APPSHEETS:
+        g = next((x for x in data['guilds'] if x['server'] == server), None)
+        sid = APPSHEETS.get(server)
+        if not g or not sid:
+            continue
+        try:
+            r = httpx.get(f'https://www.googleapis.com/drive/v3/files/{sid}/export', params={'mimeType': 'text/csv'},
+                          headers={'Authorization': 'Bearer ' + token}, timeout=60)
+            if r.status_code in (403, 404):
+                raise RuntimeError("not shared with Glask's service account (share it as Viewer)")
+            r.raise_for_status()
+            rows = [x for x in csv.reader(io.StringIO(r.content.decode('utf-8-sig'))) if any(c.strip() for c in x)]
+            hdr = [h.strip().lower() for h in rows[0]]
+            col = {}
+            for key, rx in APP_COLS:
+                i = next((i for i, h in enumerate(hdr) if i and i not in col.values() and re.search(rx, h)), None)
+                if i is not None:
+                    col[key] = i
+            if 'name' not in col:
+                raise RuntimeError("couldn't find the character name column")
+            apps = []
+            for x in rows[1:]:
+                x = x + [''] * (len(hdr) - len(x))
+                if not x[col['name']].strip():
+                    continue
+                a = dict(date=x[0].strip(), **{k: x[i].strip() for k, i in col.items()})
+                apps.append(a)
+            apps.sort(key=lambda a: _pd(a['date']), reverse=True)
+            by = {c['n'].lower(): m for m in g['members'] for c in m['chars']}
+            for a in apps:
+                m = by.get(a['name'].lower())
+                a['in_guild'] = bool(m); a['member'] = m['main'] if m else None
+            with _lock:
+                g['apps'] = apps[:60]
+                for m in g['members']:                       # each member's own latest application
+                    mine = [a for a in apps if a['member'] == m['main']]
+                    if mine:
+                        m['app'] = mine[0]
+            ASTATUS[server] = dict(ok=True, at=time.time(), msg=f'{len(apps)} applications', newest=apps[0]['date'] if apps else None)
+        except Exception as e:
+            ASTATUS[server] = dict(ok=False, at=time.time(), msg=str(e)[:200])
+    return ASTATUS
+
+
 def refresh_q(data, store, servers=None, token=None):
     try:
         token = token or _token()
@@ -200,6 +264,7 @@ def refresh(data, aa, servers=None, store=None):
         except Exception as e:
             STATUS[server] = dict(ok=False, at=time.time(), msg=str(e)[:200])
     refresh_q(data, store, servers, tok)
+    refresh_apps(data, servers, tok)
     return STATUS
 
 

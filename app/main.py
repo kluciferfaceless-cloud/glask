@@ -240,6 +240,7 @@ def index(request: Request):
     kv.update({k: v for k, v in full.items() if k == 'glask-slots-all' or (k.startswith(('glask-logsettings-', 'glask-qcount-')) and can(u, k, False))})
     data = dict(DATA, guilds=guilds)
     data['loot_status'] = {g['server']: live_loot.STATUS.get(g['server']) for g in allowed}
+    data['app_status'] = {g['server']: live_loot.ASTATUS.get(g['server']) for g in allowed if u['access'][g['server']] != 'member'}
     if 'officer' in u['access'].values():
         try:
             data['sa_email'] = json.loads(os.environ.get('GOOGLE_SERVICE_ACCOUNT_JSON') or '{}').get('client_email')
