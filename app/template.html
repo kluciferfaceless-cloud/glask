@@ -142,7 +142,9 @@ const D=JSON.parse(document.getElementById('data').textContent);
 const ME=JSON.parse(document.getElementById('me').textContent);
 const KV=JSON.parse(document.getElementById('kv').textContent);
 // Item slots Glask has learned (inventories + officer tags) fill in items the loot sheet can't place
-function applySlots(){const SL=KV['glask-slots-all']||{};D.guilds.forEach(x=>x.members.forEach(m=>{(m.cur||[]).forEach(i=>{if(!i[4]&&SL[i[1]]&&SL[i[1]]!=='Not gear')i[4]=SL[i[1]];if(SL[i[1]]==='Not gear')i[4]=null});
+function slotMap(){const m={};const add=o=>Object.entries(o||{}).forEach(([k,v])=>m[k.toLowerCase().replace(/`/g,"'").trim()]=v);
+  add(KV['glask-slots-raidloot']);add(KV['glask-slots-all']);return m}   // officer tags + inventories win over raidloot
+function applySlots(){const S0=slotMap(),SL=new Proxy({},{get:(_,k)=>S0[String(k).toLowerCase().replace(/`/g,"'").trim()]});D.guilds.forEach(x=>x.members.forEach(m=>{(m.cur||[]).forEach(i=>{if(!i[4]&&SL[i[1]]&&SL[i[1]]!=='Not gear')i[4]=SL[i[1]];if(SL[i[1]]==='Not gear')i[4]=null});
   (m.cur||[]).filter(i=>i[2]===m.main&&i[4]).forEach(i=>i[4].split('/').forEach(s=>{const l=m.slot_last[s];if(!l||!/^\d{4}-/.test(l[0])||i[0]>l[0])m.slot_last[s]=[i[0],i[1],i[5]]}));
   const mine=(m.cur||[]).filter(i=>i[2]===m.main);m.cur_main=mine.length;m.cur_slots=[...new Set(mine.filter(i=>i[4]).flatMap(i=>i[4].split('/')))].sort()}))}
 async function tagSlot(item,slot){const r=await fetch('/api/slots',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:{[item]:slot||null},manual:true})});
@@ -187,7 +189,7 @@ function renderShell(){VIEWS=viewsFor(G);if(!VIEWS.some(v=>v[0]===V))V='overview
   $('#meChip').innerHTML=`${ME.avatar?`<img src="${ME.avatar}" alt="">`:''}<span>${esc(ME.name)}<small>${isOff(G)?'Officer':'Recruitment'}</small></span><a href="/logout" title="Sign out">⏻</a>`;
   $('#ptitle').textContent=(VIEWS.find(v=>v[0]===V)||['',''])[1].replace('⇪ ','');
   const ls=(D.loot_status||{})[g().server];
-  $('#foot').innerHTML=`Loot: ${ls&&ls.ok?`from the ${g().server} loot sheet, read ${new Date(ls.at*1000).toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'})}, next read Mon/Tue/Thu/Fri 10 AM Eastern (${fmt(g().stats.loot_nights)} tabs)`:`<span style="color:var(--ember2)">${ls&&ls.msg?esc(ls.msg):'snapshot'}</span>`}${isOff(G)?` · <a href="#" onclick="event.preventDefault();lootRefresh()" style="color:var(--ember2)">Refresh now</a>`:''} · Guild dumps from ${D.generated} and application sheet · <a href="/privacy" style="color:inherit">Privacy</a> · <a href="/terms" style="color:inherit">Terms</a> · inactive = no character online in ${D.inactive_days}+ days`;
+  $('#foot').innerHTML=`Loot: ${ls&&ls.ok?`from the ${g().server} loot sheet, read ${new Date(ls.at*1000).toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'})}, next read Mon/Tue/Thu/Fri 10 AM Eastern (${fmt(g().stats.loot_nights)} tabs)`:`<span style="color:var(--ember2)">${ls&&ls.msg?esc(ls.msg):'snapshot'}</span>`}${isOff(G)?` · <a href="#" onclick="event.preventDefault();lootRefresh()" style="color:var(--ember2)">Refresh now</a>`:''} · Item slots: ${fmt(Object.keys(KV['glask-slots-raidloot']||{}).length)} from raidloot.com · Guild dumps from ${D.generated} and application sheet · <a href="/privacy" style="color:inherit">Privacy</a> · <a href="/terms" style="color:inherit">Terms</a> · inactive = no character online in ${D.inactive_days}+ days`;
 }
 
 function glaskSay(){
@@ -289,9 +291,9 @@ function apps(){
 const SLOTS=['Head','Face','Ear','Neck','Shoulders','Arms','Back','Wrist','Range','Hands','Primary','Secondary','Fingers','Chest','Legs','Feet','Waist','Charm','Power Source'];
 const NONRAID=/^(FnF|Alt|Box\/Alt|Decorate|Applicant)$/i;
 // Slots where the main got more items this expansion than the slot can hold (2 ears, 2 rings, 2 wrists; 1 everywhere else).
-// Loot from alt tabs (Mischief's ALT rounds) is never reviewed.
+// Loot from alt tabs (Mischief's ALT rounds) is never reviewed, nor items that fit more than one slot (e.g. Primary/Secondary weapons).
 const SLOT_CAP={Ear:2,Fingers:2,Wrist:2};
-function dupSlots(m){const by={};m.cur.filter(i=>i[2]===m.main&&i[4]&&!i[6]).forEach(i=>i[4].split('/').forEach(s=>(by[s]=by[s]||[]).push(i)));
+function dupSlots(m){const by={};m.cur.filter(i=>i[2]===m.main&&i[4]&&!i[6]&&!i[4].includes('/')).forEach(i=>i[4].split('/').forEach(s=>(by[s]=by[s]||[]).push(i)));
   return Object.fromEntries(Object.entries(by).filter(([s,l])=>l.length>(SLOT_CAP[s]||1)))}
 function dupTip(l){return l.map(i=>`${i[0]}: ${i[1]}${i[3]?' ('+fmt(i[3])+' DKP)':''}`).join('\n')}
 function bang(l){return `<b class="bang" title="${esc(dupTip(l))}">!</b>`}
