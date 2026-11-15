@@ -101,6 +101,8 @@ def can(u, key, write):
         return False
     if kind == 'logsettings':
         return scope == u['id']                       # personal setting
+    if kind == 'trackach':
+        return bool(u['access']) and not write
     if kind == 'slots':
         return bool(u['access']) and not write          # shared item -> slot list; changed through /api/slots
     if kind == 'qcount':
@@ -232,6 +234,7 @@ def index(request: Request):
         else:
             guilds.append(g)
             kv.update({k: v for k, v in full.items() if k.split('-')[2:3] == [s] and can(u, k, write=False)})
+    kv['glask-trackach-all'] = dict(TRACK_DEFAULT, **(full.get('glask-trackach-all') or {}))
     kv.update({k: v for k, v in full.items() if k == 'glask-slots-all' or (k.startswith(('glask-logsettings-', 'glask-qcount-')) and can(u, k, False))})
     data = dict(DATA, guilds=guilds)
     data['loot_status'] = {g['server']: live_loot.STATUS.get(g['server']) for g in allowed}
@@ -564,6 +567,30 @@ async def item_info(request: Request):
         raise HTTPException(401, 'Sign in again')
     names = [str(n)[:120] for n in ((await request.json()).get('names') or [])][:60]
     return {n: dict(slot=itemdb.slot(n), xp=itemdb.xpac(n)) for n in names}
+
+
+TRACK_DEFAULT = {
+    'UF': ['Underfoot Adept', 'Underfoot Veteran', 'Coin of Brell', 'Emblem of Brell'],
+    'TOB': ['Novice The Outer Brood Hunter', 'Adept The Outer Brood Hunter', 'Veteran The Outer Brood Hunter'],
+}
+
+
+@app.post('/api/trackach')
+async def set_tracked(request: Request):
+    """Officers choose which achievements Glask tracks for an expansion (one list per expansion, shared by both guilds)."""
+    u = user(request)
+    if not u or 'officer' not in u['access'].values():
+        raise HTTPException(403, 'Only officers can change tracked achievements')
+    b = await request.json()
+    code = str(b.get('code', ''))[:8]
+    names = [str(n).strip()[:120] for n in (b.get('names') or []) if str(n).strip()][:40]
+    if code not in AA['names']:
+        raise HTTPException(400, 'Unknown expansion')
+    with REC_LOCK:
+        cur = dict(TRACK_DEFAULT, **(store.get('glask-trackach-all') or {}))
+        cur[code] = names
+        store.put('glask-trackach-all', cur, f"{u['name']} ({u['id']})")
+    return cur
 
 
 @app.post('/api/raid-delete')

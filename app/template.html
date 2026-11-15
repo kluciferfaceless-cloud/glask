@@ -418,6 +418,18 @@ function ach(){const x=g();const V2=x.vanq||[];if(!V2.length)return '<div class=
      <table style="margin-bottom:12px"><tr><th>Sub-achievement</th><th>What it takes</th><th class="num">Have</th><th class="num">Need</th><th class="num">Unknown</th></tr>
      ${rows.map(r=>`<tr><td><b>${esc(r.s.name)}</b></td><td style="color:var(--mute)">${esc(r.s.desc)}</td><td class="num">${r.have.length}</td><td class="num">${r.need.length?`<details style="border:0;display:inline-block"><summary style="padding:0;color:var(--ember2)">${r.need.length}</summary><div style="text-align:left;font-size:12px">${r.need.map(z=>esc(z[0].main)).join(', ')}</div></details>`:'0'}</td><td class="num" style="color:var(--dim)">${r.unk.length}</td></tr>`).join('')}</table></details></div>`}).join('')}`}
 
+function trackedList(gi){const c=xpacNow(gi).code;return {code:c,names:((KV['glask-trackach-all']||{})[c])||[]}}
+function trackedAchCard(m,gi){const {code,names}=trackedList(gi);const ax=achOf(m,gi);const xn=xpacNow(gi).xpac||code;
+  const edit=isOff(gi)?`<button class="more" onclick="editTracked(${gi})">Edit list</button>`:'';
+  if(!names.length)return `<div class="card"><h3>Important ${esc(xn)} achievements ${edit}</h3><div class="hint" style="margin:0">Leadership hasn't picked the achievements to track for ${esc(xn)} yet.</div></div>`;
+  const st=a=>ax?(ax.done.includes(a)?'yes':'no'):((m.flags||{})[a]||(m.raid_ach||{})[a]?'seen':null);
+  const n=names.filter(a=>['yes','seen'].includes(st(a))).length;
+  return `<div class="card"><h3>Important ${esc(xn)} achievements <span style="display:flex;gap:8px;align-items:center"><span class="n">${n}/${names.length}</span>${edit}</span></h3>
+   <div class="hint">${ax?`From ${isMem(gi)?'your':esc(m.main)+"'s"} achievement export${ax.uploaded?' (uploaded '+esc(ax.uploaded)+')':''}.`:`Upload ${isMem(gi)?'your':'their'} <code>/outputfile achievement</code> export to check these.`}</div>
+   <table>${names.map(a=>`<tr><td>${esc(a)}</td><td>${achCell(st(a))}</td></tr>`).join('')}</table></div>`}
+async function editTracked(gi){const {code,names}=trackedList(gi);const v=prompt(`Achievements to track for ${xpacNow(gi).xpac||code}, separated by commas (exact names from the achievement window):`,names.join(', '));if(v===null)return;
+  const r=await fetch('/api/trackach',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,names:v.split(',').map(s=>s.trim()).filter(Boolean)})});
+  if(!r.ok){let d='';try{d=(await r.json()).detail}catch(e){}alertBox('Not saved: '+(d||r.status));return}KV['glask-trackach-all']=await r.json();alertBox('Tracked achievements saved');const o=$('#drawer').dataset.main;if($('#drawer').classList.contains('open')&&o)profile(o);else render()}
 function raidAchCard(m,gi){const rr=D.guilds[gi].raid_ref;if(!rr||!rr.length)return '';const got=m.raid_ach||{};
   return `<div class="card"><h3>Raid achievements · Rain of Fear onward</h3><div class="hint">“Conqueror” achievements per expansion, from Klucifer's export as the full list. Seen = Glask has a “Your guildmate … has completed” line for one of ${esc(m.main)}'s characters.</div>
   ${[...rr].reverse().map(([xp,list])=>{const n=list.filter(a=>['yes','seen'].includes(hasAch(m,a,gi))).length;return `<details><summary><b>${esc(xp)}</b><span class="c">${n} / ${list.length} ${achOf(m,gi)?'done':'seen'}</span></summary><div class="inner">${list.map(a=>`${achCell(hasAch(m,a,gi),got[a])} ${esc(a)}`).join('<br>')}</div></details>`}).join('')}</div>`}
@@ -426,7 +438,7 @@ function perfCard0(m,gi){
   const x=D.guilds[gi]; const names=new Set(m.chars.map(c=>c.n));
   const rows=[];allRaids(gi).forEach(r=>r.players.forEach(p=>{if(names.has(p.name)||(p.rl&&p.main===m.main))rows.push([r,p])}));
   const pip=pipOf(gi,m.main)||{};
-  return `<div class="card"><h3>Performance vs class</h3>${rows.length?`<table><tr><th>Raid</th><th>Char</th><th class="num">vs class</th><th class="num">Rank</th><th class="num">${'Value'}</th><th>Flags</th></tr>${rows.map(([r,p])=>`<tr><td>${esc(r.date)} ${esc(r.id)}</td><td>${esc(p.name)}</td><td class="num">${p.pct}%</td><td class="num">#${p.rank}/${p.of}</td><td class="num">${kfmt(p.val)} ${p.metric==='hps'?'HPS':'SDPS'}</td><td>${perfFlags(p)}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Not in any loaded raid log.</div>'}</div>
+  return `<div class="card"><h3>Performance vs class</h3>${rows.length?`<table><tr><th>Raid</th><th>Char</th><th class="num">vs class</th><th class="num">Rank</th><th class="num">${'Value'}</th><th>Flags</th></tr>${rows.map(([r,p])=>`<tr><td>${esc(r.date)}</td><td>${esc(p.name)}</td><td class="num">${p.pct}%</td><td class="num">#${p.rank}/${p.of}</td><td class="num">${kfmt(p.val)} ${p.metric==='hps'?'HPS':'SDPS'}</td><td>${perfFlags(p)}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Not in any loaded raid log.</div>'}</div>
   <div class="card"><h3>Performance Improvement Plan ${pip.status&&pip.status!=='Closed'?'<span class="tag red">'+esc(pip.status)+'</span>':''}</h3>
    <form onsubmit="event.preventDefault();savePip(${gi},'${esc(m.main)}',this)" class="app"><dl>
    <dt>Status</dt><dd><select name="status">${['None','Open','Improving','Closed'].map(s=>`<option ${pip.status===s?'selected':''}>${s}</option>`).join('')}</select></dd>
@@ -446,7 +458,7 @@ function lsSet(k,v){if(k==='glask-logsettings')k+='-'+ME.id;kvSet(k,v)}
 function achOf(m,gi=G){return m.achx||lsGet('glask-ach-'+D.guilds[gi].server+'-'+m.main)}
 function parseAchExport(text,wanted){const W=new Set(wanted),done=[],tiers=[];
   for(const raw of text.split(/\r?\n/)){if(!/^[CI]\t/.test(raw)||/^[CI]\t\t/.test(raw))continue;const ok=raw[0]==='C',name=raw.slice(2);
-    const mm=name.match(/^([\d,]+) Alternate Advancement Points$/);if(mm)tiers.push([+mm[1].replace(/,/g,''),ok]);if(ok&&W.has(name))done.push(name)}
+    const mm=name.match(/^([\d,]+) Alternate Advancement Points$/);if(mm)tiers.push([+mm[1].replace(/,/g,''),ok]);if(ok)done.push(name)}
   if(!tiers.length&&!done.length)return null;const got=tiers.filter(t=>t[1]).map(t=>t[0]),nxt=tiers.filter(t=>!t[1]).map(t=>t[0]);
   return {aa_floor:got.length?Math.max(...got):0,aa_next:nxt.length?Math.min(...nxt):null,done,source:'export',uploaded:new Date().toISOString().slice(0,10)}}
 function aaText(a){if(!a)return '—';return a.aa_next?`${fmt(a.aa_floor)}–${fmt(a.aa_next-1)}`:`${fmt(a.aa_floor)}+`}
@@ -671,7 +683,7 @@ function profile(name){$('#drawer').dataset.main=name;
   <div class="db"><div class="card"><h3>Characters</h3><div class="hint"><b>Class now</b> is the persona in the latest guild dump. <b>Base</b> is the character's real class. <b>Personas seen</b> = every class Glask has seen in dumps or raid logs. <b>Raid class</b> overrides what's used for raid comparisons; leave it on auto unless it's wrong.</div><table><tr><th>Name</th><th>Class now</th><th>Base</th><th>Personas seen</th><th>Raid class</th><th class="num">Lvl</th><th>Last on</th><th>Note</th></tr>
   ${m.chars.map(c=>`<tr><td>${esc(c.n)}${c.a?'':' <span class="tag">main</span>'}</td><td>${esc(c.c)}</td><td><select onchange="setBase(${gi},'${esc(c.n)}',this.value);profile('${esc(m.main)}')" style="background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:3px"><option value="">—</option>${ALLCLASSES.map(k=>`<option ${baseOf(c,gi)===k?'selected':''}>${k}</option>`).join('')}</select></td><td>${(c.h||[]).length>1||baseOf(c,gi)&&baseOf(c,gi)!==c.c?(c.h||[c.c]).filter(k=>k!==baseOf(c,gi)).map(k=>`<span class="tag warn">${esc(k)}</span>`).join(''):'<span style="color:var(--dim)">—</span>'}</td><td><select onchange="setClass(${gi},'${esc(c.n)}',this.value);profile('${esc(m.main)}')" style="background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:3px"><option value="">auto</option>${ALLCLASSES.map(k=>`<option ${clsOverrides(gi)[c.n.toLowerCase()]===k?'selected':''}>${k}</option>`).join('')}</select></td><td class="num">${c.l}</td><td>${esc(c.s)}</td><td style="color:var(--mute);max-width:180px;font-size:12px">${esc(c.note)}</td></tr>`).join('')}</table></div>
   ${appHtml}
-  ${attCard(m,gi)}${flagCard(m,gi)}${vqCard(m,gi)}${perfCard(m,gi)}${gearCard(m,gi)}</div>`;
+  ${trackedAchCard(m,gi)}${flagCard(m,gi)}${vqCard(m,gi)}${perfCard(m,gi)}${gearCard(m,gi)}</div>`;
   $('#drawer').classList.add('open');$('#shade').classList.add('open');$('#drawer').scrollTop=0;
 }
 function closeP(){$('#drawer').classList.remove('open');$('#shade').classList.remove('open')}
@@ -835,7 +847,7 @@ function me(){const gi=G,x=D.guilds[gi],l=(ME.links||{})[x.server];
     <p style="color:var(--mute);font-size:13px;margin-top:10px">If your Discord username matches the one on your guild application, you're linked right away. Otherwise an officer approves it, usually within a day. You only ever see your own character here.</p></div></div>`;
   if(l.status!=='approved')return `<div class="glask"><div class="who">GLASK</div><div><p>Your link to <b>${esc(l.main)}</b> is waiting for an officer to approve it. Check back soon.</p><p style="color:var(--mute);font-size:13px">Wrong character? <a href="#" onclick="event.preventDefault();ME.links['${esc(x.server)}']=null;render()" style="color:var(--ember2)">Request a different one</a>.</p></div></div>`;
   const m=myMain(gi);if(!m)return `<div class="glask"><div class="who">GLASK</div><div><p><b>${esc(l.main)}</b> isn't in the latest ${esc(x.server)} guild roster. If you've changed mains, ask an officer to update your link.</p></div></div>`;
-  return charHeader(m,gi)+signupCard(m,gi)+gearCard(m,gi)+perfSummary(m,gi)+perfCard(m,gi)+attCard(m,gi)+vqCard(m,gi)+flagCard(m,gi)+raidAchCard(m,gi)+memberUploadCard(gi)}
+  return charHeader(m,gi)+signupCard(m,gi)+gearCard(m,gi)+perfSummary(m,gi)+perfCard(m,gi)+trackedAchCard(m,gi)+vqCard(m,gi)+flagCard(m,gi)+memberUploadCard(gi)}
 // ---- officers: approve character links; set the launch sign-up ----
 function linksCard(){const x=g(),L=KV['glask-links-'+x.server]||{};const all=Object.entries(L);const pend=all.filter(([,v])=>v.status!=='approved');
   if(!all.length)return '';const when=t=>new Date(t*1000).toLocaleDateString([], {month:'short',day:'numeric'});
