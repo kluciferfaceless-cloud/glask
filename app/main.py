@@ -26,9 +26,11 @@ def ids(name):
 # Each Glask guild (by server name in the data) maps to one Discord server and its roles.
 GUILDS = {
     'Mischief': dict(discord=os.environ.get('MISCHIEF_DISCORD_ID', ''),
-                     officer=ids('MISCHIEF_OFFICER_ROLES'), recruit=ids('MISCHIEF_RECRUIT_ROLES')),
+                     officer=ids('MISCHIEF_OFFICER_ROLES'), recruit=ids('MISCHIEF_RECRUIT_ROLES'),
+                     leader=ids('MISCHIEF_LEADER_ROLES') or {'1085933966843973643'}),        # Leadership
     'Teek': dict(discord=os.environ.get('TEEK_DISCORD_ID', ''),
-                 officer=ids('TEEK_OFFICER_ROLES'), recruit=ids('TEEK_RECRUIT_ROLES')),
+                 officer=ids('TEEK_OFFICER_ROLES'), recruit=ids('TEEK_RECRUIT_ROLES'),
+                 leader=ids('TEEK_LEADER_ROLES') or {'1114320364470812683'}),               # Leadership
 }
 ADMINS = ids('ADMIN_DISCORD_USER_IDS')   # always officer on every guild (e.g. Klucifer)
 
@@ -125,7 +127,9 @@ def index(request: Request):
     data['loot_status'] = {g['server']: live_loot.STATUS.get(g['server']) for g in allowed}
     data['aa'] = dict(buffer=AA['buffer'], **{g['server']: current_xpac(g['server']) for g in allowed})
     kv = {k: v for k, v in store.all().items() if can(u, k, write=False)}
-    me = dict(id=u['id'], name=u['name'], avatar=u.get('avatar'), access=u['access'])
+    for k in [k for k in kv if k.startswith('glask-uploads-')]:
+        kv[k] = uploads_for(u, k.split('-', 2)[2], kv[k])
+    me = dict(id=u['id'], name=u['name'], avatar=u.get('avatar'), access=u['access'], lead=u.get('lead', []))
     safe = lambda o: json.dumps(o).replace('</', '<\\/')
     html = (TEMPLATE.replace('__DATA__', safe(data)).replace('__MASK__', MASK)
             .replace('__ME__', safe(me)).replace('__STORE__', safe(kv)))
@@ -232,10 +236,10 @@ async def callback(request: Request, code: str = '', state: str = ''):
             return page('<p>Discord sign-in failed. Try again.</p><a class="btn" href="/login">Sign in with Discord</a>')
         h = {'Authorization': 'Bearer ' + tok.json()['access_token']}
         me = (await c.get(DISCORD_API + '/users/@me', headers=h)).json()
-        access = {}
+        access = {}; lead = []
         for server, cfg in GUILDS.items():
             if me['id'] in ADMINS:
-                access[server] = 'officer'
+                access[server] = 'officer'; lead.append(server)
                 continue
             if not cfg['discord']:
                 continue
@@ -243,14 +247,16 @@ async def callback(request: Request, code: str = '', state: str = ''):
             if r.status_code != 200:
                 continue                                   # not in that Discord server
             roles = set(r.json().get('roles', []))
-            if roles & cfg['officer']:
+            if roles & cfg['leader']:
+                lead.append(server)
+            if roles & (cfg['officer'] | cfg['leader']):
                 access[server] = 'officer'
             elif roles & cfg['recruit']:
                 access[server] = 'recruit'
     name = me.get('global_name') or me.get('username')
     av = f"https://cdn.discordapp.com/avatars/{me['id']}/{me['avatar']}.png?size=64" if me.get('avatar') else None
     # Roles are re-checked at each sign-in; sessions last 12 hours so role changes take effect the same day.
-    request.session['user'] = dict(id=me['id'], name=name, avatar=av, access=access, exp=time.time() + 12 * 3600)
+    request.session['user'] = dict(id=me['id'], name=name, avatar=av, access=access, lead=lead, exp=time.time() + 12 * 3600)
     store.audit(f"{name} ({me['id']})", 'sign-in', '', json.dumps(access))
     return RedirectResponse('/')
 
@@ -259,8 +265,9 @@ async def callback(request: Request, code: str = '', state: str = ''):
 def dev_login(request: Request, level: str = 'officer'):
     if not DEV_LOGIN:
         raise HTTPException(404)
-    request.session['user'] = dict(id='dev', name='Dev ' + level, avatar=None, exp=time.time() + 3600,
-                                   access={'Mischief': level, 'Teek': level})
+    request.session['user'] = dict(id='dev-' + level, name='Dev ' + level, avatar=None, exp=time.time() + 3600,
+                                   access={'Mischief': 'officer' if level == 'leader' else level, 'Teek': 'officer' if level == 'leader' else level},
+                                   lead=['Mischief', 'Teek'] if level == 'leader' else [])
     return RedirectResponse('/')
 
 
@@ -285,6 +292,12 @@ async def put_kv(request: Request):
     return {'ok': True}
 
 
+def uploads_for(u, server, lst):
+    if server in u.get('lead', []):
+        return lst
+    return [x for x in lst if x.get('uid') == u['id'] or (not x.get('uid') and x.get('by') == u['name'])]
+
+
 @app.post('/api/upload-log')
 async def upload_log(request: Request):
     u = user(request)
@@ -296,11 +309,11 @@ async def upload_log(request: Request):
         raise HTTPException(403, "You don't have access to that guild")
     key = 'glask-uploads-' + server
     lst = store.get(key) or []
-    lst.insert(0, dict(at=time.time(), by=u['name'], file=str(b.get('file', ''))[:200],
+    lst.insert(0, dict(at=time.time(), by=u['name'], uid=u['id'], file=str(b.get('file', ''))[:200],
                        kind=str(b.get('kind', ''))[:40], msg=str(b.get('msg', ''))[:300]))
     lst = lst[:200]
     store.put(key, lst, f"{u['name']} ({u['id']})")
-    return {'server': server, 'list': lst}
+    return {'server': server, 'list': uploads_for(u, server, lst)}
 
 
 REC_LOCK = threading.Lock()
@@ -401,7 +414,7 @@ def loot_refresh(request: Request):
 @app.get('/api/audit')
 def audit(request: Request):
     u = user(request)
-    if not u or 'officer' not in u['access'].values():
+    if not u or not u.get('lead'):
         raise HTTPException(403)
     return JSONResponse(store.recent_audit())
 
