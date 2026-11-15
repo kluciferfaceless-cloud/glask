@@ -409,7 +409,10 @@ function aaText(a){if(!a)return '—';return a.aa_next?`${fmt(a.aa_floor)}–${f
 function uploadAch(ev,gi,main){const f=ev.target.files[0];if(!f)return;f.text().then(t=>{const a=parseAchExport(t,D.guilds[gi]._wanted);if(!a){alertBox("That file doesn't look like an /outputfile achievement export.");return}
   lsSet('glask-ach-'+D.guilds[gi].server+'-'+main,a);alertBox('Achievements loaded for '+main+' · AA '+aaText(a));profile(main)})}
 function hasAch(m,a,gi=G){const x=achOf(m,gi);if(x)return x.done.includes(a)?'yes':'no';return (m.flags&&m.flags[a])||(m.raid_ach&&m.raid_ach[a])?'seen':null}
-function attendance(gi=G){const base=D.guilds[gi].attendance||{},extra=lsGet('glask-att-'+D.guilds[gi].server)||{};const out={...base};
+function attendance(gi=G){const x0=D.guilds[gi],hid=hiddenRaids(gi);const base={...(x0.attendance||{})};
+  (x0.raids||[]).filter(r=>hid.has(r.id+'|'+r.date)).forEach(r=>{const rest=(x0.raids||[]).filter(q=>q.date===r.date&&!hid.has(q.id+'|'+q.date));
+    if(rest.length)base[r.date]=[...new Set(rest.flatMap(q=>q.players.map(p=>p.main)))];else delete base[r.date]});
+  const extra=lsGet('glask-att-'+D.guilds[gi].server)||{};const out={...base};
   for(const[d,l]of Object.entries(extra))out[d]=[...new Set([...(out[d]||[]),...l])];return out}
 function attendedSince(main,start,gi=G){return Object.entries(attendance(gi)).filter(([d,l])=>(!start||d>=start)&&l.includes(main)).map(([d])=>d).sort()}
 // ---- client-side raid log parser (port of Glask's server parser) ----
@@ -466,7 +469,8 @@ function rankRaid(r,gi){const ps=r.players.map(p=>{const q={...p};const auto=p.p
     const n=base.length,med=n?(n%2?base[(n-1)/2]:(base[n/2-1]+base[n/2])/2):0;const ord=[...g].sort((a,b)=>b.val-a.val);
     g.forEach(p=>{p.median=med;p.pct=med?Math.round(100*p.val/med):null;p.rank=ord.indexOf(p)+1;p.of=g.length})}
   return {...r,players:ps}}
-function allRaids(gi=G){const x=D.guilds[gi];return [...(x.raids||[]),...(lsGet('glask-raids-'+x.server)||[])].map(r=>rankRaid(r,gi)).sort((a,b)=>b.date.localeCompare(a.date))}
+function hiddenRaids(gi){return new Set(KV['glask-hidden-'+D.guilds[gi].server]||[])}
+function allRaids(gi=G){const x=D.guilds[gi],hid=hiddenRaids(gi);return [...(x.raids||[]).filter(r=>!hid.has(r.id+'|'+r.date)),...(lsGet('glask-raids-'+x.server)||[])].map(r=>rankRaid(r,gi)).sort((a,b)=>b.date.localeCompare(a.date))}
 
 function baseOf(c,gi=G){const o=lsGet('glask-base-'+D.guilds[gi].server)||{};return o[(c.n||'').toLowerCase()]||c.base||''}
 function setBase(gi,char,cls){const o=lsGet('glask-base-'+D.guilds[gi].server)||{};if(cls)o[char.toLowerCase()]=cls;else delete o[char.toLowerCase()];lsSet('glask-base-'+D.guilds[gi].server,o);alertBox(cls?`${char}: base class ${cls}.`:`${char}: base class cleared.`)}
@@ -515,7 +519,15 @@ function uploads(){return `<div class="glask"><div class="who">GLASK</div><div><
   ${upLog.length?`<div class="card"><h3>Just now <span class="n">${upLog.length}</span></h3><table><tr><th>File</th><th>Detected as</th><th>Status</th><th>Result</th></tr>${upLog.map(u=>`<tr><td>${esc(u.f)}</td><td>${esc(u.kind)}</td><td>${stTag(u.st)}</td><td style="color:${u.ok?'var(--text)':'var(--ember2)'}">${esc(u.msg)}</td></tr>`).join('')}</table></div>`:''}
   ${(()=>{const h=D.guilds.flatMap(x=>(KV['glask-uploads-'+x.server]||[])).sort((a,b)=>b.at-a.at).slice(0,40);
    const lead=D.guilds.some(x=>(ME.lead||[]).includes(x.server));
-   return `<div class="card"><h3>${lead?'Saved to Glask':'Your uploads'} <span class="n">${h.length}</span></h3><div class="hint">${lead?'Everything uploaded by any officer, newest first. Only Leadership sees who uploaded what.':'Files you have uploaded, newest first. What you upload is shared with all officers; the list of who uploaded what is visible to Leadership only.'}</div>${h.length?`<table><tr><th>When</th><th>Who</th><th>File</th><th>Detected as</th><th>Result</th></tr>${h.map(u=>`<tr><td style="white-space:nowrap">${new Date(u.at*1000).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</td><td>${esc(u.by)}</td><td>${esc(u.file)}</td><td>${esc(u.kind)}</td><td>${esc(u.msg)}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nothing uploaded yet.</div>'}</div>`})()}`}
+   return raidLogsCard()+`<div class="card"><h3>${lead?'Saved to Glask':'Your uploads'} <span class="n">${h.length}</span></h3><div class="hint">${lead?'Everything uploaded by any officer, newest first. Only Leadership sees who uploaded what.':'Files you have uploaded, newest first. What you upload is shared with all officers; the list of who uploaded what is visible to Leadership only.'}</div>${h.length?`<table><tr><th>When</th><th>Who</th><th>File</th><th>Detected as</th><th>Result</th></tr>${h.map(u=>`<tr><td style="white-space:nowrap">${new Date(u.at*1000).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</td><td>${esc(u.by)}</td><td>${esc(u.file)}</td><td>${esc(u.kind)}</td><td>${esc(u.msg)}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nothing uploaded yet.</div>'}</div>`})()}`}
+function raidLogsCard(){const lead=(ME.lead||[]).includes(D.guilds[G].server);const x=D.guilds[G];
+  const up=new Set((KV['glask-raids-'+x.server]||[]).map(r=>r.id+'|'+r.date));const rs=allRaids(G);
+  return `<div class="card"><h3>${esc(x.server)} raid logs <span class="n">${rs.length}</span></h3><div class="hint">Every raid log Glask is using for ${esc(x.server)} performance and attendance.${lead?' Deleting one removes its performance numbers and the attendance it added.':' Leadership can delete a log that was uploaded by mistake.'}</div>
+   ${rs.length?`<table><tr><th>Date</th><th>Raid</th><th class="num">Players</th><th class="num">Length</th><th>Source</th>${lead?'<th></th>':''}</tr>${rs.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(r.id)}</td><td class="num">${r.players.length}</td><td class="num">${Math.round((r.seconds||0)/60)} min</td><td>${up.has(r.id+'|'+r.date)?'uploaded':'starting data'}</td>${lead?`<td><button class="more" onclick="delRaid(${G},'${esc(r.id).replace(/'/g,"\\'")}','${esc(r.date)}')">Delete</button></td>`:''}</tr>`).join('')}</table>`:'<div class="hint" style="margin:0">No raid logs yet.</div>'}</div>`}
+async function delRaid(gi,id,date){if(!confirm(`Delete the raid log "${id}" from ${date}? Its performance numbers and the attendance it added will be removed for everyone.`))return;
+  const x=D.guilds[gi];const r=await fetch('/api/raid-delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({server:x.server,id,date})});
+  if(!r.ok){let d='';try{d=(await r.json()).detail}catch(e){}alertBox('Not deleted: '+(d||r.status));return}
+  const j=await r.json();KV['glask-raids-'+x.server]=j.raids;KV['glask-att-'+x.server]=j.att;KV['glask-hidden-'+x.server]=j.hidden;alertBox(`Deleted ${id} (${date}).`);render()}
 function stTag(s){return s==='saving'?'<span class="tag">Saving…</span>':s==='saved'?'<span class="tag ok">✓ Saved</span>':s==='failed'?'<span class="tag red">Not saved</span>':'<span class="tag warn">Skipped</span>'}
 async function handleFiles(files){let nOk=0,nBad=0;for(const f of files){let kind='unknown',msg='',ok=false;SAVES=[];const ent={f:f.name,kind:'Reading…',msg:'',ok:true,st:'saving'};upLog.unshift(ent);render();try{
    if(/-Inventory\.txt$/i.test(f.name)){kind='Inventory';const ch=f.name.split('_')[0];const t=await f.text();const inv=parseInv(t);const gi=guildFor(f.name,'');const m=memberForChar(gi,ch);

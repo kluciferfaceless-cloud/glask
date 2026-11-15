@@ -298,6 +298,34 @@ def uploads_for(u, server, lst):
     return [x for x in lst if x.get('uid') == u['id'] or (not x.get('uid') and x.get('by') == u['name'])]
 
 
+@app.post('/api/raid-delete')
+async def raid_delete(request: Request):
+    """Leadership only: remove a raid log (and the attendance it added) so a bad upload stops affecting the data."""
+    u = user(request)
+    b = await request.json()
+    server, rid, date = b.get('server', ''), b.get('id', ''), b.get('date', '')
+    if not u or server not in u.get('lead', []):
+        raise HTTPException(403, 'Only Leadership can delete raid logs')
+    who = f"{u['name']} ({u['id']})"
+    with REC_LOCK:
+        rk, ak, hk = 'glask-raids-' + server, 'glask-att-' + server, 'glask-hidden-' + server
+        raids = store.get(rk) or []
+        keep = [r for r in raids if not (r.get('id') == rid and r.get('date') == date)]
+        hidden = store.get(hk) or []
+        if len(keep) != len(raids):
+            att = {}
+            for r in keep:   # attendance from uploads is rebuilt from the raid logs that remain
+                att[r['date']] = sorted({p['main'] for p in r['players'] if p.get('main')} | set(att.get(r['date'], [])))
+            store.put(rk, keep, who)
+            store.put(ak, att, who)
+        else:
+            if f'{rid}|{date}' not in hidden:   # a raid that came with Glask's starting data: hide it
+                hidden.append(f'{rid}|{date}')
+                store.put(hk, hidden, who)
+        store.audit(who, 'delete raid', rk, f'{rid} {date}')
+    return {'raids': store.get(rk) or [], 'att': store.get(ak) or {}, 'hidden': store.get(hk) or []}
+
+
 @app.post('/api/upload-log')
 async def upload_log(request: Request):
     u = user(request)
