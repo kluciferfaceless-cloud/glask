@@ -141,10 +141,19 @@ footer{color:var(--dim);font-size:11.5px;text-align:center;padding:20px}
 const D=JSON.parse(document.getElementById('data').textContent);
 const ME=JSON.parse(document.getElementById('me').textContent);
 const KV=JSON.parse(document.getElementById('kv').textContent);
+// Item slots Glask has learned (inventories + officer tags) fill in items the loot sheet can't place
+function applySlots(){const SL=KV['glask-slots-all']||{};D.guilds.forEach(x=>x.members.forEach(m=>{(m.cur||[]).forEach(i=>{if(!i[4]&&SL[i[1]]&&SL[i[1]]!=='Not gear')i[4]=SL[i[1]];if(SL[i[1]]==='Not gear')i[4]=null});
+  (m.cur||[]).filter(i=>i[2]===m.main&&i[4]).forEach(i=>i[4].split('/').forEach(s=>{const l=m.slot_last[s];if(!l||!/^\d{4}-/.test(l[0])||i[0]>l[0])m.slot_last[s]=[i[0],i[1],i[5]]}));
+  const mine=(m.cur||[]).filter(i=>i[2]===m.main);m.cur_main=mine.length;m.cur_slots=[...new Set(mine.filter(i=>i[4]).flatMap(i=>i[4].split('/')))].sort()}))}
+async function tagSlot(item,slot){const r=await fetch('/api/slots',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:{[item]:slot||null},manual:true})});
+  if(!r.ok){alertBox('Not saved ('+r.status+')');return}KV['glask-slots-all']=await r.json();applySlots();alertBox(slot?`${item} → ${slot}`:`Cleared ${item}`);render();const o=$('#drawer').dataset.main;if($('#drawer').classList.contains('open')&&o)profile(o)}
+function learnSlots(inv){const items={};inv.filter(w=>w.slot!=='Ammo'&&w.item&&w.item!=='Empty').forEach(w=>items[w.item]=w.slot);
+  fetch('/api/slots',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items})}).then(r=>r.ok?r.json():null).then(j=>{if(j){KV['glask-slots-all']=j;applySlots()}})}
 // Gear: keep only loot from the expansion that's current on Daybreak's calendar right now
 D.guilds.forEach(x=>{const cal=(D.aa||{})[x.server];if(!cal||!cal.code)return;x.stats.xpac=cal.xpac;
   x.members.forEach(m=>{m.cur=(m.cur||[]).filter(i=>i[5]===cal.code);const mine=m.cur.filter(i=>i[2]===m.main);m.cur_main=mine.length;
     m.cur_slots=[...new Set(mine.filter(i=>i[4]).flatMap(i=>i[4].split('/')))].sort()})});
+applySlots();
 function otherServer(gi){return D.guilds[gi].server==='Mischief'?'Teek':'Mischief'}
 function lootRefresh(){alertBox('Reading the loot sheets…');fetch('/api/loot-refresh',{method:'POST'}).then(r=>r.ok?r.json():Promise.reject(r.status)).then(s=>{const bad=Object.entries(s).filter(([k,v])=>!v.ok);if(bad.length)alertBox('Loot refresh failed: '+bad.map(([k,v])=>k+': '+v.msg).join(' · '));else{alertBox('Loot refreshed. Reloading…');setTimeout(()=>location.reload(),800)}}).catch(e=>alertBox('Loot refresh failed ('+e+')'))}
 function gIdx(s){const i=D.guilds.findIndex(x=>x.server===s);return i<0?G:i}
@@ -318,10 +327,10 @@ function gearCard(m,gi){
    ${Object.keys(dup).length?`<div class="card" style="border-color:#5a2a20;background:#1d1210;margin:0 0 12px"><b class="bang">!</b> <b>Review:</b> more ${esc(xpacNow(gi).xpac||'')} items than the slot holds.${Object.entries(dup).map(([s,l])=>`<div style="margin-top:6px"><b>${s}</b> ×${l.length}: ${l.map(i=>`${esc(i[1])} <span style="color:var(--dim)">${esc(i[0])}${i[3]?' · '+fmt(i[3])+' DKP':''}</span>`).join('; ')}</div>`).join('')}</div>`:''}
    <div class="hint">“Last upgrade” is the newest item for that slot awarded to <b>${esc(m.main)}</b> in the loot sheet. <span class="tag ok">${esc(xpacNow(gi).code||'')}</span> = this expansion, <span class="tag red">older</span> = not upgraded yet. Empty aug slots are listed as-is; some may be ornament or type-restricted slots, which Glask will confirm from Lucy before calling anything missing.</div>
    <table><tr><th>Slot</th><th>${inv?'Wearing':''}</th><th>Last upgrade (loot sheet)</th><th class="num">${inv?'Empty augs':''}</th></tr>${slotRows}</table></div>
-   <div class="card"><h3>${esc(xp)} loot, all characters <span class="n">${cur.length}</span></h3>${cur.length?`<table><tr><th>Date</th><th>Item</th><th>On</th><th>Slot</th>${gi===0?'<th class="num">DKP</th>':''}</tr>${cur.map(i=>`<tr><td>${esc(i[0])}</td><td>${esc(i[1])}</td><td>${esc(i[2])}</td><td>${i[4]?esc(i[4]):'<span style="color:var(--dim)">?</span>'}</td>${gi===0?`<td class="num">${i[3]??''}</td>`:''}</tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nothing awarded this expansion yet.</div>'}</div>`;
+   <div class="card"><h3>${esc(xp)} loot, all characters <span class="n">${cur.length}</span></h3>${cur.length?`<table><tr><th>Date</th><th>Item</th><th>On</th><th>Slot</th>${gi===0?'<th class="num">DKP</th>':''}</tr>${cur.map(i=>`<tr><td>${esc(i[0])}</td><td>${esc(i[1])}</td><td>${esc(i[2])}</td><td>${isOff(gi)?`<select onchange="tagSlot(this.dataset.item,this.value)" data-item="${esc(i[1])}" style="background:var(--panel2);border:1px solid ${i[4]?'var(--line)':'#5a4520'};color:var(--text);border-radius:6px;padding:2px 4px"><option value="">${i[4]?'—':'slot ?'}</option>${[...SLOTS,'Not gear'].map(s=>`<option ${i[4]===s?'selected':''}>${s}</option>`).join('')}</select>`:i[4]?esc(i[4]):'<span style="color:var(--dim)">?</span>'}</td>${gi===0?`<td class="num">${i[3]??''}</td>`:''}</tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nothing awarded this expansion yet.</div>'}</div>`;
 }
 function uploadInv(ev,gi,main){const f=ev.target.files[0];if(!f)return;f.text().then(t=>{const inv=parseInv(t);if(!inv.length){alertBox('That file doesn\'t look like an /outputfile inventory.');return}
-  const m=D.guilds[gi].members.find(x=>x.main===main);m.inv=inv;kvSet(invKey(gi,m),inv);profile(main)})}
+  const m=D.guilds[gi].members.find(x=>x.main===main);m.inv=inv;kvSet(invKey(gi,m),inv);learnSlots(inv);profile(main)})}
 function alertBox(msg){const d=document.createElement('div');d.textContent=msg;d.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#3a1d17;border:1px solid var(--ember);padding:10px 16px;border-radius:8px;z-index:20';document.body.appendChild(d);setTimeout(()=>d.remove(),3500)}
 
 
@@ -541,7 +550,7 @@ async function delRaid(gi,id,date){if(!confirm(`Delete the raid log "${id}" from
 function stTag(s){return s==='saving'?'<span class="tag">Saving…</span>':s==='saved'?'<span class="tag ok">✓ Saved</span>':s==='failed'?'<span class="tag red">Not saved</span>':'<span class="tag warn">Skipped</span>'}
 async function handleFiles(files){let nOk=0,nBad=0;for(const f of files){let kind='unknown',msg='',ok=false;SAVES=[];const ent={f:f.name,kind:'Reading…',msg:'',ok:true,st:'saving'};upLog.unshift(ent);render();try{
    if(/-Inventory\.txt$/i.test(f.name)){kind='Inventory';const ch=f.name.split('_')[0];const t=await f.text();const inv=parseInv(t);const gi=guildFor(f.name,'');const m=memberForChar(gi,ch);
-     if(!inv.length)msg="Couldn't read any worn slots.";else if(!m)msg=`${ch} isn't on the ${D.guilds[gi].server} roster.`;else{m.inv=inv;lsSet(invKey(gi,m),inv);ok=true;msg=`${ch} → ${m.main} (${D.guilds[gi].server}): ${inv.length} slots`}}
+     if(!inv.length)msg="Couldn't read any worn slots.";else if(!m)msg=`${ch} isn't on the ${D.guilds[gi].server} roster.`;else{m.inv=inv;lsSet(invKey(gi,m),inv);learnSlots(inv);ok=true;msg=`${ch} → ${m.main} (${D.guilds[gi].server}): ${inv.length} slots`}}
    else if(/-Achievements\.txt$/i.test(f.name)){kind='Achievements';const ch=f.name.split('_')[0];const t=await f.text();const gi=guildFor(f.name,'');const m=memberForChar(gi,ch);const a=parseAchExport(t,D.guilds[gi]._wanted);
      if(!a)msg="Didn't look like an achievement export.";else if(!m)msg=`${ch} isn't on the ${D.guilds[gi].server} roster.`;else{lsSet('glask-ach-'+D.guilds[gi].server+'-'+m.main,a);ok=true;msg=`${ch} → ${m.main}: AA ${aaText(a)}, ${a.done.length} tracked achievements done`}}
    else if(/\.csv$/i.test(f.name)){kind='Questionnaire';const t=await f.text();const rows=parseCSV(t);if(rows.length<2){msg='No responses in it.'}else{const q0={id:f.name,title:f.name.replace(/\.csv$/i,'').replace(/\s*-\s*Form Responses.*$/i,''),date:new Date().toISOString().slice(0,10),header:rows[0],rows:rows.slice(1)};
@@ -616,7 +625,7 @@ function launch(){const x=g(),qs=allQ();
   <div class="card"><h3>Active raiders who haven't answered <span class="n">${pending.length}</span></h3><div class="hint">Raiding ranks, online in the last ${D.inactive_days} days, no response matched to any of their characters.</div>${pending.map(m=>`<span class="tag link" style="margin:2px" onclick="profile('${esc(m.main)}')">${esc(m.main)} · ${esc(m.cls)}</span>`).join(' ')}</div>
   ${notG.length?`<div class="card"><h3>Responses Glask couldn't match to the roster <span class="n">${notG.length}</span></h3><div class="hint">Typo, a character not in the guild dump, or someone who has left. Fix the name in the form sheet or check the roster.</div>${notG.map(r=>`<span class="tag" style="margin:2px">${esc(r.raw||'(blank)')} ${qTag(r.status)}</span>`).join(' ')}</div>`:''}`}
 
-function profile(name){
+function profile(name){$('#drawer').dataset.main=name;
   let mi=-1,gi=G;
   mi=D.guilds[G].members.findIndex(m=>m.main===name);
   if(mi<0){for(let i=0;i<D.guilds.length;i++){const j=D.guilds[i].members.findIndex(m=>m.main===name);if(j>=0){gi=i;mi=j;break}}}
@@ -725,7 +734,7 @@ function recCard(gi,id){const p=pipeline(gi).find(z=>z.id===id);if(!p)return;con
   const when=t=>new Date(t*1000).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
   const myVote=Object.entries(r.votes||{}).find(([k])=>k===ME.id)?.[1]?.vote;
   const stageBtns=STAGES.filter(s=>s[0]!=='done').map(([k,l])=>`<button class="${p.col===k?'on':''}" onclick="recOp(${gi},'${esc(id)}','stage',{stage:'${k}'})">${l.replace(' applications','').replace(' raids','')}</button>`).join('');
-  $('#drawer').dataset.rec=id;
+  $('#drawer').dataset.rec=id;$('#drawer').dataset.main='';
   $('#drawer').innerHTML=`<div class="dh"><button class="x" onclick="closeP()">Close</button><h2>${esc(p.name)} <span class="tag">${esc(p.cls||'?')}</span></h2>
    <div style="color:var(--mute)">${D.guilds[gi].guild} · ${p.applied?'applied '+esc(p.applied):''}${p.rankNow?' · rank '+esc(p.rankNow):' · not in guild yet'} ${p.m?`· <a href="#" onclick="event.preventDefault();profile('${esc(p.m.main)}')" style="color:var(--ember2)">full profile</a>`:''}</div>
    <div class="facts"><div><b>${p.raidsN} / ${S.raids}</b><span>trial raids attended</span></div><div><b>${esc(a.aa?fmt(+String(a.aa).replace(/[^\d]/g,'')):'?')}</b><span>AA on application</span></div><div><b>${esc(p.m?.level||a.level||'?')}</b><span>level${p.m?' now':' on application'}</span></div><div><b>${cn.n}</b><span>active ${esc(p.cls||'')}s · ${cn.rn} ${esc(cn.role.toLowerCase())}</span></div></div></div>

@@ -90,6 +90,8 @@ def can(u, key, write):
         return False
     if kind == 'logsettings':
         return scope == u['id']                       # personal setting
+    if kind == 'slots':
+        return bool(u['access']) and not write          # shared item -> slot list; changed through /api/slots
     if kind == 'qcount':
         return any(a == 'officer' for a in u['access'].values())
     level = u['access'].get(scope)
@@ -296,6 +298,32 @@ def uploads_for(u, server, lst):
     if server in u.get('lead', []):
         return lst
     return [x for x in lst if x.get('uid') == u['id'] or (not x.get('uid') and x.get('by') == u['name'])]
+
+
+SLOT_NAMES = {'Head', 'Face', 'Ear', 'Neck', 'Shoulders', 'Arms', 'Back', 'Wrist', 'Range', 'Hands', 'Primary', 'Secondary',
+              'Fingers', 'Chest', 'Legs', 'Feet', 'Waist', 'Charm', 'Power Source', 'Not gear'}
+
+
+@app.post('/api/slots')
+async def set_slots(request: Request):
+    """Teach Glask which slot items go in: from uploaded inventories (anyone) or an officer tagging an item."""
+    u = user(request)
+    if not u or not u['access']:
+        raise HTTPException(401, 'Sign in again')
+    b = await request.json()
+    items = {str(k)[:120]: v for k, v in (b.get('items') or {}).items() if v in SLOT_NAMES or v is None}
+    manual = bool(b.get('manual'))
+    if manual and 'officer' not in u['access'].values():
+        raise HTTPException(403, 'Only officers can tag item slots')
+    with REC_LOCK:
+        cur = store.get('glask-slots-all') or {}
+        for k, v in items.items():
+            if v is None:
+                cur.pop(k, None)
+            elif manual or k not in cur:     # inventories never overwrite an officer's tag
+                cur[k] = v
+        store.put('glask-slots-all', cur, f"{u['name']} ({u['id']})")
+    return cur
 
 
 @app.post('/api/raid-delete')
