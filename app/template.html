@@ -208,7 +208,7 @@ function overview(){
   const recDays=r=>{const m=(r.note||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);if(!m)return null;const y=+m[3]<100?2000+ +m[3]:+m[3];return Math.round((new Date(D.generated)-new Date(y,m[1]-1,+m[2]))/864e5)};
   return `<div class="glask"><div class="who">GLASK</div><div>
    <p><em>“The Faceless sees all.”</em> ${x.guild} on ${x.server} has <b>${act.length}</b> active people (any character online in the last ${D.inactive_days} days), <b>${activeRaiders.length}</b> of them in raiding ranks, playing <b>${fmt(activeAlts)}</b> active alts.</p>
-   <p>${x.recruits.length} recruit${x.recruits.length===1?'':'s'} waiting on a rank decision · ${pips.length} on a Performance Improvement Plan · current expansion <b>${esc(s.xpac)}</b>. Who's gone quiet lives on the Cleanup tab.</p></div></div>
+   <p>${x.recruits.length} recruit${x.recruits.length===1?'':'s'} waiting on a rank decision · ${pips.length} on a Performance Improvement Plan · current expansion <b>${esc(xpacNow(G).xpac||s.xpac)}</b>${xpacNow(G).next?` (${esc(xpacNow(G).next.xpac)} unlocks ${new Date(xpacNow(G).next.at).toLocaleDateString([], {month:'short',day:'numeric'})})`:''}. Who's gone quiet lives on the Cleanup tab.</p></div></div>
   <div class="kpis">
    <div class="kpi"><div class="v">${act.length}</div><div class="l">Active people</div><div class="s">of ${fmt(s.mains)} on the roster</div></div>
    <div class="kpi"><div class="v">${activeRaiders.length}</div><div class="l">Active in raiding ranks</div><div class="s">excludes FnF, alt and applicant ranks</div></div>
@@ -622,8 +622,9 @@ const DONE={promoted:['Promoted','ok'],declined:['Declined','red'],withdrew:['Wi
 const CHECKLIST=[['welcome','Welcomed in guild chat'],['discord','Discord roles: Member + Apps'],['requirements','Raid requirements explained'],['dkp','DKP rules explained'],['raidbuilder','Registered on Raid Builder'],['thread','Officer thread created']];
 const CLSAB={Warrior:'WAR',Paladin:'PAL','Shadow Knight':'SHD',Monk:'MNK',Rogue:'ROG',Berserker:'BER',Ranger:'RNG',Beastlord:'BST',Wizard:'WIZ',Magician:'MAG',Necromancer:'NEC',Bard:'BRD',Enchanter:'ENC',Cleric:'CLR',Shaman:'SHM',Druid:'DRU'};
 let recFilter='';
+function xpacNow(gi){return ((D.aa||{})[D.guilds[gi].server])||{}}
 // AA temperature gauge: red at the class's autogrant for this expansion, green at max AA available
-function aaRef(gi,cls){const r=(D.aa||{})[D.guilds[gi].server];cls=normCls(cls);if(!r||!r.ag[cls])return null;return {ag:r.ag[cls],max:r.max[cls],buf:D.aa.buffer||400,xpac:r.xpac,thru:r.ag_through,cls}}
+function aaRef(gi,cls){const r=(D.aa||{})[D.guilds[gi].server];if(r&&r.ag_through)r.thru=r.ag_through;cls=normCls(cls);if(!r||!r.ag[cls])return null;return {ag:r.ag[cls],max:r.max[cls],buf:D.aa.buffer||400,xpac:r.xpac,thru:r.ag_through,cls}}
 function aaHeat(gi,cls,aa){const r=aaRef(gi,cls);aa=+String(aa||'').replace(/[^\d]/g,'');if(!r||!aa)return null;
   const p=Math.max(0,Math.min(1,(aa-r.ag)/(r.max-r.ag)));const c=aa<r.ag+r.buf?'red':p>=.85?'ok':'warn';
   return Object.assign(r,{aa,p,c,word:c==='red'?(aa<r.ag?'below autogrant':'near autogrant'):c==='ok'?'near max':'middle'})}
@@ -678,7 +679,7 @@ function recruit(){const gi=G,x=D.guilds[gi],S=recSet(gi),off=isOff(gi);let P=pi
     ${Object.values(p.votes).some(Boolean)?`<span class="tag">▲${p.votes.promote} ◆${p.votes.extend} ▼${p.votes.decline}</span>`:''}${p.col==='done'?`<span class="tag ${DONE[p.rec.stage][1]}">${DONE[p.rec.stage][0]}</span>`:''}
     ${cn.n<=1&&p.cls?`<span class="tag ok">need: ${cn.n} active ${esc(p.cls)}</span>`:''}</div></div>`};
   return `<div class="glask"><div class="who">GLASK</div><div><p><em>“New faces for the Faceless.”</em> Every applicant from the application sheet, the guild dump and your notes, from first contact to promotion. Raids count from uploaded raid logs since they applied; the SME check-in comes due after raid 3.</p>
-   <p style="color:var(--mute);font-size:13px">Requirements for ${esc(x.server)}: level ${S.level||'not set'}, AA ${S.aa?fmt(S.aa):'not set'}, ${S.raids} trial raids. ${off?`<a href="#" onclick="event.preventDefault();recSettings(${gi})" style="color:var(--ember2)">Change</a>`:''}</p></div></div>
+   <p style="color:var(--mute);font-size:13px">${esc(x.server)} is in <b>${esc(xpacNow(gi).xpac||'?')}</b>${xpacNow(gi).next?`, ${esc(xpacNow(gi).next.xpac)} unlocks ${new Date(xpacNow(gi).next.at).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}`:''}; the AA gauge follows the calendar. Requirements for ${esc(x.server)}: level ${S.level||'not set'}, AA ${S.aa?fmt(S.aa):'not set'}, ${S.raids} trial raids. ${off?`<a href="#" onclick="event.preventDefault();recSettings(${gi})" style="color:var(--ember2)">Change</a>`:''}</p></div></div>
    <div class="filters"><input placeholder="Filter by name, class or officer…" value="${esc(recFilter)}" oninput="recFilter=this.value;clearTimeout(window._rf);window._rf=setTimeout(()=>{render();const i=document.querySelector('.filters input');i.focus();i.setSelectionRange(i.value.length,i.value.length)},250)"></div>
    <div class="board">${STAGES.map(([k,l])=>{const c=col(k);return `<div class="bcol"><h4>${l} <span>${c.length}</span></h4>${c.map(card).join('')||'<div class="empty">—</div>'}</div>`}).join('')}</div>`}
 function recSettings(gi){const S=recSet(gi);const lv=prompt('Minimum level for '+D.guilds[gi].server+' applicants (0 = none):',S.level);if(lv===null)return;

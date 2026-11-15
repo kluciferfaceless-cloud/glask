@@ -42,7 +42,29 @@ store = Store()
 TEMPLATE = (ROOT / 'app' / 'template.html').read_text()
 MASK = (ROOT / 'app' / 'mask.b64').read_text().strip()
 DATA = json.loads((ROOT / 'data' / 'glask.json').read_text())
-DATA['aa'] = json.loads((ROOT / 'data' / 'aa.json').read_text())
+AA = json.loads((ROOT / 'data' / 'aa.json').read_text())
+
+
+def current_xpac(server, now=None):
+    """Which expansion a guild's server is in right now, from Daybreak's unlock calendar, plus the AA scale for it."""
+    from datetime import datetime, timezone
+    now = now or datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    sched = AA['schedule'].get(server, [])
+    past = [s for s in sched if s[1] <= now]
+    if not past:
+        return None
+    code, since = past[-1]
+    nxt = next((s for s in sched if s[1] > now), None)
+    order = AA['order']
+    # autogrant comes from the most recent unlock that granted AA
+    ag_code = None
+    for c, _ in past:
+        if c in AA['autogrant_through']:
+            ag_code = AA['autogrant_through'][c]
+    zero = {k: 0 for k in AA['cumulative'][order[0]]}
+    return dict(code=code, xpac=AA['names'][code], since=since,
+                ag_through=AA['names'].get(ag_code, 'nothing yet'), ag=AA['eligible'][ag_code] if ag_code else zero,
+                max=AA['cumulative'][code], next=dict(xpac=AA['names'][nxt[0]], at=nxt[1]) if nxt else None)
 
 
 def user(request):
@@ -98,6 +120,7 @@ def index(request: Request):
         return page(f"<p>Signed in as <b>{u['name']}</b>, but Glask doesn't recognize an officer or recruitment role "
                     "for you in The Faceless or Faceless Fury Discord.</p><p><a href='/logout' style='color:#a8957d'>Sign out</a></p>")
     data = dict(DATA, guilds=allowed)
+    data['aa'] = dict(buffer=AA['buffer'], **{g['server']: current_xpac(g['server']) for g in allowed})
     kv = {k: v for k, v in store.all().items() if can(u, k, write=False)}
     me = dict(id=u['id'], name=u['name'], avatar=u.get('avatar'), access=u['access'])
     safe = lambda o: json.dumps(o).replace('</', '<\\/')
