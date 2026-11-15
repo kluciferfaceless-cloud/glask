@@ -525,7 +525,8 @@ async function handleFiles(files){let nOk=0,nBad=0;for(const f of files){let kin
      const gi=(()=>{let best=G,bn=-1;D.guilds.forEach((x,i)=>{const n=analyzeQ(q0,i).filter(r=>r.m).length;if(n>bn){bn=n;best=i}});return best})();const x=D.guilds[gi];const list=(lsGet('glask-q-'+x.server)||[]).filter(z=>z.id!==q0.id);list.unshift(q0);lsSet('glask-q-'+x.server,list);
      const r=analyzeQ(q0,gi).filter(z=>z.m);ok=true;msg=`${x.server}: ${rows.length-1} responses, ${r.filter(z=>z.status==='Available').length} available, ${r.filter(z=>z.status==='Unavailable').length} unavailable`}}
 
-   else{const raw=new Uint8Array(await f.slice(0,4).arrayBuffer());
+   else{if(!f.size){kind='Empty file';throw new Error('This file is empty (0 bytes). Check that it saved properly, or that it finished downloading from OneDrive/Google Drive, then upload it again.')}
+     const raw=new Uint8Array(await f.slice(0,4).arrayBuffer());
      if(raw[0]===0x50&&raw[1]===0x4b){kind='Zip file';throw new Error('This is a .zip. Unzip it first and upload the .txt inside.')}
      const u16=(raw[0]===0xff&&raw[1]===0xfe)||(raw[0]===0xfe&&raw[1]===0xff);
      let head=u16?new TextDecoder(raw[0]===0xff?'utf-16le':'utf-16be').decode(await f.slice(0,2000000).arrayBuffer()):await f.slice(0,2000000).text();head=head.replace(/^\ufeff/,'');
