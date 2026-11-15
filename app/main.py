@@ -788,7 +788,7 @@ async def rec(request: Request):
             r['history'].append(dict(at=now, by=who, text='Released' if b.get('release') else 'Claimed'))
         elif op == 'field':
             f = b.get('field')
-            if f not in ('recruited_by', 'contact', 'sme'):
+            if f not in ('recruited_by', 'contact', 'sme', 'aa_override'):
                 raise HTTPException(400, 'Unknown field')
             r[f] = str(b.get('value', ''))[:200]
         elif op == 'check':
