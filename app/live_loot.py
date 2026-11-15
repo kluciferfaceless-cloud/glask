@@ -109,7 +109,7 @@ def rollup(server, guild, rows, aa, slotmap):
                 n_all += 1; dkp += x['cost'] or 0
                 xc = code_of(x); sl = slot_of(x['item'])
                 if xc in keep:
-                    cur.append([when(x), x['item'], c['n'], x['cost'], sl, xc])
+                    cur.append([when(x), x['item'], c['n'], x['cost'], sl, xc, 1 if 'alt' in x['tab'].lower() else 0])
                 if c['n'] == mem['main'] and sl:
                     for s1 in sl.split('/'):
                         slot_last.setdefault(s1, [when(x), x['item'], xc])

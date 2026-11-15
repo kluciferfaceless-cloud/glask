@@ -171,7 +171,7 @@ def build(guild, server, dump, loot_path, apps):
                 is_cur = xc in _keep[server]
                 sl = slot_of(x['item'])
                 if is_cur:
-                    cur.append([when(x), x['item'], c['name'], x['cost'], sl, xc])
+                    cur.append([when(x), x['item'], c['name'], x['cost'], sl, xc, 1 if 'alt' in x['tab'].lower() else 0])
                 if c['name'] == mem['main'] and sl:
                     for s1 in sl.split('/'):
                         if s1 not in slot_last:

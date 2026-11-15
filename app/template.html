@@ -279,9 +279,10 @@ function apps(){
 
 const SLOTS=['Head','Face','Ear','Neck','Shoulders','Arms','Back','Wrist','Range','Hands','Primary','Secondary','Fingers','Chest','Legs','Feet','Waist','Charm','Power Source'];
 const NONRAID=/^(FnF|Alt|Box\/Alt|Decorate|Applicant)$/i;
-// Slots where the main got more items this expansion than the slot can hold (2 ears, 2 rings, 2 wrists; 1 everywhere else)
+// Slots where the main got more items this expansion than the slot can hold (2 ears, 2 rings, 2 wrists; 1 everywhere else).
+// Loot from alt tabs (Mischief's ALT rounds) is never reviewed.
 const SLOT_CAP={Ear:2,Fingers:2,Wrist:2};
-function dupSlots(m){const by={};m.cur.filter(i=>i[2]===m.main&&i[4]).forEach(i=>i[4].split('/').forEach(s=>(by[s]=by[s]||[]).push(i)));
+function dupSlots(m){const by={};m.cur.filter(i=>i[2]===m.main&&i[4]&&!i[6]).forEach(i=>i[4].split('/').forEach(s=>(by[s]=by[s]||[]).push(i)));
   return Object.fromEntries(Object.entries(by).filter(([s,l])=>l.length>(SLOT_CAP[s]||1)))}
 function dupTip(l){return l.map(i=>`${i[0]}: ${i[1]}${i[3]?' ('+fmt(i[3])+' DKP)':''}`).join('\n')}
 function bang(l){return `<b class="bang" title="${esc(dupTip(l))}">!</b>`}
@@ -290,7 +291,7 @@ function gear(){
   const rows=x.members.filter(m=>!NONRAID.test(m.rank)&&m.days!=null&&m.days<=D.inactive_days);const nDup=rows.filter(m=>Object.keys(dupSlots(m)).length).length;rows.sort((a,b)=>a.cur_main-b.cur_main||a.main.localeCompare(b.main));
   const known=m=>m.cur.filter(i=>i[2]===m.main);
   return `<div class="glask"><div class="who">GLASK</div><div><p><em>“Their armor speaks for them.”</em> Gear check for <b>${esc(xp)}</b>, the current ${x.server} expansion. Fewest upgrades first.</p>
-  ${nDup?`<p><b class="bang">!</b> <b>${nDup} ${nDup===1?'person has':'people have'}</b> more items for a slot than it holds this expansion. Hover the <b class="bang">!</b> to see the items, or open their profile.</p>`:''}
+  ${nDup?`<p><b class="bang">!</b> <b>${nDup} ${nDup===1?'person has':'people have'}</b> more items for a slot than it holds this expansion (alt-round loot isn't counted). Hover the <b class="bang">!</b> to see the items, or open their profile.</p>`:''}
   <p style="color:var(--mute);font-size:13px">Counts loot awarded to the <b>main</b> this expansion (boxes don't count). Slots come from the item name where it says so (e.g. "Obscured <b>Wrist</b> Armor"), or from an uploaded inventory. Items I can't place yet show as "slot ?" until they're confirmed on Lucy or seen in an inventory.</p></div></div>
   <div class="card"><h3>Active raiders · ${esc(xp)} upgrades on their main <span class="n">${rows.length}</span></h3>
   <table><tr><th>Main</th><th>Class</th><th>Rank</th><th class="num">${esc(xp.split(' ').map(w=>w[0]).join(''))} items</th><th>Slots upgraded</th><th>Inventory</th></tr>
