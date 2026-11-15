@@ -345,7 +345,7 @@ if __name__ == '__main__':
         return dict(id=title, title=title, date=date, header=rows[0], rows=[r for r in rows[1:] if any(c.strip() for c in r)])
     mis['questionnaires'] = [qload('data/q_tob.csv', 'TOB Sign Ups', '2026-10-18')]
     teek['questionnaires'] = [qload('data/q_tss.csv', 'TSS Launch (Teek)', '2025-11-16'), qload('data/q_por.csv', 'Prophecy of Ro Launch 10/09', '2025-09-21')]
-    data = dict(built=datetime.datetime.utcnow().isoformat() + 'Z', generated=TODAY.isoformat(), inactive_days=INACTIVE_DAYS, guilds=[mis, teek])
+    data = dict(built=datetime.datetime.utcnow().isoformat() + 'Z', generated=TODAY.isoformat(), inactive_days=INACTIVE_DAYS, guilds=[mis, teek], slotmap=SLOTMAP)
     json.dump(data, open('data/glask.json', 'w'), separators=(',', ':'))
     for g in data['guilds']:
         print(g['server'], {k: v for k, v in g['stats'].items() if k != 'ranks'})

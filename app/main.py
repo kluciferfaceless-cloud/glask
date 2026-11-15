@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from .store import Store
+from . import live_loot
 
 ROOT = Path(__file__).resolve().parent.parent
 DISCORD_API = 'https://discord.com/api/v10'
@@ -120,6 +121,7 @@ def index(request: Request):
         return page(f"<p>Signed in as <b>{u['name']}</b>, but Glask doesn't recognize an officer or recruitment role "
                     "for you in The Faceless or Faceless Fury Discord.</p><p><a href='/logout' style='color:#a8957d'>Sign out</a></p>")
     data = dict(DATA, guilds=allowed)
+    data['loot_status'] = {g['server']: live_loot.STATUS.get(g['server']) for g in allowed}
     data['aa'] = dict(buffer=AA['buffer'], **{g['server']: current_xpac(g['server']) for g in allowed})
     kv = {k: v for k, v in store.all().items() if can(u, k, write=False)}
     me = dict(id=u['id'], name=u['name'], avatar=u.get('avatar'), access=u['access'])
@@ -302,6 +304,20 @@ async def rec_settings(request: Request):
     v = dict(level=int(b.get('level') or 0), aa=int(b.get('aa') or 0), raids=int(b.get('raids') or 6))
     store.put('glask-recset-' + server, v, f"{u['name']} ({u['id']})")
     return v
+
+
+@app.on_event('startup')
+def _start_live_loot():
+    live_loot.start(DATA, AA)
+
+
+@app.post('/api/loot-refresh')
+def loot_refresh(request: Request):
+    u = user(request)
+    if not u or 'officer' not in u['access'].values():
+        raise HTTPException(403, 'Only officers can refresh')
+    servers = [s for s, lvl in u['access'].items() if lvl == 'officer']
+    return live_loot.refresh(DATA, AA, servers)
 
 
 @app.get('/api/audit')

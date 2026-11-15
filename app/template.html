@@ -145,6 +145,7 @@ D.guilds.forEach(x=>{const cal=(D.aa||{})[x.server];if(!cal||!cal.code)return;x.
   x.members.forEach(m=>{m.cur=(m.cur||[]).filter(i=>i[5]===cal.code);const mine=m.cur.filter(i=>i[2]===m.main);m.cur_main=mine.length;
     m.cur_slots=[...new Set(mine.filter(i=>i[4]).flatMap(i=>i[4].split('/')))].sort()})});
 function otherServer(gi){return D.guilds[gi].server==='Mischief'?'Teek':'Mischief'}
+function lootRefresh(){alertBox('Reading the loot sheets…');fetch('/api/loot-refresh',{method:'POST'}).then(r=>r.ok?r.json():Promise.reject(r.status)).then(s=>{const bad=Object.entries(s).filter(([k,v])=>!v.ok);if(bad.length)alertBox('Loot refresh failed: '+bad.map(([k,v])=>k+': '+v.msg).join(' · '));else{alertBox('Loot refreshed. Reloading…');setTimeout(()=>location.reload(),800)}}).catch(e=>alertBox('Loot refresh failed ('+e+')'))}
 function gIdx(s){const i=D.guilds.findIndex(x=>x.server===s);return i<0?G:i}
 function isOff(gi){return ME.access[D.guilds[gi].server]==='officer'}
 function kvGet(k){return k in KV?KV[k]:null}
@@ -175,7 +176,8 @@ function renderShell(){VIEWS=viewsFor(G);if(!VIEWS.some(v=>v[0]===V))V='overview
   $('#gsel2').innerHTML=$('#gsel').innerHTML;
   $('#meChip').innerHTML=`${ME.avatar?`<img src="${ME.avatar}" alt="">`:''}<span>${esc(ME.name)}<small>${isOff(G)?'Officer':'Recruitment'}</small></span><a href="/logout" title="Sign out">⏻</a>`;
   $('#ptitle').textContent=(VIEWS.find(v=>v[0]===V)||['',''])[1].replace('⇪ ','');
-  $('#foot').innerHTML=`Data from guild dumps taken ${D.generated}, ${g().server} loot sheet (${fmt(g().stats.loot_nights)} raid nights) and application sheet · inactive = no character online in ${D.inactive_days}+ days`;
+  const ls=(D.loot_status||{})[g().server];
+  $('#foot').innerHTML=`Loot: ${ls&&ls.ok?`from the ${g().server} loot sheet, read ${new Date(ls.at*1000).toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'})}, next read Mon/Tue/Thu/Fri 10 AM Eastern (${fmt(g().stats.loot_nights)} tabs)`:`<span style="color:var(--ember2)">${ls&&ls.msg?esc(ls.msg):'snapshot'}</span>`}${isOff(G)?` · <a href="#" onclick="event.preventDefault();lootRefresh()" style="color:var(--ember2)">Refresh now</a>`:''} · Guild dumps from ${D.generated} and application sheet · inactive = no character online in ${D.inactive_days}+ days`;
 }
 
 function glaskSay(){
