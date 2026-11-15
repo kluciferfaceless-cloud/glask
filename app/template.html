@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glask · Faceless Guild Management</title>
+<link rel="icon" type="image/png" href="data:image/png;base64,__MASK__">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d0c0c;--panel:#161414;--panel2:#1d1a1a;--line:#2c2727;--text:#e9e3dc;--mute:#9a918a;--dim:#6d6560;--ember:#c8452c;--ember2:#e8774f;--bone:#d9cbb4;--ok:#6fae7c;--warn:#d8a24a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,system-ui,sans-serif}
+header{position:sticky;top:0;z-index:5;background:rgba(13,12,12,.96);border-bottom:1px solid var(--line);backdrop-filter:blur(6px)}
+.bar{display:flex;align-items:center;gap:18px;padding:12px 22px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px}
+.brand .logo{width:34px;height:34px;display:block}
+.brand h1{font:700 20px Cinzel,serif;letter-spacing:.12em;margin:0;color:var(--bone)}
+.brand small{display:block;color:var(--dim);font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:3px}
+.seg button{background:none;border:0;color:var(--mute);padding:6px 14px;border-radius:6px;cursor:pointer;font:500 13px Inter}
+.seg button.on{background:var(--ember);color:#fff}
+nav{display:flex;gap:4px}
+nav button{background:none;border:0;color:var(--mute);padding:8px 12px;cursor:pointer;font:500 13px Inter;border-bottom:2px solid transparent}
+nav button.on{color:var(--text);border-color:var(--ember)}
+.search{margin-left:auto;position:relative}
+.search input{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 12px;width:190px;font:13px Inter}
+.sugg{position:absolute;right:0;top:40px;width:300px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;max-height:340px;overflow:auto;display:none}
+.sugg div{padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line)}
+.sugg div:hover{background:#262121}
+main{max-width:1240px;margin:0 auto;padding:22px}
+.glask{display:flex;gap:16px;align-items:flex-start;background:linear-gradient(135deg,#1f1613,#151313);border:1px solid #3a2a24;border-radius:12px;padding:16px 18px;margin-bottom:20px}
+.glask .who{font:700 13px Cinzel,serif;color:var(--ember2);letter-spacing:.1em;white-space:nowrap;padding-top:2px}
+.glask em{color:var(--bone)}
+.glask p{margin:0 0 6px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.kpi .v{font:600 26px Inter;color:var(--text)}
+.kpi .l{color:var(--mute);font-size:12px}
+.kpi.alert .v{color:var(--ember2)}
+.kpi .s{color:var(--dim);font-size:11px;margin-top:4px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.pies{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:16px;align-items:stretch}.pies>.card{margin-bottom:16px}
+@media(max-width:1000px){.pies{grid-template-columns:1fr}}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}.search input{width:160px}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+.card h3{margin:0 0 12px;font:600 13px Inter;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);display:flex;justify-content:space-between;align-items:center}
+.card h3 .n{background:var(--ember);color:#fff;border-radius:999px;padding:1px 9px;font-size:12px;letter-spacing:0}
+.hint{color:var(--dim);font-size:12px;margin:-6px 0 12px}
+.rankbar{display:flex;align-items:center;gap:10px;margin:6px 0}
+.rankbar .nm{width:130px;color:var(--mute);font-size:13px}
+.rankbar .tr{flex:1;height:10px;background:var(--panel2);border-radius:5px;overflow:hidden}
+.rankbar .fl{height:100%;background:var(--bone);opacity:.75}
+.rankbar .ct{width:44px;text-align:right;font-variant-numeric:tabular-nums}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:var(--dim);font-weight:500;padding:8px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap;font-size:12px}
+td{padding:7px 8px;border-bottom:1px solid #221e1e;vertical-align:top}
+tr.click{cursor:pointer}tr.click:hover td{background:#1c1818}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.tag{display:inline-block;border:1px solid var(--line);border-radius:5px;padding:0 6px;font-size:11px;color:var(--mute);margin-right:4px}
+.tag.red{border-color:#5a2a20;color:var(--ember2)}.tag.ok{border-color:#2d4a33;color:var(--ok)}.tag.warn{border-color:#5a4520;color:var(--warn)}
+.link{color:var(--bone);text-decoration:underline dotted;cursor:pointer}
+details{border-bottom:1px solid #221e1e}
+summary{padding:9px 4px;cursor:pointer;display:flex;gap:10px;align-items:center;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary .c{margin-left:auto;color:var(--mute);font-size:12px}
+details .inner{padding:0 4px 10px 22px;color:var(--mute);font-size:12.5px}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.app input,.app select,.app textarea,.filters select,.filters input{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:6px 8px;font:13px Inter}
+.drawer{position:fixed;top:0;right:0;height:100%;width:min(860px,100%);background:#141212;border-left:1px solid var(--line);z-index:10;transform:translateX(100%);transition:transform .2s;overflow:auto}
+.drawer.open{transform:none}
+.shade{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9;display:none}
+.shade.open{display:block}
+.dh{padding:20px 22px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#141212}
+.dh h2{margin:0;font:700 22px Cinzel,serif;color:var(--bone);letter-spacing:.05em}
+.dh .x{position:absolute;right:16px;top:16px;background:none;border:1px solid var(--line);color:var(--mute);border-radius:6px;padding:4px 10px;cursor:pointer}
+.db{padding:16px 22px}
+.facts{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0 4px}
+.facts div{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.facts b{display:block;font-size:16px}.facts span{color:var(--dim);font-size:11px}
+.app dl{display:grid;grid-template-columns:150px 1fr;gap:4px 12px;margin:0}
+.app dt{color:var(--dim);font-size:12px}.app dd{margin:0;font-size:13px}
+.more{background:none;border:1px solid var(--line);color:var(--mute);border-radius:6px;padding:5px 10px;cursor:pointer;margin-top:8px}
+footer{color:var(--dim);font-size:11.5px;text-align:center;padding:20px}
+
+#menuBtn{display:none;background:none;border:1px solid var(--line);border-radius:8px;width:40px;height:36px;padding:9px 9px;cursor:pointer;flex-direction:column;justify-content:space-between}
+#menuBtn span{display:block;height:2px;background:var(--bone);border-radius:2px}
+#navDrawer{position:fixed;top:0;left:0;height:100%;width:min(300px,85vw);background:#141212;border-right:1px solid var(--line);z-index:12;transform:translateX(-100%);transition:transform .2s;overflow:auto;padding-bottom:20px}
+#navDrawer.open{transform:none}
+#navShade{z-index:11}
+.nd-head{display:flex;align-items:center;justify-content:space-between;padding:16px}
+.nd-head .x{background:none;border:1px solid var(--line);color:var(--mute);border-radius:6px;padding:4px 10px;cursor:pointer}
+#nav2 button{display:block;width:100%;text-align:left;background:none;border:0;border-left:3px solid transparent;color:var(--mute);padding:12px 20px;font:500 15px Inter;cursor:pointer}
+#nav2 button.on{color:var(--text);border-left-color:var(--ember);background:#1c1717}
+.pagetitle{display:none;font:600 14px Inter;color:var(--text)}
+@media(max-width:1100px){#menuBtn{display:flex}nav#nav{display:none}.bar{gap:10px;padding:10px 14px}.brand small{display:none}.brand h1{font-size:17px}.pagetitle{display:block}
+ .search{order:10;flex-basis:100%;margin-left:0}.search input{width:100%!important}.sugg{left:0;right:0;width:auto}#gsel{margin-left:auto}}
+@media(max-width:600px){main{padding:14px}.brand .logo{width:30px;height:30px}.kpis{grid-template-columns:repeat(2,1fr)}.facts{grid-template-columns:repeat(2,1fr)}table{font-size:12px}td,th{padding:6px 5px}.card{padding:12px}.glask{padding:12px;gap:8px;flex-direction:column}}
+.me{display:flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap}.me img{width:28px;height:28px;border-radius:50%}
+.me span{display:flex;flex-direction:column;line-height:1.15}.me small{color:var(--mute);font-size:11px}.me a{color:var(--mute);text-decoration:none;font-size:16px;padding:4px}
+@media(max-width:1100px){.me span{display:none}}
+</style>
+</head>
+<body>
+<header><div class="bar">
+  <button id="menuBtn" aria-label="Menu" onclick="openNav()"><span></span><span></span><span></span></button>
+  <div class="brand"><img src="data:image/png;base64,__MASK__" alt="Glask" class="logo">
+  <div><h1>GLASK</h1><small>Harbinger of the Faceless</small></div></div>
+  <div class="pagetitle" id="ptitle"></div>
+  <div class="seg" id="gsel"></div>
+  <nav id="nav"></nav>
+  <div class="me" id="meChip"></div>
+  <div class="search"><input id="q" placeholder="Find any character…" autocomplete="off"><div class="sugg" id="sugg"></div></div>
+</div></header>
+<div class="shade" id="navShade" onclick="closeNav()"></div>
+<aside id="navDrawer"><div class="nd-head"><div class="brand"><img src="data:image/png;base64,__MASK__" alt="" class="logo"><div><h1>GLASK</h1><small>Harbinger of the Faceless</small></div></div><button class="x" onclick="closeNav()">✕</button></div><div class="seg" id="gsel2" style="margin:0 16px 12px"></div><div id="nav2"></div></aside>
+<main id="view"></main>
+<footer id="foot"></footer>
+<div class="shade" id="shade"></div>
+<aside class="drawer" id="drawer"></aside>
+<script id="data" type="application/json">__DATA__</script>
+<script id="me" type="application/json">__ME__</script>
+<script id="kv" type="application/json">__STORE__</script>
+<script>
+const D=JSON.parse(document.getElementById('data').textContent);
+const ME=JSON.parse(document.getElementById('me').textContent);
+const KV=JSON.parse(document.getElementById('kv').textContent);
+function otherServer(gi){return D.guilds[gi].server==='Mischief'?'Teek':'Mischief'}
+function isOff(gi){return ME.access[D.guilds[gi].server]==='officer'}
+function kvGet(k){return k in KV?KV[k]:null}
+function kvSet(k,v){KV[k]=v;fetch('/api/kv',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:k,value:v})})
+  .then(r=>{if(r.status===401){alertBox('Your sign-in expired. Sign in again to save.');setTimeout(()=>location.href='/login',2500)}else if(!r.ok)r.json().then(j=>alertBox('Not saved: '+(j.detail||r.status))).catch(()=>alertBox('Not saved ('+r.status+')'))})
+  .catch(()=>alertBox('Glask could not reach the server. That change was not saved.'))}
+let G=0, V='overview', inactiveRank='Raider', rosterSort={k:'main',d:1}, rosterRank='', rosterFilter='';
+const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const g=()=>D.guilds[G];
+const fmt=n=>Number(n).toLocaleString();
+const ago=d=>d==null?'never':d===0?'today':d===1?'yesterday':d+'d ago';
+const ALLVIEWS=[['overview','Overview'],['cleanup','Cleanup'],['roster','Roster'],['gear','Gear'],['perf','Performance'],['ach','Achievements'],['launch','Launch planning'],['apps','Applications'],['uploads','⇪ Uploads']];
+
+function lootDate(t,tab){return /^\d{4}-\d\d-\d\d/.test(t)?t.slice(0,10):(t||tab)}
+
+function openNav(){$('#navDrawer').classList.add('open');$('#navShade').classList.add('open')}
+function closeNav(){$('#navDrawer').classList.remove('open');$('#navShade').classList.remove('open')}
+const RECRUIT_VIEWS=['overview','roster','gear','ach','apps','uploads'];
+function viewsFor(gi){return isOff(gi)?ALLVIEWS:ALLVIEWS.filter(v=>RECRUIT_VIEWS.includes(v[0]))}
+let VIEWS=ALLVIEWS;
+function renderShell(){VIEWS=viewsFor(G);if(!VIEWS.some(v=>v[0]===V))V='overview';
+  $('#gsel').innerHTML=D.guilds.map((x,i)=>`<button class="${i===G?'on':''}" onclick="G=${i};render()">${x.server}</button>`).join('');
+  $('#nav').innerHTML=VIEWS.map(([k,l])=>`<button class="${k===V?'on':''}" onclick="V='${k}';render()">${l}</button>`).join('');
+  $('#nav2').innerHTML=VIEWS.map(([k,l])=>`<button class="${k===V?'on':''}" onclick="V='${k}';closeNav();render();window.scrollTo(0,0)">${l}</button>`).join('');
+  $('#gsel2').innerHTML=$('#gsel').innerHTML;
+  $('#meChip').innerHTML=`${ME.avatar?`<img src="${ME.avatar}" alt="">`:''}<span>${esc(ME.name)}<small>${isOff(G)?'Officer':'Recruitment'}</small></span><a href="/logout" title="Sign out">⏻</a>`;
+  $('#ptitle').textContent=(VIEWS.find(v=>v[0]===V)||['',''])[1].replace('⇪ ','');
+  $('#foot').innerHTML=`Data from guild dumps taken ${D.generated}, ${g().server} loot sheet (${fmt(g().stats.loot_nights)} raid nights) and application sheet · inactive = no character online in ${D.inactive_days}+ days`;
+}
+
+function glaskSay(){
+  const s=g().stats;
+  return `<div class="glask"><div class="who">GLASK</div><div>
+  <p><em>“The Faceless sees all.”</em> ${g().guild} on ${g().server} holds <b>${fmt(s.chars)}</b> characters belonging to <b>${fmt(s.mains)}</b> people.</p>
+  <p>I found <b>${s.departed_alts}</b> alts still in the guild whose mains have left (${s.departed_mains} departed mains), <b>${s.unreadable}</b> alts I can't tie to anyone, and <b>${s.inactive_raiders}</b> of ${s.raiders} Raiders with no character online in ${D.inactive_days}+ days.</p></div></div>`;
+}
+
+
+const ROLES=[['Tanks',['Warrior','Paladin','Shadow Knight'],'#c8452c'],['Melee',['Monk','Rogue','Berserker','Ranger','Beastlord'],'#d9a441'],['Casters',['Wizard','Magician','Necromancer'],'#6f8fd1'],['Support',['Bard','Enchanter'],'#a27bc9'],['Healers',['Cleric','Shaman','Druid'],'#6fae7c']];
+const RANKCOL=['#d9cbb4','#c8452c','#d9a441','#6f8fd1','#6fae7c','#a27bc9','#7d756f','#4fa3a5','#b5657a'];
+function donut(slices,total,label){const R=80,r=50,cx=100,cy=100;let a=-Math.PI/2;const sum=slices.reduce((s,x)=>s+x[1],0)||1;
+  const paths=slices.filter(s=>s[1]>0).map(([name,n,col])=>{const da=2*Math.PI*n/sum;const a2=a+da;const large=da>Math.PI?1:0;
+    const p=sum===n?`M${cx} ${cy-R}A${R} ${R} 0 1 1 ${cx-.01} ${cy-R}L${cx-.01} ${cy-r}A${r} ${r} 0 1 0 ${cx} ${cy-r}Z`:
+      `M${cx+R*Math.cos(a)} ${cy+R*Math.sin(a)}A${R} ${R} 0 ${large} 1 ${cx+R*Math.cos(a2)} ${cy+R*Math.sin(a2)}L${cx+r*Math.cos(a2)} ${cy+r*Math.sin(a2)}A${r} ${r} 0 ${large} 0 ${cx+r*Math.cos(a)} ${cy+r*Math.sin(a)}Z`;
+    a=a2;return `<path d="${p}" fill="${col}" stroke="var(--panel)" stroke-width="2"><title>${esc(name)}: ${n} (${Math.round(100*n/sum)}%)</title></path>`}).join('');
+  return `<svg viewBox="0 0 200 200" style="width:200px;height:200px;flex:none">${paths}<text x="100" y="98" text-anchor="middle" fill="var(--text)" style="font:600 26px Inter">${total}</text><text x="100" y="118" text-anchor="middle" fill="var(--mute)" style="font:11px Inter">${esc(label)}</text></svg>`}
+function pieCard(title,hint,slices,total,label,detail){const sum=slices.reduce((s,x)=>s+x[1],0)||1;
+  return `<div class="card"><h3>${title} <span class="n">${total}</span></h3>${hint?`<div class="hint">${hint}</div>`:''}<div style="display:flex;gap:22px;align-items:center;flex-wrap:wrap">${donut(slices,total,label)}
+   <div style="flex:1;min-width:220px">${slices.filter(s=>s[1]>0).map(([name,n,col])=>`<div style="display:grid;grid-template-columns:12px 1fr 40px 44px;column-gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid #221e1e"><span style="width:11px;height:11px;border-radius:3px;background:${col}"></span><div><b style="font-weight:500">${esc(name)}</b>${detail&&detail(name)?`<div style="color:var(--dim);font-size:11.5px;line-height:1.35">${detail(name)}</div>`:''}</div><span style="text-align:right;font-variant-numeric:tabular-nums">${n}</span><span style="text-align:right;color:var(--dim);font-size:12px;font-variant-numeric:tabular-nums">${Math.round(100*n/sum)}%</span></div>`).join('')}</div></div></div>`}
+
+function overview(){
+  const x=g(), s=x.stats, act=x.members.filter(m=>m.days!=null&&m.days<=D.inactive_days);
+  const isMainRank=m=>!NONRAID.test(m.rank);
+  const activeRaiders=act.filter(isMainRank);
+  const activeAlts=act.reduce((n,m)=>n+m.chars.filter(c=>c.a&&(()=>{const p=c.s.split('/');if(p.length<3)return false;const d=new Date(2000+ +p[2],p[0]-1,+p[1]);return (new Date(D.generated)-d)/864e5<=D.inactive_days})()).length,0);
+  const byCls={};activeRaiders.forEach(m=>{const c=classOf(m.main,m.cls);byCls[c]=(byCls[c]||0)+1});
+  const cls=Object.entries(byCls).sort((a,b)=>b[1]-a[1]); const cmax=Math.max(...cls.map(c=>c[1]),1);
+  const byRank={};act.forEach(m=>byRank[m.rank]=(byRank[m.rank]||0)+1); const rk=Object.entries(byRank).sort((a,b)=>b[1]-a[1]); const rmax=Math.max(...rk.map(r=>r[1]),1);
+  const pips=x.members.map(m=>[m,pipOf(G,m.main)]).filter(([m,p])=>p&&p.status&&p.status!=='None'&&p.status!=='Closed');
+  const fr=x.flag_ref, refs=[...fr.progression,...fr.raids];
+  const flagCount=a=>activeRaiders.filter(m=>['yes','seen'].includes(hasAch(m,a))).length;
+  const recDays=r=>{const m=(r.note||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);if(!m)return null;const y=+m[3]<100?2000+ +m[3]:+m[3];return Math.round((new Date(D.generated)-new Date(y,m[1]-1,+m[2]))/864e5)};
+  return `<div class="glask"><div class="who">GLASK</div><div>
+   <p><em>“The Faceless sees all.”</em> ${x.guild} on ${x.server} has <b>${act.length}</b> active people (any character online in the last ${D.inactive_days} days), <b>${activeRaiders.length}</b> of them in raiding ranks, playing <b>${fmt(activeAlts)}</b> active alts.</p>
+   <p>${x.recruits.length} recruit${x.recruits.length===1?'':'s'} waiting on a rank decision · ${pips.length} on a Performance Improvement Plan · current expansion <b>${esc(s.xpac)}</b>. Who's gone quiet lives on the Cleanup tab.</p></div></div>
+  <div class="kpis">
+   <div class="kpi"><div class="v">${act.length}</div><div class="l">Active people</div><div class="s">of ${fmt(s.mains)} on the roster</div></div>
+   <div class="kpi"><div class="v">${activeRaiders.length}</div><div class="l">Active in raiding ranks</div><div class="s">excludes FnF, alt and applicant ranks</div></div>
+   <div class="kpi"><div class="v">${fmt(activeAlts)}</div><div class="l">Active alts</div><div class="s">online in the last ${D.inactive_days} days</div></div>
+   <div class="kpi"><div class="v">${x.recruits.length}</div><div class="l">Recruits</div><div class="s">applicant rank or "Recruit" note</div></div>
+   <div class="kpi ${pips.length?'alert':''}"><div class="v">${pips.length}</div><div class="l">On a PIP</div><div class="s">open or improving</div></div>
+  </div>
+  <div class="pies">${pieCard('Active people by rank','',rk.map(([r,n],i)=>[r,n,RANKCOL[i%RANKCOL.length]]),act.length,'active')}
+   ${(()=>{const roleOf=c=>(ROLES.find(r=>r[1].includes(c))||['Other'])[0];const per={};activeRaiders.forEach(m=>{const c=classOf(m.main,m.cls);(per[roleOf(c)]??={})[c]=(per[roleOf(c)][c]||0)+1});
+     const sl=ROLES.map(([n,_,col])=>[n,Object.values(per[n]||{}).reduce((a,b)=>a+b,0),col]);if(per.Other)sl.push(['Other',Object.values(per.Other).reduce((a,b)=>a+b,0),'#7d756f']);
+     return pieCard('Active raiders by role','Class from the guild dump, unless an officer set a raid class. Hover a slice for its share.',sl,activeRaiders.length,'raiders',n=>Object.entries(per[n]||{}).sort((a,b)=>b[1]-a[1]).map(([c,k])=>`<span style="white-space:nowrap">${c} ${k}</span>`).join(' · '))})()}</div>
+  <div class="card"><h3>Performance Improvement Plans <span class="n">${pips.length}</span></h3>${pips.length?`<table><tr><th>Member</th><th>Status</th><th>Concern</th><th>Review</th></tr>${pips.map(([m,p])=>`<tr class="click" onclick="profile('${esc(m.main)}')"><td>${esc(m.main)}</td><td><span class="tag red">${esc(p.status)}</span></td><td>${esc(p.concern)}</td><td>${esc(p.review||'')}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nobody on a PIP. Open one from any profile.</div>'}</div>
+  <div class="card"><h3>Recruits awaiting a rank decision <span class="n">${x.recruits.length}</span></h3><div class="hint">Applicant rank, or a main whose note still says "Recruit". The application window is <b>6 raids attended</b>, counted from raid logs uploaded to Glask since their recruit date. "Raids held" is from the loot sheet, for context. <label class="more" style="margin:0 0 0 6px;cursor:pointer;display:inline-block">Upload raid log<input type="file" accept=".txt" style="display:none" onchange="uploadRaidLog(event,G)"></label></div>
+   <table><tr><th>Name</th><th>Class</th><th>Rank now</th><th>Recruited</th><th class="num">Attended</th><th class="num">Raids held</th><th>Last seen</th></tr>
+   ${[...x.recruits].sort((a,b)=>(b.raids??99)-(a.raids??99)).map(r=>{const promoted=!/applicant|recruit|fnf|trial/i.test(r.rank);const n=r.raids;
+     const win=n==null?'<span style="color:var(--dim)">6+?</span>':n>=6?`<span class="tag ${promoted?'':'red'}" ${r.partial?'title="Loot data starts after this recruit date, so this is a minimum"':''}>${n}${r.partial?'+':''} / 6${promoted?'':' · decide'}</span>`:`${n} / 6`;
+     const a=attendedSince(r.main,r.start).length;const att=a>=6&&!promoted?`<span class="tag red">${a} / 6 · decide</span>`:`${a} / 6`;
+     return `<tr class="click" onclick="profile('${esc(r.main)}')"><td>${esc(r.main)}</td><td>${esc(r.cls)}</td><td>${esc(r.rank)} ${promoted?'<span class="tag warn" title="Already in a raiding rank; note still says Recruit">note not cleared</span>':''}</td><td>${esc(r.start||'—')}</td><td class="num">${att}</td><td class="num" style="color:var(--mute)">${win.replace(' · decide','').replace('tag red','tag')}</td><td>${ago(r.days)}</td></tr>`}).join('')}</table></div>
+  <div class="card"><h3>Raid achievements</h3><div class="hint" style="margin:0">Vanquisher progress for ${esc(s.xpac)} and earlier lives on the <span class="link" onclick="V='ach';render()">Achievements</span> tab, built for planning which achievements to run.</div></div>`;
+}
+function cleanup(){
+  const x=g(), s=x.stats;
+  const ranks=[...new Set(x.members.map(m=>m.rank))];
+  const inact=x.members.filter(m=>(m.days==null||m.days>D.inactive_days)&&(!inactiveRank||m.rank===inactiveRank)).sort((a,b)=>(b.days??9999)-(a.days??9999));
+  return glaskSay()+`<div class="card"><h3>1 · Departed mains with alts still in the guild <span class="n">${s.departed_alts} alts</span></h3>
+  <div class="hint">Each alt's note points to a main who's no longer in ${x.guild}. One decision per main: remove the alts, or re-link them if the person is still around under a new main. A <span class="tag warn">in other chapter</span> tag means that name is in the other guild.</div>
+  ${x.departed.map(d=>`<details><summary><b>${esc(d.main)}</b>${d.elsewhere?`<span class="tag warn">in ${otherServer(G)} as ${esc(d.elsewhere[0])}</span>`:''}<span class="c">${d.alts.length} alt${d.alts.length>1?'s':''} · last seen ${esc(d.last||'?')}</span></summary>
+  <div class="inner">${d.alts.map(a=>`${esc(a.n)} <span class="tag">${a.l} ${esc(a.c)}</span> last on ${esc(a.s)}`).join('<br>')}</div></details>`).join('')}</div>
+  <div class="card"><h3>2 · Alt notes Glask can't read <span class="n">${s.unreadable} alts</span></h3>
+  <div class="hint">Grouped by the character whose note needs fixing. Fix that one note to "Alt - Mainname" and everything under it links automatically.</div>
+  ${x.unreadable.map(u=>`<details><summary><b>${esc(u.anchor.n)}</b><span class="tag">${u.anchor.l} ${esc(u.anchor.c)}</span> note: <i>${esc(u.anchor.note)||'(blank)'}</i><span class="c">${u.alts.length?'+'+u.alts.length+' alts point here':''}</span></summary>
+  ${u.alts.length?`<div class="inner">${u.alts.map(a=>`${esc(a.n)} <span class="tag">${a.l} ${esc(a.c)}</span> “${esc(a.note)}”`).join('<br>')}</div>`:''}</details>`).join('')}</div>
+  <div class="card"><h3>3 · Inactive ${D.inactive_days}+ days <span class="n">${inact.length}</span></h3>
+  <div class="hint">Based on the most recent login across <b>all</b> of a person's characters, so someone raiding on an alt doesn't show as inactive.</div>
+  <div class="filters"><select onchange="inactiveRank=this.value;render()"><option value="">All ranks</option>${ranks.map(r=>`<option ${r===inactiveRank?'selected':''}>${esc(r)}</option>`).join('')}</select></div>
+  <table><tr><th>Member</th><th>Rank</th><th>Class</th><th class="num">Chars</th><th class="num">Last seen</th></tr>
+  ${inact.map(m=>`<tr class="click" onclick="profile('${esc(m.main)}')"><td>${esc(m.main)}</td><td>${esc(m.rank)}</td><td>${esc(m.cls)}</td><td class="num">${m.chars.length}</td><td class="num">${ago(m.days)}</td></tr>`).join('')}</table></div>`;
+}
+
+function roster(){
+  const x=g(); const ranks=[...new Set(x.members.map(m=>m.rank))];
+  let rows=x.members.filter(m=>(!rosterRank||m.rank===rosterRank)&&(!rosterFilter||m.chars.some(c=>c.n.toLowerCase().includes(rosterFilter))));
+  const k=rosterSort.k,d=rosterSort.d;
+  const val=m=>k==='chars'?m.chars.length:k==='days'?(m.days??99999):k==='loot'?m.cur.length:k==='level'?+m.level:String(m[k]).toLowerCase();
+  rows.sort((a,b)=>val(a)>val(b)?d:val(a)<val(b)?-d:0);
+  const th=(key,l,c='')=>`<th class="${c}" onclick="rosterSort={k:'${key}',d:rosterSort.k==='${key}'?-rosterSort.d:1};render()">${l}${rosterSort.k===key?(d>0?' ▲':' ▼'):''}</th>`;
+  return `<div class="card"><h3>${x.guild} roster <span class="n">${rows.length}</span></h3>
+  <div class="filters"><select onchange="rosterRank=this.value;render()"><option value="">All ranks</option>${ranks.map(r=>`<option ${r===rosterRank?'selected':''}>${esc(r)}</option>`).join('')}</select>
+  <input placeholder="Filter by any character name" value="${esc(rosterFilter)}" oninput="rosterFilter=this.value.toLowerCase();clearTimeout(window._t);window._t=setTimeout(()=>{render();const i=document.querySelector('.filters input');i.focus();i.setSelectionRange(i.value.length,i.value.length)},250)"></div>
+  <table><tr>${th('main','Main')}${th('rank','Rank')}${th('cls','Class')}${th('level','Lvl','num')}${th('chars','Chars','num')}${th('days','Last seen','num')}${th('loot',g().stats.xpac.split(' ').map(w=>w[0]).join('')+' items','num')}<th class="num">AA</th><th>Launch</th><th>App</th></tr>
+  ${rows.map(m=>`<tr class="click" onclick="profile('${esc(m.main)}')"><td>${esc(m.main)}${m.other.length?' <span class="tag warn">'+otherServer(G)+'</span>':''}</td><td>${esc(m.rank)}</td><td>${esc(classOf(m.main,m.cls))}${clsOverrides()[m.main.toLowerCase()]?' <span class="tag ok">set</span>':''}${(()=>{const mc=m.chars.find(c=>c.n===m.main)||{};const b=baseOf(mc);return b&&b!==m.cls?` <span class="tag" title="Base class">base ${esc(b)}</span>`:''})()}</td><td class="num">${m.level}</td><td class="num">${m.chars.length}</td><td class="num">${m.days!=null&&m.days>D.inactive_days?'<span style="color:var(--ember2)">'+ago(m.days)+'</span>':ago(m.days)}</td><td class="num">${m.cur.length||''}</td><td class="num">${achOf(m)?aaText(achOf(m)):''}</td><td>${qTag(latestQStatus(m))}</td><td>${m.app?'<span class="tag ok">on file</span>':''}</td></tr>`).join('')}</table></div>`;
+}
+
+function apps(){
+  const x=g();
+  return `<div class="card"><h3>Recent ${x.server} applications <span class="n">${x.apps.length}</span></h3><div class="hint">Newest first, from the ${x.server} application sheet. "In guild" means that character is in today's guild dump.</div>
+  <table><tr><th>Date</th><th>Character</th><th>Class</th><th class="num">Lvl</th><th class="num">AA</th><th>Prior</th><th>Status</th></tr>
+  ${x.apps.map(a=>`<tr ${a.member?`class="click" onclick="profile('${esc(a.member)}')"`:''}><td>${esc(a.date.split(' ')[0])}</td><td>${esc(a.name)}</td><td>${esc(a.cls)}</td><td class="num">${esc(a.level)}</td><td class="num">${esc(a.aa)}</td><td style="max-width:320px;color:var(--mute)">${esc((a.prior||'').slice(0,140))}</td><td>${a.in_guild?'<span class="tag ok">in guild</span>':'<span class="tag">not in guild</span>'}</td></tr>`).join('')}</table></div>`;
+}
+
+
+const SLOTS=['Head','Face','Ear','Neck','Shoulders','Arms','Back','Wrist','Range','Hands','Primary','Secondary','Fingers','Chest','Legs','Feet','Waist','Charm','Power Source'];
+const NONRAID=/^(FnF|Alt|Box\/Alt|Decorate|Applicant)$/i;
+function gear(){
+  const x=g(), xp=x.stats.xpac;
+  const rows=x.members.filter(m=>!NONRAID.test(m.rank)&&m.days!=null&&m.days<=D.inactive_days).sort((a,b)=>a.cur_main-b.cur_main||a.main.localeCompare(b.main));
+  const known=m=>m.cur.filter(i=>i[2]===m.main);
+  return `<div class="glask"><div class="who">GLASK</div><div><p><em>“Their armor speaks for them.”</em> Gear check for <b>${esc(xp)}</b>, the current ${x.server} expansion. Fewest upgrades first.</p>
+  <p style="color:var(--mute);font-size:13px">Counts loot awarded to the <b>main</b> this expansion (boxes don't count). Slots come from the item name where it says so (e.g. "Obscured <b>Wrist</b> Armor"), or from an uploaded inventory. Items I can't place yet show as "slot ?" until they're confirmed on Lucy or seen in an inventory.</p></div></div>
+  <div class="card"><h3>Active raiders · ${esc(xp)} upgrades on their main <span class="n">${rows.length}</span></h3>
+  <table><tr><th>Main</th><th>Class</th><th>Rank</th><th class="num">${esc(xp.split(' ').map(w=>w[0]).join(''))} items</th><th>Slots upgraded</th><th>Inventory</th></tr>
+  ${rows.map(m=>{const k=known(m);const unk=k.filter(i=>!i[4]).length;return `<tr class="click" onclick="profile('${esc(m.main)}')"><td>${esc(m.main)}</td><td>${esc(m.cls)}</td><td>${esc(m.rank)}</td><td class="num">${m.cur_main?m.cur_main:'<span style="color:var(--ember2)">0</span>'}</td><td>${m.cur_slots.map(s=>`<span class="tag ok">${s}</span>`).join('')}${unk?`<span class="tag">+${unk} slot ?</span>`:''}</td><td>${invOf(m)?'<span class="tag ok">on file</span>':''}</td></tr>`}).join('')}</table></div>`;
+}
+function invKey(gi,m){return 'glask-inv-'+D.guilds[gi].server+'-'+m.main}
+function invOf(m,gi=G){if(m.inv)return m.inv;{const v=kvGet(invKey(gi,m));if(v)return v}return null}
+function parseInv(text){const WORN=new Set(['Charm','Ear','Head','Face','Neck','Shoulders','Arms','Back','Wrist','Range','Hands','Primary','Secondary','Fingers','Chest','Legs','Feet','Waist','Power Source','Ammo']);const out=[];
+  for(const line of text.split(/\r?\n/)){const r=line.split('\t');if(r.length<5||r[0]==='Location')continue;const base=r[0].split('-Slot')[0];if(!WORN.has(base))break;
+   if(r[0].includes('-Slot')){if(out.length)out[out.length-1].augs.push(r[1])}else out.push({slot:base,item:r[1],id:r[2],augs:[]})}
+  return out}
+function gearCard(m,gi){
+  const x=D.guilds[gi], xp=x.stats.xpac, inv=invOf(m,gi), cur=m.cur;
+  const isCur=v=>v==='ToB'&&gi===0||v==='UF'&&gi===1;
+  let slotRows='';
+  if(inv){
+    slotRows=inv.filter(w=>w.slot!=='Ammo').map(w=>{const l=m.slot_last[w.slot];const empt=w.augs.filter(a=>a==='Empty').length;
+      return `<tr><td>${w.slot}</td><td>${esc(w.item)}<div style="color:var(--dim);font-size:11.5px">${w.augs.map(a=>a==='Empty'?'<span style="color:var(--warn)">empty</span>':esc(a)).join(' · ')}</div></td>
+      <td>${l?`${esc(l[0])} <span class="tag ${isCur(l[2])?'ok':'red'}">${esc(l[2]||'?')}</span>`:'<span style="color:var(--dim)">not in loot sheet</span>'}</td><td class="num">${empt||''}</td></tr>`}).join('');
+  } else {
+    slotRows=SLOTS.map(sl=>{const l=m.slot_last[sl];return `<tr><td>${sl}</td><td style="color:var(--dim)">upload inventory to see</td><td>${l?`${esc(l[0])} · ${esc(l[1])} <span class="tag ${isCur(l[2])?'ok':'red'}">${esc(l[2]||'?')}</span>`:'<span style="color:var(--dim)">—</span>'}</td><td></td></tr>`}).join('');
+  }
+  return `<div class="card"><h3>Gear <span style="display:flex;gap:8px;align-items:center">${inv?'<span class="tag ok">inventory on file</span>':''}<label class="more" style="margin:0;cursor:pointer">Upload /outputfile inventory<input type="file" accept=".txt" style="display:none" onchange="uploadInv(event,${gi},'${esc(m.main)}')"></label></span></h3>
+   <div class="hint">“Last upgrade” is the newest item for that slot awarded to <b>${esc(m.main)}</b> in the loot sheet. <span class="tag ok">${gi===0?'ToB':'UF'}</span> = this expansion, <span class="tag red">older</span> = not upgraded yet. Empty aug slots are listed as-is; some may be ornament or type-restricted slots, which Glask will confirm from Lucy before calling anything missing.</div>
+   <table><tr><th>Slot</th><th>${inv?'Wearing':''}</th><th>Last upgrade (loot sheet)</th><th class="num">${inv?'Empty augs':''}</th></tr>${slotRows}</table></div>
+   <div class="card"><h3>${esc(xp)} loot, all characters <span class="n">${cur.length}</span></h3>${cur.length?`<table><tr><th>Date</th><th>Item</th><th>On</th><th>Slot</th>${gi===0?'<th class="num">DKP</th>':''}</tr>${cur.map(i=>`<tr><td>${esc(i[0])}</td><td>${esc(i[1])}</td><td>${esc(i[2])}</td><td>${i[4]?esc(i[4]):'<span style="color:var(--dim)">?</span>'}</td>${gi===0?`<td class="num">${i[3]??''}</td>`:''}</tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nothing awarded this expansion yet.</div>'}</div>`;
+}
+function uploadInv(ev,gi,main){const f=ev.target.files[0];if(!f)return;f.text().then(t=>{const inv=parseInv(t);if(!inv.length){alertBox('That file doesn\'t look like an /outputfile inventory.');return}
+  const m=D.guilds[gi].members.find(x=>x.main===main);m.inv=inv;kvSet(invKey(gi,m),inv);profile(main)})}
+function alertBox(msg){const d=document.createElement('div');d.textContent=msg;d.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#3a1d17;border:1px solid var(--ember);padding:10px 16px;border-radius:8px;z-index:20';document.body.appendChild(d);setTimeout(()=>d.remove(),3500)}
+
+
+const TANKS=new Set(['Warrior','Paladin','Shadow Knight']);
+let raidIdx=0;
+const kfmt=v=>v>=1e6?(v/1e6).toFixed(2)+'M':Math.round(v/1e3)+'K';
+function pipKey(gi,main){return 'glask-pip-'+D.guilds[gi].server+'-'+main}
+function pipOf(gi,main){return kvGet(pipKey(gi,main))}
+function perfFlags(p){const f=[];if(p.override)f.push(`<span class="tag ok" title="Set by an officer">class set: ${esc(p.cls)}</span>`);if(p.persona)f.push(`<span class="tag warn" title="Guild dump says ${esc(p.dump_cls)}; the spells cast in this log say ${esc(p.cls)}">persona: ${esc(p.dump_cls)} → ${esc(p.cls)}</span>`);if(p.rl)f.push('<span class="tag ok">raid leader</span>');if(p.box)f.push('<span class="tag">box</span>');if(p.mismatch)f.push('<span class="tag warn" title="Guild dump class does not match what they cast">class?</span>');
+  if(p.uptime<0.5)f.push(`<span class="tag warn">${Math.round(p.uptime*100)}% active</span>`);if(p.deaths>=2)f.push(`<span class="tag red">${p.deaths} deaths</span>`);return f.join('')}
+function perf(){
+  const x=g();
+  const RA=allRaids(G); if(raidIdx>=RA.length)raidIdx=0; const st=logSettings();
+  const controls=`<div class="filters" style="align-items:center"><select onchange="raidIdx=+this.value;render()">${RA.map((q,i)=>`<option value="${i}" ${i===raidIdx?'selected':''}>${esc(q.date)} · ${esc(q.id)}${q.uploaded?' (uploaded)':''}</option>`).join('')}</select><label class="more" style="margin:0;cursor:pointer">Upload raid log<input type="file" accept=".txt" style="display:none" onchange="uploadRaidLog(event,G)"></label><span style="color:var(--dim);font-size:12px">Log owner (“You”):</span><input style="width:110px" value="${esc(st.owner)}" onchange="const s=logSettings();s.owner=this.value.trim();lsSet('glask-logsettings',s)"><label style="color:var(--mute);font-size:12px"><input type="checkbox" ${st.ownerRL?'checked':''} onchange="const s=logSettings();s.ownerRL=this.checked;lsSet('glask-logsettings',s)"> owner was raid leading</label></div>`;
+  if(!RA.length)return controls+`<div class="card"><h3>Performance</h3><div class="hint" style="margin:0">No ${x.server} raid logs loaded yet. Upload a raid log and Glask ranks everyone against their own class.</div></div>`;
+  const r=RA[raidIdx]; const ps=r.players;
+  const classes=[...new Set(ps.map(p=>p.cls))].sort();
+  const watch=ps.filter(p=>!p.box&&!p.mismatch&&!p.rl&&!TANKS.has(p.cls)&&((p.pct!=null&&p.pct<70)||p.uptime<0.5||p.deaths>=2)).sort((a,b)=>(a.pct??0)-(b.pct??0));
+  const pips=x.members.map(m=>[m,pipOf(G,m.main)]).filter(([m,p])=>p&&p.status!=='Closed');
+  const mainOf=n=>{const p=ps.find(p=>p.name===n);if(p&&p.rl)return p.main;const m=x.members.find(m=>m.chars.some(c=>c.n===n));return m?m.main:null};
+  const owner=null;
+  return controls+`<div class="glask"><div class="who">GLASK</div><div><p><em>“I have measured them against their own kind.”</em> <b>${esc(r.id)}</b>, ${esc(r.date)}: ${Math.round(r.seconds/60)} minutes, ${ps.length} players parsed from the raw log.</p>
+   <p style="color:var(--mute);font-size:13px">Each player is compared with the <b>median of their class</b> in this raid (mains only; boxes and anyone active under 30% of the fight are left out of the median). Because of personas, class comes from the <b>spells each person cast in this log</b>, not the guild dump; anyone whose class differs is tagged so an officer can confirm. DPS classes use SDPS (damage over their own active time); Clerics and Shamans use healing per active second. Tank DPS is shown for reference only. ${r.raid_leader?`<b>${esc(r.raid_leader)}</b> was raid leading, so their characters are tagged and left out of medians and the watch list.`:''} ${owner?`The log owner shows as “You” in the log, so their ${kfmt(owner.dmg)} damage isn't credited to anyone yet.`:''}</p></div></div>
+  <div class="grid2"><div class="card"><h3>Watch list <span class="n">${watch.length}</span></h3><div class="hint">Non-box, non-tank players under 70% of class median, active less than half the fight, or 2+ deaths.</div>
+   <table><tr><th>Player</th><th>Class</th><th class="num">vs class</th><th>Flags</th></tr>${watch.map(p=>`<tr class="click" onclick="profile('${esc(mainOf(p.name)||p.name)}')"><td>${esc(p.name)}</td><td>${esc(p.cls)}</td><td class="num">${p.pct}%</td><td>${perfFlags(p)}</td></tr>`).join('')}</table></div>
+   <div class="card"><h3>On a Performance Improvement Plan <span class="n">${pips.length}</span></h3><div class="hint">Open a PIP from anyone's profile. (Prototype: PIPs are saved in this browser only.)</div>
+   ${pips.length?`<table><tr><th>Member</th><th>Concern</th><th>Review</th></tr>${pips.map(([m,p])=>`<tr class="click" onclick="profile('${esc(m.main)}')"><td>${esc(m.main)}</td><td>${esc(p.concern)}</td><td>${esc(p.review||'')}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nobody yet.</div>'}</div></div>
+  ${classes.map(cls=>{const grp=ps.filter(p=>p.cls===cls).sort((a,b)=>b.val-a.val);const med=grp[0].median;
+    return `<div class="card"><h3>${esc(cls)} ${TANKS.has(cls)?'<span class="tag">tank · DPS for reference</span>':''}<span style="color:var(--dim);font-size:12px;text-transform:none;letter-spacing:0">class median ${kfmt(med)} ${grp[0].metric==='hps'?'HPS':'SDPS'}</span></h3>
+    <table>${grp.map(p=>`<tr class="click" onclick="profile('${esc(mainOf(p.name)||p.name)}')"><td style="width:140px">${esc(p.name)}</td><td style="width:40%"><div class="rankbar" style="margin:0"><span class="tr"><span class="fl" style="display:block;width:${Math.min(100,(p.pct||0)/2)}%;background:${(p.pct||0)<70?'var(--ember)':'var(--bone)'}"></span></span></div></td><td class="num" style="width:70px">${p.pct}%</td><td class="num" style="width:80px">${kfmt(p.val)}</td><td class="num" style="width:50px">#${p.rank}/${p.of}</td><td>${perfFlags(p)}</td></tr>`).join('')}</table></div>`}).join('')}`;
+}
+function achCell(st,date){return st==='yes'?'<span class="tag ok">✓ done</span>':st==='no'?'<span class="tag red">✗ missing</span>':st==='seen'?'<span class="tag ok">seen '+esc(date||'')+'</span>':'<span style="color:var(--dim)">not seen</span>'}
+function flagCard(m,gi){const fr=D.guilds[gi].flag_ref, refs=[...fr.progression], ax=achOf(m,gi);if(!refs.length)return `<div class="card"><h3>Achievement export<label class="more" style="margin:0;cursor:pointer">Upload /outputfile achievement<input type="file" accept=".txt" style="display:none" onchange="uploadAch(event,${gi},'${esc(m.main)}')"></label></h3><div class="hint" style="margin:0">${ax?`Loaded${ax.uploaded?' '+esc(ax.uploaded):''}: AA ${aaText(ax)}; Vanquisher status below is definitive.`:'Upload it for AA and definitive Vanquisher status.'}</div></div>`;const n=refs.filter(a=>['yes','seen'].includes(hasAch(m,a,gi))).length;
+  return `<div class="card"><h3>${esc(fr.xpac)} progression flags <span style="display:flex;gap:8px;align-items:center"><span class="n">${n}/${refs.length}</span><label class="more" style="margin:0;cursor:pointer">Upload /outputfile achievement<input type="file" accept=".txt" style="display:none" onchange="uploadAch(event,${gi},'${esc(m.main)}')"></label></span></h3>
+  <div class="hint">${ax?`From ${esc(m.main)}'s achievement export${ax.uploaded?' (uploaded '+esc(ax.uploaded)+')':''}: this is definitive.`:'Seen in logs so far. “Not seen” isn\'t proof they\'re missing it; upload their achievement export for a definitive check (it also gives their AA count).'}</div>
+  <table>${refs.map(a=>`<tr><td>${esc(a.replace('Conqueror of ',''))}</td><td>${achCell(hasAch(m,a,gi),(m.flags||{})[a])}</td></tr>`).join('')}</table></div>`}
+function attCard(m,gi){const rec=D.guilds[gi].recruits.find(r=>r.main===m.main);const dates=attendedSince(m.main,rec?rec.start:null,gi);
+  return `<div class="card"><h3>Raid attendance${rec?' · application window':''} <span style="display:flex;gap:8px;align-items:center">${rec?`<span class="n">${dates.length} / 6</span>`:`<span class="n">${dates.length}</span>`}<label class="more" style="margin:0;cursor:pointer">Upload raid log<input type="file" accept=".txt" style="display:none" onchange="uploadRaidLog(event,${gi}).then(()=>profile('${esc(m.main)}'))"></label></span></h3>
+  <div class="hint">Counted from raid logs uploaded to Glask: a raid counts if any of ${esc(m.main)}'s characters shows up in it${rec?`, since their recruit date (${esc(rec.start||'?')})`:''}. One log updates attendance for everyone in it.</div>
+  ${dates.length?dates.map(d=>`<span class="tag ok">${esc(d)}</span>`).join(' '):'<span style="color:var(--dim)">No uploaded raid logs include them yet.</span>'}</div>`}
+
+function vqStatus(m,a,gi=G){const x=achOf(m,gi);if(x)return x.done.includes(a)?'yes':'no';return m.vq_seen&&m.vq_seen[a]?'seen':null}
+function vqCard(m,gi){const V2=D.guilds[gi].vanq||[];if(!V2.length)return '';const ax=achOf(m,gi);
+  return `<div class="card"><h3>Raid achievements · Vanquisher</h3><div class="hint">${ax?'From their achievement export: definitive.':'From log lines so far; upload their achievement export for a definitive view.'} Click an expansion, then a raid, to see each sub-achievement.</div>
+  ${[...V2].reverse().map(([xp,evs],i)=>{const subs=evs.flatMap(e=>e.subs);const n=subs.filter(s=>['yes','seen'].includes(vqStatus(m,s.name,gi))).length;
+   return `<details ${i===0?'open':''}><summary><b>${esc(xp)}</b><span class="c">${n} / ${subs.length} sub-achievements</span></summary><div class="inner" style="padding-left:12px">
+   ${evs.map(e=>{const k=e.subs.filter(s=>['yes','seen'].includes(vqStatus(m,s.name,gi))).length;const full=vqStatus(m,e.name,gi)==='yes'||k===e.subs.length;
+     return `<details><summary>${full?'<span class="tag ok">✓</span>':''}<span style="color:var(--text)">${esc(e.event)}</span><span class="c">${k} / ${e.subs.length}</span></summary><div class="inner">${e.subs.map(s=>`${achCell(vqStatus(m,s.name,gi),(m.vq_seen||{})[s.name])} <b style="color:var(--text)">${esc(s.name)}</b> · ${esc(s.desc)}`).join('<br>')}</div></details>`}).join('')}
+   </div></details>`}).join('')}</div>`}
+let achX=null;
+function ach(){const x=g();const V2=x.vanq||[];if(!V2.length)return '<div class="card">No raid achievement reference loaded.</div>';
+  if(!achX||!V2.find(v=>v[0]===achX))achX=V2[V2.length-1][0];const evs=V2.find(v=>v[0]===achX)[1];
+  const pop=x.members.filter(m=>!NONRAID.test(m.rank)&&m.days!=null&&m.days<=D.inactive_days);const withX=pop.filter(m=>achOf(m)).length;
+  return `<div class="glask"><div class="who">GLASK</div><div><p><em>“Choose which trials the Faceless will face.”</em> Vanquisher sub-achievements for <b>${esc(achX)}</b>, checked against the <b>${pop.length}</b> active raiders.</p>
+   <p style="color:var(--mute);font-size:13px">Have = done (achievement export) or seen completing it in a log. Need = their export shows it missing. Unknown = no export and not seen yet. ${withX} of ${pop.length} active raiders have an achievement export loaded; the more exports, the fewer unknowns.</p></div></div>
+  <div class="filters"><select onchange="achX=this.value;render()">${[...V2].reverse().map(([xp])=>`<option ${xp===achX?'selected':''}>${esc(xp)}</option>`).join('')}</select></div>
+  ${evs.map(e=>{const rows=e.subs.map(s=>{const st=pop.map(m=>[m,vqStatus(m,s.name)]);return {s,have:st.filter(z=>['yes','seen'].includes(z[1])),need:st.filter(z=>z[1]==='no'),unk:st.filter(z=>z[1]==null)}});
+    const needAny=rows.reduce((a,r)=>a+r.need.length,0);
+    return `<div class="card" style="padding:0 16px"><details><summary style="padding:14px 4px"><b style="font-size:15px">${esc(e.event)}</b><span class="c">${rows.map(r=>`<span class="tag ${r.need.length?'red':r.unk.length?'':'ok'}" title="${esc(r.s.name)}">${esc(r.s.name.split(': ').pop())}: ${r.have.length} have${r.need.length?' · '+r.need.length+' need':''}</span>`).join('')}</span></summary>
+     <table style="margin-bottom:12px"><tr><th>Sub-achievement</th><th>What it takes</th><th class="num">Have</th><th class="num">Need</th><th class="num">Unknown</th></tr>
+     ${rows.map(r=>`<tr><td><b>${esc(r.s.name)}</b></td><td style="color:var(--mute)">${esc(r.s.desc)}</td><td class="num">${r.have.length}</td><td class="num">${r.need.length?`<details style="border:0;display:inline-block"><summary style="padding:0;color:var(--ember2)">${r.need.length}</summary><div style="text-align:left;font-size:12px">${r.need.map(z=>esc(z[0].main)).join(', ')}</div></details>`:'0'}</td><td class="num" style="color:var(--dim)">${r.unk.length}</td></tr>`).join('')}</table></details></div>`}).join('')}`}
+
+function raidAchCard(m,gi){const rr=D.guilds[gi].raid_ref;if(!rr||!rr.length)return '';const got=m.raid_ach||{};
+  return `<div class="card"><h3>Raid achievements · Rain of Fear onward</h3><div class="hint">“Conqueror” achievements per expansion, from Klucifer's export as the full list. Seen = Glask has a “Your guildmate … has completed” line for one of ${esc(m.main)}'s characters.</div>
+  ${[...rr].reverse().map(([xp,list])=>{const n=list.filter(a=>['yes','seen'].includes(hasAch(m,a,gi))).length;return `<details><summary><b>${esc(xp)}</b><span class="c">${n} / ${list.length} ${achOf(m,gi)?'done':'seen'}</span></summary><div class="inner">${list.map(a=>`${achCell(hasAch(m,a,gi),got[a])} ${esc(a)}`).join('<br>')}</div></details>`}).join('')}</div>`}
+function perfCard(m,gi){let h=perfCard0(m,gi);if(!isOff(gi))h=h.replace(/<div class="card"><h3>Performance Improvement Plan[\s\S]*?<\/form><\/div>/,'');return h}
+function perfCard0(m,gi){
+  const x=D.guilds[gi]; const names=new Set(m.chars.map(c=>c.n));
+  const rows=[];allRaids(gi).forEach(r=>r.players.forEach(p=>{if(names.has(p.name)||(p.rl&&p.main===m.main))rows.push([r,p])}));
+  const pip=pipOf(gi,m.main)||{};
+  return `<div class="card"><h3>Performance vs class</h3>${rows.length?`<table><tr><th>Raid</th><th>Char</th><th class="num">vs class</th><th class="num">Rank</th><th class="num">${'Value'}</th><th>Flags</th></tr>${rows.map(([r,p])=>`<tr><td>${esc(r.date)} ${esc(r.id)}</td><td>${esc(p.name)}</td><td class="num">${p.pct}%</td><td class="num">#${p.rank}/${p.of}</td><td class="num">${kfmt(p.val)} ${p.metric==='hps'?'HPS':'SDPS'}</td><td>${perfFlags(p)}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Not in any loaded raid log.</div>'}</div>
+  <div class="card"><h3>Performance Improvement Plan ${pip.status&&pip.status!=='Closed'?'<span class="tag red">'+esc(pip.status)+'</span>':''}</h3>
+   <form onsubmit="event.preventDefault();savePip(${gi},'${esc(m.main)}',this)" class="app"><dl>
+   <dt>Status</dt><dd><select name="status">${['None','Open','Improving','Closed'].map(s=>`<option ${pip.status===s?'selected':''}>${s}</option>`).join('')}</select></dd>
+   <dt>Started</dt><dd><input name="start" type="date" value="${esc(pip.start||'')}"></dd>
+   <dt>Concern</dt><dd><input name="concern" style="width:100%" placeholder="e.g. positioning on Yaran, uptime on Dock" value="${esc(pip.concern||'')}"></dd>
+   <dt>Targets</dt><dd><textarea name="targets" rows="3" style="width:100%" placeholder="e.g. ≥80% of bard median over 4 raids; no Tail Strike deaths">${esc(pip.targets||'')}</textarea></dd>
+   <dt>Review date</dt><dd><input name="review" type="date" value="${esc(pip.review||'')}"></dd>
+   <dt>Officer notes</dt><dd><textarea name="notes" rows="3" style="width:100%">${esc(pip.notes||'')}</textarea></dd></dl>
+   <button class="more" type="submit">Save PIP</button></form></div>`;
+}
+function savePip(gi,main,f){const p=Object.fromEntries(new FormData(f).entries());kvSet(pipKey(gi,main),p);alertBox('PIP saved for '+main+(p.status==='None'?'':' · '+p.status));profile(main)}
+
+
+// ---- achievement exports (AA + definitive flags) and raid attendance from uploaded logs ----
+function lsGet(k){if(k==='glask-logsettings')k+='-'+ME.id;return kvGet(k)}
+function lsSet(k,v){if(k==='glask-logsettings')k+='-'+ME.id;kvSet(k,v)}
+function achOf(m,gi=G){return m.achx||lsGet('glask-ach-'+D.guilds[gi].server+'-'+m.main)}
+function parseAchExport(text,wanted){const W=new Set(wanted),done=[],tiers=[];
+  for(const raw of text.split(/\r?\n/)){if(!/^[CI]\t/.test(raw)||/^[CI]\t\t/.test(raw))continue;const ok=raw[0]==='C',name=raw.slice(2);
+    const mm=name.match(/^([\d,]+) Alternate Advancement Points$/);if(mm)tiers.push([+mm[1].replace(/,/g,''),ok]);if(ok&&W.has(name))done.push(name)}
+  if(!tiers.length&&!done.length)return null;const got=tiers.filter(t=>t[1]).map(t=>t[0]),nxt=tiers.filter(t=>!t[1]).map(t=>t[0]);
+  return {aa_floor:got.length?Math.max(...got):0,aa_next:nxt.length?Math.min(...nxt):null,done,source:'export',uploaded:new Date().toISOString().slice(0,10)}}
+function aaText(a){if(!a)return '—';return a.aa_next?`${fmt(a.aa_floor)}–${fmt(a.aa_next-1)}`:`${fmt(a.aa_floor)}+`}
+function uploadAch(ev,gi,main){const f=ev.target.files[0];if(!f)return;f.text().then(t=>{const a=parseAchExport(t,D.guilds[gi]._wanted);if(!a){alertBox("That file doesn't look like an /outputfile achievement export.");return}
+  lsSet('glask-ach-'+D.guilds[gi].server+'-'+main,a);alertBox('Achievements loaded for '+main+' · AA '+aaText(a));profile(main)})}
+function hasAch(m,a,gi=G){const x=achOf(m,gi);if(x)return x.done.includes(a)?'yes':'no';return (m.flags&&m.flags[a])||(m.raid_ach&&m.raid_ach[a])?'seen':null}
+function attendance(gi=G){const base=D.guilds[gi].attendance||{},extra=lsGet('glask-att-'+D.guilds[gi].server)||{};const out={...base};
+  for(const[d,l]of Object.entries(extra))out[d]=[...new Set([...(out[d]||[]),...l])];return out}
+function attendedSince(main,start,gi=G){return Object.entries(attendance(gi)).filter(([d,l])=>(!start||d>=start)&&l.includes(main)).map(([d])=>d).sort()}
+// ---- client-side raid log parser (port of Glask's server parser) ----
+const RX={TS:/^\[\w{3} (\w{3}) (\d+) (\d\d):(\d\d):(\d\d) (\d{4})\] (.*)$/,
+ MELEE:/^(.+?) (?:hit|hits|slash|slashes|crush|crushes|pierce|pierces|kick|kicks|bash|bashes|punch|punches|strike|strikes|bite|bites|backstab|backstabs|shoot|shoots|claw|claws|frenzy on|frenzies on|sting|stings|slam|slams|smash|smashes|maul|mauls|gore|gores) (.+?) for (\d+) points? of (?:(\w+) )?damage(?: by (.+?))?\.(?: \((.+)\))?$/,
+ DOT:/^(.+?) has taken (\d+) damage from (your )?(.+?)(?: by (.+?))?\.(?: \((.+)\))?$/,
+ HEAL:/^(.+?) healed (.+?) for (\d+)(?: \((\d+)\))? hit points?(?: by (.+?))?\.(?: \((.+)\))?$/,
+ SLAIN:/^(.+?) (?:has been slain by|have been slain by) (.+?)!$/, OWNER:/^(.+?)`s (?:pet|warder|ward)$/, RANK:/(?: Rk\. ?[IVX]+| [IVXL]+| Effect)+$/};
+const MONI={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+function logSettings(){return Object.assign({owner:'Klucifer',ownerRL:true},lsGet('glask-logsettings')||{})}
+async function parseRaidFile(f,gi){
+  const x=D.guilds[gi],roster={};x.members.forEach(m=>m.chars.forEach(c=>roster[c.n.toLowerCase()]={cls:c.c,main:m.main,alt:c.a,n:c.n}));
+  const st=logSettings(),me=st.owner;const isP=n=>!!roster[n.toLowerCase()];
+  const own=a=>{if(/^(you|your)$/i.test(a))return me;const m=a.match(RX.OWNER);if(m)return /^your$/i.test(m[1])?me:m[1];return a};
+  const P={};const get=n=>P[n]||(P[n]={dmg:0,heal:0,over:0,acts:[],deaths:0,sp:{}});const norm=s=>s.trim().replace(RX.RANK,'');
+  let first=null,last=null,carry='';const reader=f.stream().pipeThrough(new TextDecoderStream('latin1')).getReader();
+  while(true){const{value,done}=await reader.read();if(done)break;const lines=(carry+value).split('\n');carry=lines.pop();
+    for(const raw of lines){const m=raw.replace(/\r$/,'').match(RX.TS);if(!m)continue;const msg=m[7];
+      const t=new Date(+m[6],MONI[m[1]],+m[2],+m[3],+m[4],+m[5]).getTime()/1000;let k;
+      if((k=msg.match(RX.MELEE))){const src=own(k[1]),tgt=k[2];if(isP(src)&&!isP(tgt)&&!RX.OWNER.test(tgt)){const p=get(src);p.dmg+=+k[3];p.acts.push(t);if(k[5]&&!RX.OWNER.test(k[1]))p.sp[norm(k[5])]=(p.sp[norm(k[5])]||0)+1;first??=t;last=t}continue}
+      if((k=msg.match(RX.DOT))){const tgt=k[1];const src=k[3]?me:own(k[5]||'You');if(isP(src)&&!isP(tgt)&&!RX.OWNER.test(tgt)){const p=get(src);p.dmg+=+k[2];p.acts.push(t);if(!RX.OWNER.test(k[5]||''))p.sp[norm(k[4])]=(p.sp[norm(k[4])]||0)+1;first??=t;last=t}continue}
+      if((k=msg.match(RX.HEAL))){const src=own(k[1]);if(isP(src)){const p=get(src),a=+k[3],tot=+(k[4]||k[3]);p.heal+=a;p.over+=tot-a;p.acts.push(t);if(k[5]&&!RX.OWNER.test(k[1]))p.sp[norm(k[5])]=(p.sp[norm(k[5])]||0)+1}continue}
+      if((k=msg.match(RX.SLAIN))){const who=k[1]==='You'?me:k[1];if(isP(who))get(who).deaths++}}}
+  if(first==null)return null;
+  const fight=Math.max(1,last-first);
+  // class played: spells -> class (>=3 casters, >=60% one guild class), player -> class (>=80% of >=200 casts)
+  const votes={};for(const[n,p]of Object.entries(P)){const c=roster[n.toLowerCase()].cls;for(const s in p.sp){(votes[s]??={})[c]=(votes[s][c]||0)+1}}
+  const scls={};for(const[s,v]of Object.entries(votes)){const e=Object.entries(v).sort((a,b)=>b[1]-a[1]);const tot=e.reduce((a,b)=>a+b[1],0);if(e[0][1]>=3&&e[0][1]/tot>=.6)scls[s]=e[0][0]}
+  const players=Object.entries(P).map(([n,p])=>{const ts=p.acts.sort((a,b)=>a-b);let active=0,s0=null,e0=null;for(const u of ts){if(s0==null){s0=e0=u}else if(u-e0<=12)e0=u;else{active+=e0-s0+1;s0=e0=u}}if(s0!=null)active+=e0-s0+1;
+    const tally={};for(const[s,k]of Object.entries(p.sp))if(scls[s])tally[scls[s]]=(tally[scls[s]]||0)+k;const te=Object.entries(tally).sort((a,b)=>b[1]-a[1]);const tt=te.reduce((a,b)=>a+b[1],0);
+    const r=roster[n.toLowerCase()];const played=te.length&&te[0][1]>=200&&te[0][1]/tt>=.8?te[0][0]:r.cls;
+    return {name:r.n,main:r.main,dump_cls:r.cls,played,box:r.alt,dmg:p.dmg,heal:p.heal,overheal:p.over,active:Math.round(active),uptime:Math.min(1,active/fight),deaths:p.deaths,sdps:Math.round(p.dmg/Math.max(active,1))}});
+  const d=new Date((first-6*3600)*1000);const date=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const ownerMain=roster[me.toLowerCase()]?roster[me.toLowerCase()].main:me;
+  return {id:f.name.replace(/\.txt$/i,''),date,seconds:Math.round(fight),raid_leader:st.ownerRL?ownerMain:null,players,uploaded:true};
+}
+async function uploadRaidLog(ev,gi){const f=ev.target.files[0];if(!f)return;alertBox('Reading '+f.name+'… (big logs take a few seconds)');
+  const r=await parseRaidFile(f,gi);const x=D.guilds[gi];
+  if(!r||!r.players.length){alertBox('No guild members found in that log.');return}
+  const raids=lsGet('glask-raids-'+x.server)||[];const i=raids.findIndex(q=>q.id===r.id&&q.date===r.date);if(i>=0)raids[i]=r;else raids.push(r);lsSet('glask-raids-'+x.server,raids);
+  const store=lsGet('glask-att-'+x.server)||{};store[r.date]=[...new Set([...(store[r.date]||[]),...r.players.map(p=>p.main)])];lsSet('glask-att-'+x.server,store);
+  alertBox(`${r.id} (${r.date}): ${r.players.length} players parsed, attendance and performance updated.`);render()}
+// ---- class overrides set by officers ----
+function clsOverrides(gi=G){return lsGet('glask-cls-'+D.guilds[gi].server)||{}}
+function setClass(gi,char,cls){const o=clsOverrides(gi);if(cls)o[char.toLowerCase()]=cls;else delete o[char.toLowerCase()];lsSet('glask-cls-'+D.guilds[gi].server,o);alertBox(cls?`${char} set to ${cls} for raid comparisons.`:`${char} back to automatic class.`)}
+function classOf(name,fallback,gi=G){return clsOverrides(gi)[name.toLowerCase()]||fallback}
+const ALLCLASSES=['Bard','Beastlord','Berserker','Cleric','Druid','Enchanter','Magician','Monk','Necromancer','Paladin','Ranger','Rogue','Shadow Knight','Shaman','Warrior','Wizard'];
+// re-rank any raid with current overrides (class medians, ranks)
+function rankRaid(r,gi){const ps=r.players.map(p=>{const q={...p};const auto=p.played||p.cls;q.cls=classOf(p.name,auto,gi);q.override=!!clsOverrides(gi)[p.name.toLowerCase()];
+    q.persona=!q.override&&q.cls!==p.dump_cls&&p.dump_cls&&p.dump_cls!=='?';q.rl=!!(r.raid_leader&&q.main===r.raid_leader);
+    q.metric=['Cleric','Shaman'].includes(q.cls)?'hps':'sdps';q.val=q.metric==='hps'?Math.round(q.heal/Math.max(q.active,1)):q.sdps;return q});
+  const by={};ps.forEach(p=>(by[p.cls]??=[]).push(p));
+  for(const g of Object.values(by)){let base=g.filter(p=>!p.box&&!p.rl&&p.uptime>=.3).map(p=>p.val).sort((a,b)=>a-b);if(!base.length)base=g.map(p=>p.val).sort((a,b)=>a-b);
+    const n=base.length,med=n?(n%2?base[(n-1)/2]:(base[n/2-1]+base[n/2])/2):0;const ord=[...g].sort((a,b)=>b.val-a.val);
+    g.forEach(p=>{p.median=med;p.pct=med?Math.round(100*p.val/med):null;p.rank=ord.indexOf(p)+1;p.of=g.length})}
+  return {...r,players:ps}}
+function allRaids(gi=G){const x=D.guilds[gi];return [...(x.raids||[]),...(lsGet('glask-raids-'+x.server)||[])].map(r=>rankRaid(r,gi)).sort((a,b)=>b.date.localeCompare(a.date))}
+
+function baseOf(c,gi=G){const o=lsGet('glask-base-'+D.guilds[gi].server)||{};return o[(c.n||'').toLowerCase()]||c.base||''}
+function setBase(gi,char,cls){const o=lsGet('glask-base-'+D.guilds[gi].server)||{};if(cls)o[char.toLowerCase()]=cls;else delete o[char.toLowerCase()];lsSet('glask-base-'+D.guilds[gi].server,o);alertBox(cls?`${char}: base class ${cls}.`:`${char}: base class cleared.`)}
+// ---- rebuild a guild's roster from a /outputfile guild dump (in the browser) ----
+const LINK=/^\s*(?:alt|raid\s*box|box)\s*[-:]?\s*([A-Za-z`']+)/i;
+function pdate(s){const p=(s||'').trim().split('/');if(p.length<3)return null;const y=+p[2]<100?2000+ +p[2]:+p[2];const d=new Date(y,p[0]-1,+p[1]);return isNaN(d)?null:d}
+function looksLikeDump(text){const rows=text.split(/\r?\n/).filter(l=>l.trim());if(rows.length<5)return false;const ok=rows.slice(0,20).filter(l=>{const r=l.split('\t');return r.length>=14&&/^\d+$/.test(r[1])&&/^\d\d\/\d\d\/\d\d$/.test(r[5])}).length;return ok>=Math.min(15,rows.length-1)}
+function applyDump(gi,text,label){
+  const x=D.guilds[gi],today=new Date(D.generated);const chars=[];
+  for(const l of text.split(/\r?\n/)){const r=l.split('\t');if(r.length<14||!r[0])continue;chars.push({name:r[0],level:/^\d+$/.test(r[1])?+r[1]:r[1],cls:r[2],rank:r[3],alt:r[4]==='A',last:r[5],zone:r[6],note:r[7]})}
+  if(!chars.length)return null;
+  const by={},mains={};chars.forEach(c=>{by[c.name.toLowerCase()]=c;if(!c.alt)mains[c.name.toLowerCase()]=c});
+  const old={};x.members.forEach(m=>{old[m.main.toLowerCase()]=m;m.chars.forEach(c=>{old['#'+c.n.toLowerCase()]=c})});
+  const mem={};Object.values(mains).forEach(c=>mem[c.name.toLowerCase()]=[c.name]);
+  const departed={},unread=[];
+  chars.filter(c=>c.alt).forEach(c=>{const m=c.note.match(LINK);if(!m){unread.push([c.name,c.name]);return}
+    let t=m[1].toLowerCase();const seen=new Set();while(by[t]&&by[t].alt&&!seen.has(t)){seen.add(t);const m2=by[t].note.match(LINK);if(!m2)break;t=m2[1].toLowerCase()}
+    if(mains[t]){mem[t].push(c.name);c.link=mains[t].name}else if(by[t])unread.push([c.name,by[t].name]);else{const k=t[0].toUpperCase()+t.slice(1);(departed[k]??=[]).push(c.name)}});
+  const members=Object.entries(mem).map(([k,names])=>{const o=old[k]||{};const mc=mains[k];
+    const cs=names.map(n=>{const c=by[n.toLowerCase()],oc=old['#'+n.toLowerCase()]||{};const h=[...new Set([...(oc.h||[]),c.cls])].sort();return {n:c.name,l:c.level,c:c.cls,r:c.rank,a:c.alt,s:c.last,z:c.zone,note:c.note,h,base:oc.base}});
+    const ds=cs.map(c=>pdate(c.s)).filter(Boolean);const last=ds.length?new Date(Math.max(...ds)):null;
+    return {...o,main:mc.name,rank:mc.rank,cls:mc.cls,level:mc.level,last:last?last.toISOString().slice(0,10):null,days:last?Math.max(0,Math.round((today-last)/864e5)):null,chars:cs,
+      cur:o.cur||[],cur_main:o.cur_main||0,cur_slots:o.cur_slots||[],slot_last:o.slot_last||{},loot_n:o.loot_n||0,dkp:o.dkp||0,other:o.other||[],flags:o.flags||{},vq_seen:o.vq_seen||{},raid_ach:o.raid_ach||{}}}).sort((a,b)=>a.main.toLowerCase().localeCompare(b.main.toLowerCase()));
+  const cinfo=n=>{const c=by[n.toLowerCase()];return {n:c.name,note:c.note,c:c.cls,l:c.level,s:c.last}};
+  const groups={};unread.forEach(([n,a])=>{(groups[a]??=[]);if(n!==a)groups[a].push(n)});
+  const inactive=members.filter(m=>m.days==null||m.days>D.inactive_days);const ranks={};members.forEach(m=>ranks[m.rank]=(ranks[m.rank]||0)+1);
+  x.members=members;
+  x.departed=Object.entries(departed).map(([main,alts])=>{const ds=alts.map(a=>pdate(by[a.toLowerCase()].last)).filter(Boolean);return {main,alts:alts.map(a=>{const c=by[a.toLowerCase()];return {n:c.name,s:c.last,c:c.cls,l:c.level}}),last:ds.length?new Date(Math.max(...ds)).toISOString().slice(0,10):null,elsewhere:null}}).sort((a,b)=>b.alts.length-a.alts.length);
+  x.unreadable=Object.entries(groups).map(([a,xs])=>({anchor:cinfo(a),alts:xs.map(cinfo)})).sort((a,b)=>b.alts.length-a.alts.length);
+  Object.assign(x.stats,{chars:chars.length,mains:members.length,alts:chars.filter(c=>c.alt).length,linked:chars.filter(c=>c.alt&&c.link).length,departed_mains:x.departed.length,departed_alts:x.departed.reduce((n,d)=>n+d.alts.length,0),unreadable:unread.length,unreadable_groups:x.unreadable.length,inactive:inactive.length,inactive_raiders:inactive.filter(m=>m.rank==='Raider').length,raiders:ranks.Raider||0,ranks:Object.entries(ranks).sort((a,b)=>b[1]-a[1])});
+  const dre=/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/;
+  x.recruits=members.filter(m=>{const mc=m.chars.find(c=>c.n===m.main)||{};return /applicant|recruit|trial/i.test(m.rank)||/^\s*recruit/i.test(mc.note||'')}).map(m=>{const mc=m.chars.find(c=>c.n===m.main)||{};const mm=(mc.note||'').match(dre)||((m.app||{}).date||'').match(dre);
+    let start=null;if(mm){const y=+mm[3]<100?2000+ +mm[3]:+mm[3];start=`${y}-${String(mm[1]).padStart(2,'0')}-${String(mm[2]).padStart(2,'0')}`}
+    const raids=start?x.raid_dates.filter(d=>d>=start).length:null;return {main:m.main,rank:m.rank,cls:m.cls,level:m.level,note:mc.note,days:m.days,app:((m.app||{}).date||'').split(' ')[0],start,raids,partial:!!(start&&x.raid_dates.length&&start<x.raid_dates[0])}});
+  x.dump_label=label;return {chars:chars.length,mains:members.length}}
+function guildFor(name,text){if(/_mischief/i.test(name))return 0;if(/_teek/i.test(name))return 1;
+  let best=G,bn=-1;D.guilds.forEach((x,i)=>{const names=new Set(x.members.flatMap(m=>m.chars.map(c=>c.n.toLowerCase())));let n=0;for(const l of text.slice(0,200000).split('\n'))if(names.has((l.split('\t')[0]||'').toLowerCase()))n++;if(n>bn){bn=n;best=i}});return best}
+function memberForChar(gi,ch){const x=D.guilds[gi];return x.members.find(m=>m.chars.some(c=>c.n.toLowerCase()===ch.toLowerCase()))}
+// ---- the Uploads page ----
+let upLog=[];
+function uploads(){return `<div class="glask"><div class="who">GLASK</div><div><p><em>“Bring me what you have gathered.”</em> Drop any Glask file here, several at once is fine, and Glask works out what each one is and where it goes.</p>
+  <p style="color:var(--mute);font-size:13px"><b>Guild dump</b> (<code>/outputfile guild</code>) → replaces that guild's roster, alt links, cleanup and recruits · <b>Raid log</b> (eqlog or a clipped raid log) → performance + attendance · <b>Inventory</b> (<code>Name_server-Inventory.txt</code>) → that character's gear · <b>Achievements</b> (<code>Name_server-Achievements.txt</code>) → AA + Vanquisher/flags · <b>Launch questionnaire</b> (Google Form responses → File → Download → CSV) → Launch planning. The guild comes from the file name (_mischief / _teek), otherwise from whose names are in it.</p></div></div>
+  <label id="drop" style="display:block;border:2px dashed #4a3a33;border-radius:14px;padding:46px 20px;text-align:center;cursor:pointer;background:#141111;margin-bottom:16px" ondragover="event.preventDefault();this.style.borderColor='var(--ember)'" ondragleave="this.style.borderColor='#4a3a33'" ondrop="event.preventDefault();this.style.borderColor='#4a3a33';handleFiles(event.dataTransfer.files)">
+   <div style="font:700 18px Cinzel,serif;color:var(--bone);letter-spacing:.08em">DROP FILES HERE</div><div style="color:var(--mute);margin-top:6px">or click to choose · .txt files from your EverQuest folder</div>
+   <input type="file" multiple accept=".txt,.csv" style="display:none" onchange="handleFiles(this.files)"></label>
+  <div class="card"><h3>This session <span class="n">${upLog.length}</span></h3>${upLog.length?`<table><tr><th>File</th><th>Detected as</th><th>Result</th></tr>${upLog.map(u=>`<tr><td>${esc(u.f)}</td><td>${esc(u.kind)}</td><td style="color:${u.ok?'var(--text)':'var(--ember2)'}">${esc(u.msg)}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nothing uploaded yet.</div>'}
+  <div class="hint" style="margin:10px 0 0">Prototype: uploads are saved in this browser only. Once Glask is hosted they'll go to a shared database every officer sees.</div></div>`}
+async function handleFiles(files){for(const f of files){let kind='unknown',msg='',ok=false;try{
+   if(/-Inventory\.txt$/i.test(f.name)){kind='Inventory';const ch=f.name.split('_')[0];const t=await f.text();const inv=parseInv(t);const gi=guildFor(f.name,'');const m=memberForChar(gi,ch);
+     if(!inv.length)msg="Couldn't read any worn slots.";else if(!m)msg=`${ch} isn't on the ${D.guilds[gi].server} roster.`;else{m.inv=inv;lsSet(invKey(gi,m),inv);ok=true;msg=`${ch} → ${m.main} (${D.guilds[gi].server}): ${inv.length} slots`}}
+   else if(/-Achievements\.txt$/i.test(f.name)){kind='Achievements';const ch=f.name.split('_')[0];const t=await f.text();const gi=guildFor(f.name,'');const m=memberForChar(gi,ch);const a=parseAchExport(t,D.guilds[gi]._wanted);
+     if(!a)msg="Didn't look like an achievement export.";else if(!m)msg=`${ch} isn't on the ${D.guilds[gi].server} roster.`;else{lsSet('glask-ach-'+D.guilds[gi].server+'-'+m.main,a);ok=true;msg=`${ch} → ${m.main}: AA ${aaText(a)}, ${a.done.length} tracked achievements done`}}
+   else if(/\.csv$/i.test(f.name)){kind='Questionnaire';const t=await f.text();const rows=parseCSV(t);if(rows.length<2){msg='No responses in it.'}else{const q0={id:f.name,title:f.name.replace(/\.csv$/i,'').replace(/\s*-\s*Form Responses.*$/i,''),date:new Date().toISOString().slice(0,10),header:rows[0],rows:rows.slice(1)};
+     const gi=(()=>{let best=G,bn=-1;D.guilds.forEach((x,i)=>{const n=analyzeQ(q0,i).filter(r=>r.m).length;if(n>bn){bn=n;best=i}});return best})();const x=D.guilds[gi];const list=(lsGet('glask-q-'+x.server)||[]).filter(z=>z.id!==q0.id);list.unshift(q0);lsSet('glask-q-'+x.server,list);
+     const r=analyzeQ(q0,gi).filter(z=>z.m);ok=true;msg=`${x.server}: ${rows.length-1} responses, ${r.filter(z=>z.status==='Available').length} available, ${r.filter(z=>z.status==='Unavailable').length} unavailable`}}
+
+   else{const head=await f.slice(0,300000).text();
+     if(/^\[\w{3} \w{3} \d+ \d\d:\d\d:\d\d \d{4}\]/m.test(head)){kind='Raid log';const gi=/_teek/i.test(f.name)?1:/_mischief/i.test(f.name)?0:G;const r=await parseRaidFile(f,gi);
+       if(!r||!r.players.length)msg='No guild members found doing anything in it.';else{const x=D.guilds[gi];const raids=lsGet('glask-raids-'+x.server)||[];const i=raids.findIndex(q=>q.id===r.id&&q.date===r.date);if(i>=0)raids[i]=r;else raids.push(r);lsSet('glask-raids-'+x.server,raids);
+         const st=lsGet('glask-att-'+x.server)||{};st[r.date]=[...new Set([...(st[r.date]||[]),...r.players.map(p=>p.main)])];lsSet('glask-att-'+x.server,st);ok=true;msg=`${x.server} raid ${r.date}: ${r.players.length} players, ${Math.round(r.seconds/60)} min`}}
+     else if(looksLikeDump(head)){kind='Guild dump';const t=await f.text();const gi=guildFor(f.name,t);const res=applyDump(gi,t,f.name);
+       if(!res)msg='No rows found.';else{lsSet('glask-dump-'+D.guilds[gi].server,{name:f.name,text:t,at:new Date().toISOString()});ok=true;msg=`${D.guilds[gi].server}: ${res.chars} characters, ${res.mains} people`}}
+     else msg="Couldn't tell what this file is."}}catch(e){msg='Error: '+e.message}
+  upLog.unshift({f:f.name,kind,msg,ok});render()}}
+// re-apply saved dumps on load
+D.guilds.forEach((x,gi)=>{const s=lsGet('glask-dump-'+x.server);if(s&&s.text&&(!D.built||s.at>D.built)){try{applyDump(gi,s.text,s.name)}catch(e){}}});
+
+// ---- expansion planning questionnaires ----
+const Q_AVAIL=/(online|ready|launch time|go hard|hard stop|no hard|quit time|stop time|off time|available|availability|be there|attend(ing)? (the )?launch|can you (raid|be on|make it|attend|play))/i;
+const Q_STOP=/(quit|stop|off time|end time)/i, Q_IFNOT=/^\s*if not/i;
+const YES=/^\s*(yes|y\b|yep|yeah|yup|absolutely|definitely|of course|sure|i'?ll be there)/i, NO=/^\s*(no\b|n\b|nope|sorry|can'?t|cannot|unable|not\b|maybe)/i, OPEN=/(never|no limit|none|n\/a|no hard|whenever|until (it'?s )?(clear|done)|all night|no stop)/i;
+function parseCSV(text){const rows=[];let row=[],f='',q=false;for(let i=0;i<text.length;i++){const c=text[i];if(q){if(c==='"'){if(text[i+1]==='"'){f+='"';i++}else q=false}else f+=c}else if(c==='"')q=true;else if(c===','){row.push(f);f=''}else if(c==='\n'||c==='\r'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(f);rows.push(row);row=[];f=''}else f+=c}if(f||row.length){row.push(f);rows.push(row)}return rows.filter(r=>r.some(c=>c.trim()))}
+function allQ(gi=G){const x=D.guilds[gi];return [...(lsGet('glask-q-'+x.server)||[]),...(x.questionnaires||[])]}
+function qCols(q){const h=q.header;const find=re=>h.findIndex(s=>re.test(s));
+  const name=(()=>{let i=h.findIndex(s=>/main/i.test(s)&&/name/i.test(s));if(i<0)i=find(/character name|^name$|your name/i);if(i<0)i=find(/name/i);return i})();
+  const cls=(()=>{let i=h.findIndex(s=>/main/i.test(s)&&/class/i.test(s));return i<0?find(/class/i):i})();
+  const box=find(/box/i),com=find(/comment|question|anything else|notes/i);
+  const saved=lsGet('glask-qcount-'+q.id);const avail=h.map((s,i)=>i).filter(i=>saved?saved.includes(i):(Q_AVAIL.test(h[i])&&!Q_IFNOT.test(h[i])&&i!==name));
+  return {name,cls,box,com,avail}}
+function judge(header,ans){const a=(ans||'').trim();if(YES.test(a)||OPEN.test(a))return ['ok'];if(NO.test(a))return ['no',a];
+  if(Q_STOP.test(header))return !a?['ok']:['no','stops '+a];return a?['no',a]:['?']}
+function analyzeQ(q,gi=G){const x=D.guilds[gi],c=qCols(q);const idx={};x.members.forEach(m=>m.chars.forEach(ch=>idx[ch.n.toLowerCase()]=m));
+  const latest={};q.rows.forEach(r=>{const raw=(r[c.name]||'').trim();const key=raw.toLowerCase().replace(/[^a-z` ]/g,'').trim();const k2=key.split(/[\s,\/(]+/)[0];const m=idx[key]||idx[k2];const id=m?m.main:'?'+raw;
+    const t=Date.parse(r[0])||0;if(!latest[id]||t>=latest[id].t){const res=c.avail.map(i=>[q.header[i],judge(q.header[i],r[i])]);
+      const bad=res.filter(z=>z[1][0]==='no');const ifnot=q.header.map((h,i)=>Q_IFNOT.test(h)&&(r[i]||'').trim()?`${h.replace(/^\s*if not\s*-?\s*/i,'')}: ${r[i]}`:null).filter(Boolean);
+      latest[id]={t,m,raw,cls:r[c.cls]||'',status:bad.length?'Unavailable':'Available',why:[...bad.map(z=>`${z[0].replace(/\s+/g,' ').slice(0,60)} → ${z[1][1]}`),...ifnot],box:c.box>=0?r[c.box]:'',com:c.com>=0?r[c.com]:'',row:r}}});
+  return Object.values(latest)}
+function qTag(st){return st==='Available'?'<span class="tag ok" style="border-color:#2d6a3a;background:#173022;color:#8fd19e">Available</span>':st==='Unavailable'?'<span class="tag red" style="background:#3a1a14">Unavailable</span>':''}
+function latestQStatus(m,gi=G){const qs=allQ(gi);if(!qs.length)return null;const r=analyzeQ(qs[0],gi).find(z=>z.m&&z.m.main===m.main);return r?r.status:null}
+let qIdx=0,qFilter='all';
+function launch(){const x=g(),qs=allQ();
+  const up=`<label class="more" style="margin:0;cursor:pointer">Upload responses (.csv)<input type="file" accept=".csv" style="display:none" onchange="handleFiles(this.files)"></label>`;
+  if(!qs.length)return `<div class="glask"><div class="who">GLASK</div><div><p><em>“Who will stand at the gates when they open?”</em> No ${x.server} launch questionnaire loaded yet.</p><p style="color:var(--mute);font-size:13px">In Google Sheets open the form's responses, then File → Download → CSV, and drop it here or on the Uploads tab. (Or share the sheet with me and I'll load it.)</p></div></div>${up}`;
+  if(qIdx>=qs.length)qIdx=0;const q=qs[qIdx],c=qCols(q),res=analyzeQ(q);
+  const inG=res.filter(r=>r.m),notG=res.filter(r=>!r.m);const av=inG.filter(r=>r.status==='Available'),un=inG.filter(r=>r.status==='Unavailable');
+  const done=new Set(inG.map(r=>r.m.main));const pending=x.members.filter(m=>!NONRAID.test(m.rank)&&m.days!=null&&m.days<=D.inactive_days&&!done.has(m.main));
+  const roleOf=cl=>(ROLES.find(r=>r[1].includes(cl))||['Other'])[0];const rc={};av.forEach(r=>{const k=roleOf(classOf(r.m.main,r.m.cls));rc[k]=(rc[k]||0)+1});
+  const shown=qFilter==='Available'?av:qFilter==='Unavailable'?un:inG;
+  return `<div class="glask"><div class="who">GLASK</div><div><p><em>“Who will stand at the gates when they open?”</em> <b>${esc(q.title)}</b>: ${inG.length} ${x.server} members answered. <b style="color:#8fd19e">${av.length} available</b> for the full launch, <b style="color:var(--ember2)">${un.length} unavailable</b> for part or all of it, <b>${pending.length}</b> active raiders haven't answered.</p>
+   <p style="color:var(--mute);font-size:13px">A member is <b>Available</b> only if every availability question below is answered in the affirmative (yes, online at launch, no hard stop). Any “no” or a stop time makes them <b>Unavailable</b>, with the reason shown. Tick or untick which questions count.</p></div></div>
+  <div class="filters" style="align-items:center"><select onchange="qIdx=+this.value;render()">${qs.map((z,i)=>`<option value="${i}" ${i===qIdx?'selected':''}>${esc(z.title)}${z.date?' · '+esc(z.date):''}</option>`).join('')}</select>${up}</div>
+  <div class="card"><h3>Questions that decide “Available”</h3>${q.header.map((h,i)=>i===0||i===c.name?'':`<label style="display:block;padding:3px 0;color:${c.avail.includes(i)?'var(--text)':'var(--dim)'}"><input type="checkbox" ${c.avail.includes(i)?'checked':''} onchange="const s=qCols(allQ()[qIdx]).avail.filter(k=>k!==${i});if(this.checked)s.push(${i});lsSet('glask-qcount-'+allQ()[qIdx].id,s);render()"> ${esc(h.replace(/\s+/g,' '))}</label>`).join('')}</div>
+  <div class="pies">${pieCard('Responses','',[['Available',av.length,'#6fae7c'],['Unavailable',un.length,'#c8452c'],['No response yet',pending.length,'#7d756f']],av.length+un.length+pending.length,'raiders')}
+   ${pieCard('Available for the full launch, by role','',ROLES.map(([n,_,col])=>[n,rc[n]||0,col]),av.length,'available')}</div>
+  <div class="card"><h3>Completed the questionnaire <span class="n">${inG.length}</span></h3>
+   <div class="filters">${['all','Available','Unavailable'].map(f=>`<button class="more" style="margin:0;${qFilter===f?'border-color:var(--ember);color:var(--text)':''}" onclick="qFilter='${f}';render()">${f==='all'?'All':f}</button>`).join('')}</div>
+   <table><tr><th>Member</th><th>Class</th><th>Rank</th><th>Status</th><th>Why / details</th><th>Boxes</th><th>Comments</th></tr>
+   ${shown.sort((a,b)=>a.status.localeCompare(b.status)||a.m.main.localeCompare(b.m.main)).map(r=>`<tr class="click" onclick="profile('${esc(r.m.main)}')"><td>${esc(r.m.main)}${r.raw.toLowerCase()!==r.m.main.toLowerCase()?`<div style="color:var(--dim);font-size:11px">answered as ${esc(r.raw)}</div>`:''}</td><td>${esc(classOf(r.m.main,r.m.cls))}</td><td>${esc(r.m.rank)}</td><td>${qTag(r.status)}</td><td style="color:var(--mute);font-size:12px;max-width:260px">${r.why.map(esc).join('<br>')}</td><td style="font-size:12px;max-width:160px">${esc(r.box)}</td><td style="color:var(--mute);font-size:12px;max-width:260px">${esc(r.com)}</td></tr>`).join('')}</table></div>
+  <div class="card"><h3>Active raiders who haven't answered <span class="n">${pending.length}</span></h3><div class="hint">Raiding ranks, online in the last ${D.inactive_days} days, no response matched to any of their characters.</div>${pending.map(m=>`<span class="tag link" style="margin:2px" onclick="profile('${esc(m.main)}')">${esc(m.main)} · ${esc(m.cls)}</span>`).join(' ')}</div>
+  ${notG.length?`<div class="card"><h3>Responses Glask couldn't match to the roster <span class="n">${notG.length}</span></h3><div class="hint">Typo, a character not in the guild dump, or someone who has left. Fix the name in the form sheet or check the roster.</div>${notG.map(r=>`<span class="tag" style="margin:2px">${esc(r.raw||'(blank)')} ${qTag(r.status)}</span>`).join(' ')}</div>`:''}`}
+
+function profile(name){
+  let mi=-1,gi=G;
+  mi=D.guilds[G].members.findIndex(m=>m.main===name);
+  if(mi<0){for(let i=0;i<D.guilds.length;i++){const j=D.guilds[i].members.findIndex(m=>m.main===name);if(j>=0){gi=i;mi=j;break}}}
+  if(mi<0)return;
+  const x=D.guilds[gi], m=x.members[mi];
+  let shown=40;
+  const a=m.app;
+  const appHtml=a?`<div class="card app"><h3>Application · ${esc(a.date.split(' ')[0])}</h3><dl>
+    <dt>Applied as</dt><dd>${esc(a.name)} (${esc(a.cls)}, ${esc(a.level)})</dd><dt>AA</dt><dd>${esc(a.aa)}</dd>
+    ${a.boxes!==undefined?`<dt>Boxes listed</dt><dd>${esc(a.boxes)}</dd>`:''}${a.racing!==undefined?`<dt>Racing on launch</dt><dd>${esc(a.racing)}</dd>`:''}
+    ${a.latest_xpac?`<dt>Latest xpac done</dt><dd>${esc(a.latest_xpac)}</dd>`:''}
+    <dt>Discord</dt><dd>${esc(a.discord)}</dd><dt>Prior chars/guilds</dt><dd>${esc(a.prior)}</dd>${a.notes?`<dt>Notes</dt><dd>${esc(a.notes)}</dd>`:''}</dl></div>`:`<div class="card"><h3>Application</h3><div class="hint" style="margin:0">No application on file under any of these characters.</div></div>`;
+  $('#drawer').innerHTML=`<div class="dh"><button class="x" onclick="closeP()">Close</button><h2>${esc(m.main)}</h2>
+  <div style="color:var(--mute)">${esc(m.rank)} · ${(()=>{const mc=m.chars.find(c=>c.n===m.main)||{};const b=baseOf(mc,gi);return b&&b!==m.cls?`${esc(b)} <span class="tag">${esc(m.cls)} persona</span>`:esc(m.cls)})()} ${m.level} · ${x.guild} (${x.server}) ${m.other.length?'<span class="tag warn">also in '+otherServer(gi)+' as '+m.other.map(esc).join(', ')+'</span>':''}</div>
+  <div class="facts"><div><b>${aaText(achOf(m,gi))}</b><span>AA (achievement export)</span></div><div><b>${ago(m.days)}</b><span>last seen (any char)</span></div><div><b>${m.cur.length}</b><span>${esc(x.stats.xpac)} items</span></div><div><b>${gi===0?fmt(m.dkp):fmt(m.loot_n)}</b><span>${gi===0?'DKP spent (all time)':'items (all time)'}</span></div></div></div>
+  <div class="db"><div class="card"><h3>Characters</h3><div class="hint"><b>Class now</b> is the persona in the latest guild dump. <b>Base</b> is the character's real class. <b>Personas seen</b> = every class Glask has seen in dumps or raid logs. <b>Raid class</b> overrides what's used for raid comparisons; leave it on auto unless it's wrong.</div><table><tr><th>Name</th><th>Class now</th><th>Base</th><th>Personas seen</th><th>Raid class</th><th class="num">Lvl</th><th>Last on</th><th>Note</th></tr>
+  ${m.chars.map(c=>`<tr><td>${esc(c.n)}${c.a?'':' <span class="tag">main</span>'}</td><td>${esc(c.c)}</td><td><select onchange="setBase(${gi},'${esc(c.n)}',this.value);profile('${esc(m.main)}')" style="background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:3px"><option value="">—</option>${ALLCLASSES.map(k=>`<option ${baseOf(c,gi)===k?'selected':''}>${k}</option>`).join('')}</select></td><td>${(c.h||[]).length>1||baseOf(c,gi)&&baseOf(c,gi)!==c.c?(c.h||[c.c]).filter(k=>k!==baseOf(c,gi)).map(k=>`<span class="tag warn">${esc(k)}</span>`).join(''):'<span style="color:var(--dim)">—</span>'}</td><td><select onchange="setClass(${gi},'${esc(c.n)}',this.value);profile('${esc(m.main)}')" style="background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:3px"><option value="">auto</option>${ALLCLASSES.map(k=>`<option ${clsOverrides(gi)[c.n.toLowerCase()]===k?'selected':''}>${k}</option>`).join('')}</select></td><td class="num">${c.l}</td><td>${esc(c.s)}</td><td style="color:var(--mute);max-width:180px;font-size:12px">${esc(c.note)}</td></tr>`).join('')}</table></div>
+  ${appHtml}
+  ${attCard(m,gi)}${flagCard(m,gi)}${vqCard(m,gi)}${perfCard(m,gi)}${gearCard(m,gi)}</div>`;
+  $('#drawer').classList.add('open');$('#shade').classList.add('open');$('#drawer').scrollTop=0;
+}
+function closeP(){$('#drawer').classList.remove('open');$('#shade').classList.remove('open')}
+$('#shade').onclick=closeP; document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeP();closeNav()}});
+
+// global search across both guilds, any character
+const IDX=[];D.guilds.forEach((x,gi)=>x.members.forEach(m=>m.chars.forEach(c=>IDX.push([c.n.toLowerCase(),c.n,m.main,gi,c.a]))));
+$('#q').oninput=e=>{const q=e.target.value.trim().toLowerCase();const s=$('#sugg');
+  if(q.length<2){s.style.display='none';return}
+  const hits=IDX.filter(i=>i[0].startsWith(q)).concat(IDX.filter(i=>!i[0].startsWith(q)&&i[0].includes(q))).slice(0,14);
+  s.innerHTML=hits.length?hits.map(h=>`<div onclick="G=${h[3]};render();profile('${esc(h[2])}');document.getElementById('sugg').style.display='none'">${esc(h[1])} <span style="color:var(--dim)">${h[4]?'alt of '+esc(h[2]):'main'} · ${D.guilds[h[3]].server}</span></div>`).join(''):'<div style="color:var(--dim)">No character by that name</div>';
+  s.style.display='block'};
+document.addEventListener('click',e=>{if(!e.target.closest('.search'))$('#sugg').style.display='none'});
+
+function render(){renderShell();$('#view').innerHTML={overview,cleanup,roster,gear,perf,ach,launch,apps,uploads}[V]()}
+render();
+</script>
+</body>
+</html>
