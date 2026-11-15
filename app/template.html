@@ -287,6 +287,11 @@ function cleanup(){
   ${inact.map(m=>`<tr class="click" onclick="profile('${esc(m.main)}')"><td>${esc(m.main)}</td><td>${esc(m.rank)}</td><td>${esc(m.cls)}</td><td class="num">${m.chars.length}</td><td class="num">${ago(m.days)}</td></tr>`).join('')}</table></div>`;
 }
 
+// collapsible section; open/closed is remembered per browser
+function foldOpen(k,def=true){try{const v=localStorage.getItem('glask-fold-'+k);return v==null?def:v==='1'}catch(e){return def}}
+function fold(k,title,inner,def=true){const o=foldOpen(k,def);return `<details class="card" style="padding:0" ${o?'open':''} ontoggle="try{localStorage.setItem('glask-fold-${k}',this.open?'1':'0')}catch(e){};this.querySelector('.fh').textContent=this.open?'(click to hide)':'(click to show)'">
+  <summary style="padding:14px 16px;cursor:pointer;font:600 13px Inter;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)">${title} <span class="fh" style="text-transform:none;letter-spacing:0;font-weight:400">(click to ${o?'hide':'show'})</span></summary>
+  <div style="padding:0 16px 4px">${inner}</div></details>`}
 let gearOpen=(()=>{try{return localStorage.getItem('glask-gear-open')!=='0'}catch(e){return true}})();
 function gearBox(){return `<details class="card" style="padding:0" ${gearOpen?'open':''} ontoggle="gearOpen=this.open;try{localStorage.setItem('glask-gear-open',this.open?'1':'0')}catch(e){}">
   <summary style="padding:14px 16px;cursor:pointer;font:600 13px Inter;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)">Gear check · ${esc(xpacNow(G).xpac||g().stats.xpac)} <span style="text-transform:none;letter-spacing:0;font-weight:400">(click to ${gearOpen?'hide':'show'})</span></summary>
@@ -425,7 +430,8 @@ function flagGuildCard(){const x=g(),gi=G,{code,names}=trackedList(gi),xn=xpacNo
    <div class="hint">${full} of ${pop.length} active raiders have all ${names.length}. ✓ done · ✗ missing (from their achievement export) · ? no export yet (${unk}). Click a name for their profile.</div>
    <div style="overflow-x:auto"><table><tr><th>Main</th><th>Class</th>${names.map((a,i)=>`<th class="num" title="${esc(a)}">${esc(a.replace(/ The Outer Brood /,' ').replace(/^Underfoot /,''))}<div style="font-weight:400;color:var(--dim)">${tot[i]}/${pop.length}</div></th>`).join('')}</tr>
    ${pop.map(m=>`<tr class="click" onclick="profile('${esc(m.main)}')"><td>${esc(m.main)}</td><td>${esc(m.cls)}</td>${names.map(a=>`<td class="num">${cell(st(m,a))}</td>`).join('')}</tr>`).join('')}</table></div></div>`}
-function ach(){return flagGuildCard()+ach0()}
+function ach(){const xn=esc(xpacNow(G).xpac||'');
+  return fold('ach-flag','Flagging · important '+xn+' achievements',flagGuildCard())+fold('ach-vanq','Vanquisher planner',ach0())}
 function ach0(){const x=g();const V2=x.vanq||[];if(!V2.length)return '<div class="card">No raid achievement reference loaded.</div>';
   if(!achX||!V2.find(v=>v[0]===achX))achX=V2[V2.length-1][0];const evs=V2.find(v=>v[0]===achX)[1];
   const pop=x.members.filter(m=>!NONRAID.test(m.rank)&&m.days!=null&&m.days<=D.inactive_days);const withX=pop.filter(m=>achOf(m)).length;
