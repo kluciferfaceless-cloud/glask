@@ -169,6 +169,8 @@ def build(guild, server, dump, loot_path, apps):
         n_all = 0; cur = []; slot_last = {}; dkp = 0
         for c in cs:
             for x in loot_by.get(c['name'].lower(), []):
+                if 'alt' in x['tab'].lower():
+                    continue                      # alt-round tabs never count toward gear or loot
                 n_all += 1; dkp += x['cost'] or 0
                 xc = code_of(server, x, tabx)
                 is_cur = xc in _keep[server]

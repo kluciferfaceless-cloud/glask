@@ -107,6 +107,8 @@ def rollup(server, guild, rows, aa, slotmap):
         n_all = 0; dkp = 0; cur = []; slot_last = {}
         for c in mem['chars']:
             for x in by.get(c['n'].lower(), []):
+                if 'alt' in x['tab'].lower():
+                    continue                      # alt-round tabs never count toward gear or loot
                 n_all += 1; dkp += x['cost'] or 0
                 xc = code_of(x); sl = slot_of(x['item'])
                 if xc in keep:
