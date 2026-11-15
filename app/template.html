@@ -96,6 +96,7 @@ footer{color:var(--dim);font-size:11.5px;text-align:center;padding:20px}
 @media(max-width:1100px){#menuBtn{display:flex}nav#nav{display:none}.bar{gap:10px;padding:10px 14px}.brand small{display:none}.brand h1{font-size:17px}.pagetitle{display:block}
  .search{order:10;flex-basis:100%;margin-left:0}.search input{width:100%!important}.sugg{left:0;right:0;width:auto}#gsel{margin-left:auto}}
 @media(max-width:600px){main{padding:14px}.brand .logo{width:30px;height:30px}.kpis{grid-template-columns:repeat(2,1fr)}.facts{grid-template-columns:repeat(2,1fr)}table{font-size:12px}td,th{padding:6px 5px}.card{padding:12px}.glask{padding:12px;gap:8px;flex-direction:column}}
+.bang{display:inline-block;color:#fff;background:var(--ember);border-radius:50%;width:16px;height:16px;line-height:16px;text-align:center;font-size:12px;margin:0 4px 0 2px;cursor:help}
 .aag{margin-top:7px;min-width:90px}.aat{position:relative;height:6px;border-radius:3px;background:linear-gradient(90deg,#c8452c,#d9a441 50%,#6fae7c)}
 .aat i{position:absolute;top:-4px;width:4px;height:14px;margin-left:-2px;background:#f2e8d8;border-radius:2px;box-shadow:0 0 0 1px #000}
 .aat b{position:absolute;top:-2px;width:1px;height:10px;background:rgba(0,0,0,.7)}.aag.big .aat{height:10px}.aag.big .aat i{top:-4px;height:18px}
@@ -278,15 +279,22 @@ function apps(){
 
 const SLOTS=['Head','Face','Ear','Neck','Shoulders','Arms','Back','Wrist','Range','Hands','Primary','Secondary','Fingers','Chest','Legs','Feet','Waist','Charm','Power Source'];
 const NONRAID=/^(FnF|Alt|Box\/Alt|Decorate|Applicant)$/i;
+// Slots where the main got more items this expansion than the slot can hold (2 ears, 2 rings, 2 wrists; 1 everywhere else)
+const SLOT_CAP={Ear:2,Fingers:2,Wrist:2};
+function dupSlots(m){const by={};m.cur.filter(i=>i[2]===m.main&&i[4]).forEach(i=>i[4].split('/').forEach(s=>(by[s]=by[s]||[]).push(i)));
+  return Object.fromEntries(Object.entries(by).filter(([s,l])=>l.length>(SLOT_CAP[s]||1)))}
+function dupTip(l){return l.map(i=>`${i[0]}: ${i[1]}${i[3]?' ('+fmt(i[3])+' DKP)':''}`).join('\n')}
+function bang(l){return `<b class="bang" title="${esc(dupTip(l))}">!</b>`}
 function gear(){
   const x=g(), xp=x.stats.xpac;
-  const rows=x.members.filter(m=>!NONRAID.test(m.rank)&&m.days!=null&&m.days<=D.inactive_days).sort((a,b)=>a.cur_main-b.cur_main||a.main.localeCompare(b.main));
+  const rows=x.members.filter(m=>!NONRAID.test(m.rank)&&m.days!=null&&m.days<=D.inactive_days);const nDup=rows.filter(m=>Object.keys(dupSlots(m)).length).length;rows.sort((a,b)=>a.cur_main-b.cur_main||a.main.localeCompare(b.main));
   const known=m=>m.cur.filter(i=>i[2]===m.main);
   return `<div class="glask"><div class="who">GLASK</div><div><p><em>“Their armor speaks for them.”</em> Gear check for <b>${esc(xp)}</b>, the current ${x.server} expansion. Fewest upgrades first.</p>
+  ${nDup?`<p><b class="bang">!</b> <b>${nDup} ${nDup===1?'person has':'people have'}</b> more items for a slot than it holds this expansion. Hover the <b class="bang">!</b> to see the items, or open their profile.</p>`:''}
   <p style="color:var(--mute);font-size:13px">Counts loot awarded to the <b>main</b> this expansion (boxes don't count). Slots come from the item name where it says so (e.g. "Obscured <b>Wrist</b> Armor"), or from an uploaded inventory. Items I can't place yet show as "slot ?" until they're confirmed on Lucy or seen in an inventory.</p></div></div>
   <div class="card"><h3>Active raiders · ${esc(xp)} upgrades on their main <span class="n">${rows.length}</span></h3>
   <table><tr><th>Main</th><th>Class</th><th>Rank</th><th class="num">${esc(xp.split(' ').map(w=>w[0]).join(''))} items</th><th>Slots upgraded</th><th>Inventory</th></tr>
-  ${rows.map(m=>{const k=known(m);const unk=k.filter(i=>!i[4]).length;return `<tr class="click" onclick="profile('${esc(m.main)}')"><td>${esc(m.main)}</td><td>${esc(m.cls)}</td><td>${esc(m.rank)}</td><td class="num">${m.cur_main?m.cur_main:'<span style="color:var(--ember2)">0</span>'}</td><td>${m.cur_slots.map(s=>`<span class="tag ok">${s}</span>`).join('')}${unk?`<span class="tag">+${unk} slot ?</span>`:''}</td><td>${invOf(m)?'<span class="tag ok">on file</span>':''}</td></tr>`}).join('')}</table></div>`;
+  ${rows.map(m=>{const k=known(m);const unk=k.filter(i=>!i[4]).length;return `<tr class="click" onclick="profile('${esc(m.main)}')"><td>${esc(m.main)}</td><td>${esc(m.cls)}</td><td>${esc(m.rank)}</td><td class="num">${m.cur_main?m.cur_main:'<span style="color:var(--ember2)">0</span>'}</td><td>${(()=>{const d=dupSlots(m);return m.cur_slots.map(s=>`<span class="tag ${d[s]?'red':'ok'}">${s}${d[s]?' ×'+d[s].length:''}</span>${d[s]?bang(d[s]):''}`).join('')})()}${unk?`<span class="tag">+${unk} slot ?</span>`:''}</td><td>${invOf(m)?'<span class="tag ok">on file</span>':''}</td></tr>`}).join('')}</table></div>`;
 }
 function invKey(gi,m){return 'glask-inv-'+D.guilds[gi].server+'-'+m.main}
 function invOf(m,gi=G){if(m.inv)return m.inv;{const v=kvGet(invKey(gi,m));if(v)return v}return null}
@@ -296,17 +304,18 @@ function parseInv(text){const WORN=new Set(['Charm','Ear','Head','Face','Neck','
   return out}
 function gearCard(m,gi){
   const x=D.guilds[gi], xp=x.stats.xpac, inv=invOf(m,gi), cur=m.cur;
-  const isCur=v=>v==='ToB'&&gi===0||v==='UF'&&gi===1;
+  const now=(xpacNow(gi).code||'').toLowerCase();const isCur=v=>(v||'').toLowerCase()===now;const dup=dupSlots(m);
   let slotRows='';
   if(inv){
     slotRows=inv.filter(w=>w.slot!=='Ammo').map(w=>{const l=m.slot_last[w.slot];const empt=w.augs.filter(a=>a==='Empty').length;
-      return `<tr><td>${w.slot}</td><td>${esc(w.item)}<div style="color:var(--dim);font-size:11.5px">${w.augs.map(a=>a==='Empty'?'<span style="color:var(--warn)">empty</span>':esc(a)).join(' · ')}</div></td>
+      return `<tr><td>${w.slot}${dup[w.slot]?bang(dup[w.slot]):''}</td><td>${esc(w.item)}<div style="color:var(--dim);font-size:11.5px">${w.augs.map(a=>a==='Empty'?'<span style="color:var(--warn)">empty</span>':esc(a)).join(' · ')}</div></td>
       <td>${l?`${esc(l[0])} <span class="tag ${isCur(l[2])?'ok':'red'}">${esc(l[2]||'?')}</span>`:'<span style="color:var(--dim)">not in loot sheet</span>'}</td><td class="num">${empt||''}</td></tr>`}).join('');
   } else {
-    slotRows=SLOTS.map(sl=>{const l=m.slot_last[sl];return `<tr><td>${sl}</td><td style="color:var(--dim)">upload inventory to see</td><td>${l?`${esc(l[0])} · ${esc(l[1])} <span class="tag ${isCur(l[2])?'ok':'red'}">${esc(l[2]||'?')}</span>`:'<span style="color:var(--dim)">—</span>'}</td><td></td></tr>`}).join('');
+    slotRows=SLOTS.map(sl=>{const l=m.slot_last[sl];return `<tr><td>${sl}${dup[sl]?bang(dup[sl]):''}</td><td style="color:var(--dim)">upload inventory to see</td><td>${l?`${esc(l[0])} · ${esc(l[1])} <span class="tag ${isCur(l[2])?'ok':'red'}">${esc(l[2]||'?')}</span>`:'<span style="color:var(--dim)">—</span>'}</td><td></td></tr>`}).join('');
   }
   return `<div class="card"><h3>Gear <span style="display:flex;gap:8px;align-items:center">${inv?'<span class="tag ok">inventory on file</span>':''}<label class="more" style="margin:0;cursor:pointer">Upload /outputfile inventory<input type="file" accept=".txt" style="display:none" onchange="uploadInv(event,${gi},'${esc(m.main)}')"></label></span></h3>
-   <div class="hint">“Last upgrade” is the newest item for that slot awarded to <b>${esc(m.main)}</b> in the loot sheet. <span class="tag ok">${gi===0?'ToB':'UF'}</span> = this expansion, <span class="tag red">older</span> = not upgraded yet. Empty aug slots are listed as-is; some may be ornament or type-restricted slots, which Glask will confirm from Lucy before calling anything missing.</div>
+   ${Object.keys(dup).length?`<div class="card" style="border-color:#5a2a20;background:#1d1210;margin:0 0 12px"><b class="bang">!</b> <b>Review:</b> more ${esc(xpacNow(gi).xpac||'')} items than the slot holds.${Object.entries(dup).map(([s,l])=>`<div style="margin-top:6px"><b>${s}</b> ×${l.length}: ${l.map(i=>`${esc(i[1])} <span style="color:var(--dim)">${esc(i[0])}${i[3]?' · '+fmt(i[3])+' DKP':''}</span>`).join('; ')}</div>`).join('')}</div>`:''}
+   <div class="hint">“Last upgrade” is the newest item for that slot awarded to <b>${esc(m.main)}</b> in the loot sheet. <span class="tag ok">${esc(xpacNow(gi).code||'')}</span> = this expansion, <span class="tag red">older</span> = not upgraded yet. Empty aug slots are listed as-is; some may be ornament or type-restricted slots, which Glask will confirm from Lucy before calling anything missing.</div>
    <table><tr><th>Slot</th><th>${inv?'Wearing':''}</th><th>Last upgrade (loot sheet)</th><th class="num">${inv?'Empty augs':''}</th></tr>${slotRows}</table></div>
    <div class="card"><h3>${esc(xp)} loot, all characters <span class="n">${cur.length}</span></h3>${cur.length?`<table><tr><th>Date</th><th>Item</th><th>On</th><th>Slot</th>${gi===0?'<th class="num">DKP</th>':''}</tr>${cur.map(i=>`<tr><td>${esc(i[0])}</td><td>${esc(i[1])}</td><td>${esc(i[2])}</td><td>${i[4]?esc(i[4]):'<span style="color:var(--dim)">?</span>'}</td>${gi===0?`<td class="num">${i[3]??''}</td>`:''}</tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nothing awarded this expansion yet.</div>'}</div>`;
 }
