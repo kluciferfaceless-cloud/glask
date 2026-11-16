@@ -384,7 +384,7 @@ const kfmt=v=>v>=1e6?(v/1e6).toFixed(2)+'M':Math.round(v/1e3)+'K';
 function pipKey(gi,main){return 'glask-pip-'+D.guilds[gi].server+'-'+main}
 function pipOf(gi,main){return kvGet(pipKey(gi,main))}
 function perfFlags(p){const f=[];if(p.override)f.push(`<span class="tag ok" title="Set by an officer">class set: ${esc(p.cls)}</span>`);if(p.persona)f.push(`<span class="tag warn" title="Guild dump says ${esc(p.dump_cls)}; the spells cast in this log say ${esc(p.cls)}">persona: ${esc(p.dump_cls)} → ${esc(p.cls)}</span>`);if(p.rl)f.push('<span class="tag ok">raid leader</span>');if(p.box)f.push('<span class="tag">box</span>');if(p.mismatch)f.push('<span class="tag warn" title="Guild dump class does not match what they cast">class?</span>');
-  if(p.uptime<0.5)f.push(`<span class="tag warn">${Math.round(p.uptime*100)}% active</span>`);if(p.deaths>=2)f.push(`<span class="tag red">${p.deaths} deaths</span>`);return f.join('')}
+  if(p.uptime<0.5)f.push(`<span class="tag warn">${Math.round(p.uptime*100)}% active</span>`);if(p.deathsHigh)f.push(`<span class="tag red" title="Above this raid's average deaths">${p.deaths} deaths</span>`);else if(p.deaths>=2)f.push(`<span class="tag" title="At or below this raid's average, so not flagged">${p.deaths} deaths</span>`);return f.join('')}
 function perf(){
   const x=g();
   const RA=allRaids(G); if(raidIdx>=RA.length)raidIdx=0; const st=logSettings();
@@ -392,13 +392,13 @@ function perf(){
   if(!RA.length)return controls+`<div class="card"><h3>Performance</h3><div class="hint" style="margin:0">No ${x.server} raid logs loaded yet. Upload a raid log and Glask ranks everyone against their own class.</div></div>`;
   const r=RA[raidIdx]; const ps=r.players;
   const classes=[...new Set(ps.map(p=>p.cls))].sort();
-  const watch=ps.filter(p=>!p.box&&!p.mismatch&&!p.rl&&!TANKS.has(p.cls)&&((p.pct!=null&&p.pct<70)||p.uptime<0.5||p.deaths>=2)).sort((a,b)=>(a.pct??0)-(b.pct??0));
+  const watch=ps.filter(p=>!p.box&&!p.mismatch&&!p.rl&&!TANKS.has(p.cls)&&((p.pct!=null&&p.pct<70)||p.uptime<0.5||p.deathsHigh)).sort((a,b)=>(a.pct??0)-(b.pct??0));
   const pips=x.members.map(m=>[m,pipOf(G,m.main)]).filter(([m,p])=>p&&p.status!=='Closed');
   const mainOf=n=>{const p=ps.find(p=>p.name===n);if(p&&p.rl)return p.main;const m=x.members.find(m=>m.chars.some(c=>c.n===n));return m?m.main:null};
   const owner=null;
   return controls+`<div class="glask"><div class="who">GLASK</div><div><p><em>“I have measured them against their own kind.”</em> <b>${esc(r.id)}</b>, ${esc(r.date)}: ${Math.round(r.seconds/60)} minutes, ${ps.length} players parsed from the raw log.</p>
    <p style="color:var(--mute);font-size:13px">Each player is compared with the <b>median of their class</b> in this raid (mains only; boxes and anyone active under 30% of the fight are left out of the median). Because of personas, class comes from the <b>spells each person cast in this log</b>, not the guild dump; anyone whose class differs is tagged so an officer can confirm. DPS classes use SDPS (damage over their own active time); Clerics and Shamans use healing per active second. Tank DPS is shown for reference only. ${r.raid_leader?`<b>${esc(r.raid_leader)}</b> was raid leading, so their characters are tagged and left out of medians and the watch list.`:''} ${owner?`The log owner shows as “You” in the log, so their ${kfmt(owner.dmg)} damage isn't credited to anyone yet.`:''}</p></div></div>
-  <div class="grid2"><div class="card"><h3>Watch list <span class="n">${watch.length}</span></h3><div class="hint">Non-box, non-tank players under 70% of class median, active less than half the fight, or 2+ deaths.</div>
+  <div class="grid2"><div class="card"><h3>Watch list <span class="n">${watch.length}</span></h3><div class="hint">Non-box, non-tank players under 70% of class median, active less than half the fight, or more deaths than this raid's average (${(r.avgDeaths||0).toFixed(1)} per player; never for a single death).</div>
    <table><tr><th>Player</th><th>Class</th><th class="num">vs class</th><th>Flags</th></tr>${watch.map(p=>`<tr class="click" onclick="profile('${esc(mainOf(p.name)||p.name)}')"><td>${esc(p.name)}</td><td>${esc(p.cls)}</td><td class="num">${p.pct}%</td><td>${perfFlags(p)}</td></tr>`).join('')}</table></div>
    <div class="card"><h3>On a Performance Improvement Plan <span class="n">${pips.length}</span></h3><div class="hint">Click someone to open their PIP. Start one from anyone's profile.</div>
    ${pips.length?`<table><tr><th>Member</th><th>Concern</th><th>Review</th></tr>${pips.map(([m,p])=>`<tr class="click" onclick="openPip(G,'${esc(m.main)}')"><td>${esc(m.main)}</td><td>${esc(p.concern)}</td><td>${esc(p.review||'')}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nobody yet.</div>'}</div></div>
@@ -591,7 +591,10 @@ function rankRaid(r,gi){const ps=r.players.map(p=>{const q={...p};const auto=p.p
   for(const g of Object.values(by)){let base=g.filter(p=>!p.box&&!p.rl&&p.uptime>=.3).map(p=>p.val).sort((a,b)=>a-b);if(!base.length)base=g.map(p=>p.val).sort((a,b)=>a-b);
     const n=base.length,med=n?(n%2?base[(n-1)/2]:(base[n/2-1]+base[n/2])/2):0;const ord=[...g].sort((a,b)=>b.val-a.val);
     g.forEach(p=>{p.median=med;p.pct=med?Math.round(100*p.val/med):null;p.rank=ord.indexOf(p)+1;p.of=g.length})}
-  return {...r,players:ps}}
+  // deaths: flag only above this raid's average (a wipe-heavy night raises the bar for everyone), and never for a single death
+  const pool=ps.filter(p=>!p.box);const avgD=pool.length?pool.reduce((a,p)=>a+(p.deaths||0),0)/pool.length:0;
+  ps.forEach(p=>{p.deathsHigh=(p.deaths||0)>=2&&(p.deaths||0)>avgD});
+  return {...r,players:ps,avgDeaths:avgD}}
 function hiddenRaids(gi){return new Set(KV['glask-hidden-'+D.guilds[gi].server]||[])}
 function allRaids(gi=G){const x=D.guilds[gi],hid=hiddenRaids(gi);return [...(x.raids||[]).filter(r=>!hid.has(r.id+'|'+r.date)),...(lsGet('glask-raids-'+x.server)||[])].map(r=>rankRaid(r,gi)).sort((a,b)=>b.date.localeCompare(a.date))}
 
