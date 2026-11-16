@@ -458,13 +458,19 @@ async def loot_review(request: Request):
     """Officers mark a flagged loot issue as resolved (or reopen it). Keyed by the exact items, so new loot re-flags it."""
     u = user(request)
     b = await request.json()
-    server, key = b.get('server', ''), str(b.get('key', ''))[:600]
+    server, key = b.get('server', ''), str(b.get('key', ''))[:6000]
     if not u or u['access'].get(server) != 'officer':
         raise HTTPException(403, 'Only officers can resolve loot issues')
     with REC_LOCK:
         k = 'glask-lootrev-' + server
         cur = store.get(k) or {}
-        if b.get('reopen'):
+        if b.get('keys'):                             # Leadership: clear every open issue at once (a fresh start)
+            if server not in u.get('lead', []):
+                raise HTTPException(403, 'Only Leadership can clear every loot issue at once')
+            for kk in [str(x)[:6000] for x in b['keys']][:2000]:
+                cur.setdefault(kk, dict(by=u['name'], at=time.time(), how='Cleared (fresh start)', note=''))
+            store.audit(f"{u['name']} ({u['id']})", 'clear loot review', k, f"{len(b['keys'])} issues")
+        elif b.get('reopen'):
             cur.pop(key, None)
         else:
             cur[key] = dict(by=u['name'], at=time.time(), how=str(b.get('how', ''))[:60], note=str(b.get('note', ''))[:500])
