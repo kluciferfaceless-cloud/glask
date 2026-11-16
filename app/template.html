@@ -934,7 +934,7 @@ function pipeline(gi=G){const x=D.guilds[gi],R=recs(gi),S=recSet(gi),out={};
     p.rankNow=p.m?.rank||'';p.promotedInDump=p.m&&p.col!=='done'&&!/applicant|recruit|trial/i.test(p.m.rank)&&!/recruit/i.test(p.m.note||'')&&p.recruit===undefined&&p.rec.stage;
     p.age=daysSince(p.applied);return p})
   .filter(p=>!(p.member&&!p.rec.stage&&!p.app))   // members show up only if they've applied (e.g. FNF applying to raid) or an officer is tracking them
-  .filter(p=>p.col!=='done'||(Date.now()/1000-(p.rec.decision?.at||0))<45*864e2)}
+  .filter(p=>p.col!=='done'||(Date.now()/1000-(p.rec.decision?.at||0))<15*864e2)}
 function classNeed(gi,cls){const x=D.guilds[gi];const act=x.members.filter(m=>m.days!=null&&m.days<=D.inactive_days&&!/applicant|fnf|alt/i.test(m.rank));
   const n=act.filter(m=>m.cls===cls).length;const role=ROLES.find(r=>r[1].includes(cls));const rn=role?act.filter(m=>role[1].includes(m.cls)).length:0;
   return {n,role:role?role[0]:'',rn,total:act.length}}
