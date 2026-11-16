@@ -263,11 +263,17 @@ const REV_HOW=['Upgrade / legit','Fixed in loot sheet','Refunded or reassigned',
 const CLS_BITS=['Warrior','Cleric','Paladin','Ranger','Shadow Knight','Druid','Monk','Bard','Rogue','Shaman','Necromancer','Wizard','Magician','Enchanter','Beastlord','Berserker'];
 const canUse=(mask,cls)=>{const b=CLS_BITS.indexOf(normCls(cls||''));return b<0?true:!!(mask>>b&1)};
 const maskNames=mask=>CLS_BITS.filter((c,i)=>mask>>i&1);
-function charCls(m,n){const c=m.chars.find(c=>c.n===n);return c?c.c:m.cls}
-function altsOf(m){return m.chars.filter(c=>c.n!==m.main)}
+// the class Glask knows for a character: an officer-set raid class, else the class they played in the newest uploaded raid log, else the guild dump
+function playedClasses(gi){const x=D.guilds[gi],out={};const hid=hiddenRaids(gi);
+  [...(x.raids||[]).filter(r=>!hid.has(r.id+'|'+r.date)),...(KV['glask-raids-'+x.server]||[])].sort((a,b)=>b.date.localeCompare(a.date))
+    .forEach(r=>r.players.forEach(p=>{const k=p.name.toLowerCase();if(!out[k]&&(p.played||p.cls))out[k]=p.played||p.cls}));return out}
+let _pc={};function knownCls(gi,name,fallback){const k=D.guilds[gi].server+':'+((KV['glask-raids-'+D.guilds[gi].server]||[]).length);
+  if(!_pc[k])_pc={[k]:playedClasses(gi)};const n=(name||'').toLowerCase();return clsOverrides(gi)[n]||_pc[k][n]||fallback}
+function charCls(m,n){const c=m.chars.find(c=>c.n===n);const gi=m._srv?gIdx(m._srv):G;return knownCls(gi,n,c?c.c:m.cls)}
+function altsOf(m){return m.chars.filter(c=>c.n!==m.main).map(c=>({...c,c:charCls(m,c.n)}))}
 // a character won an item their class can't use: probably bought for an alt (Faceless Fury lets people bid for an alt that attends)
 function classIssues(m,gi=G){const from=(D.review_from||{})[m._srv||'']||'',cur=xpacNow(gi).code;
-  return (m.cur||[]).filter(i=>i[7]&&(!from||(/^\d{4}-/.test(i[0])&&i[0]>=from))&&(!cur||i[5]===cur)&&!canUse(i[7],charCls(m,i[2])))}
+  return (m.cur||[]).filter(i=>i[7]&&(!from||(/^\d{4}-/.test(i[0])&&i[0]>=from))&&(!cur||i[5]===cur)&&!(cur==='UF'&&/Primary|Secondary/.test(i[4]||''))&&!canUse(i[7],charCls(m,i[2])))}   // Underfoot: weapons aren't class-checked
 function altHint(m,items){const masks=items.map(i=>i[7]).filter(Boolean);const alts=altsOf(m);
   const fit=alts.filter(a=>!masks.length||masks.some(k=>canUse(k,a.c)));const bid=[...new Set(items.map(i=>i[8]).filter(c=>c&&normCls(c)!==normCls(charCls(m,items[0][2]))))];
   if(!alts.length&&!bid.length)return '';
@@ -277,13 +283,15 @@ function lootReviewCard(){const x=g(),R=lootRev(G);const open=[],done=[];
   x.members.forEach(m=>classIssues(m).forEach(i=>{const k=m.main+'|class|'+i[0]+'~'+i[1]+'~'+i[2];(R[k]?done:open).push({m,s:'class',l:[i],k,r:R[k]})}));
   open.sort((a,b)=>b.l.length-a.l.length||a.m.main.localeCompare(b.m.main));
   const when=t=>new Date(t*1000).toLocaleDateString([], {month:'short',day:'numeric'});
-  const items=l=>l.map(i=>`<div style="font-size:13px">${esc(i[0])} · ${esc(i[1])}${i[2]!==l[0][2]?'':''}</div>`).join('');
+  const TN=['','Palladium','Iridium','Rhodium'];
+  const items=l=>l.clay?`<div style="font-size:13px">${l.filter(i=>clayTier(i[1])).map(i=>`<span style="${l.down.includes(i)?'color:var(--ember2);font-weight:600':''}">${TN[clayTier(i[1])]} (${esc(i[0].slice(5))})</span>`).join(' → ')}</div><div style="color:var(--dim);font-size:12px">${l.down.map(i=>`${TN[clayTier(i[1])]} on ${esc(i[0])} is not an upgrade`).join('; ')}</div>${l.filter(i=>!clayTier(i[1])).map(i=>`<div style="font-size:13px">${esc(i[0])} · ${esc(i[1])}</div>`).join('')}`
+    :l.map(i=>`<div style="font-size:13px">${esc(i[0])} · ${esc(i[1])}</div>`).join('');
   const row=o=>`<tr><td><a href="#" onclick="event.preventDefault();profile('${esc(o.m.main)}')" style="color:var(--text)"><b>${esc(o.m.main)}</b></a><div style="color:var(--dim);font-size:12px">${esc(o.m.cls)} · ${esc(o.m.rank)}</div></td>
-    <td>${o.s==='class'?`<span class="tag red" title="${esc(maskNames(o.l[0][7]).join(', '))}">Class</span>`:`<span class="tag red">${o.s} ×${o.l.length}</span>`}</td><td>${o.s==='class'?`<div style="font-size:13px">${esc(o.l[0][0])} · ${esc(o.l[0][1])}</div><div style="color:var(--dim);font-size:12px">won by ${esc(o.l[0][2])} (${esc(charCls(o.m,o.l[0][2]))}); usable by ${esc(maskNames(o.l[0][7]).join(', '))}</div>`:items(o.l)}${altHint(o.m,o.l)}</td>
+    <td>${o.s==='class'?`<span class="tag red" title="${esc(maskNames(o.l[0][7]).join(', '))}">Class</span>`:`<span class="tag red">${o.s} ${o.l.clay?'clay':'×'+o.l.length}</span>`}</td><td>${o.s==='class'?`<div style="font-size:13px">${esc(o.l[0][0])} · ${esc(o.l[0][1])}</div><div style="color:var(--dim);font-size:12px">won by ${esc(o.l[0][2])} (${esc(charCls(o.m,o.l[0][2]))}); usable by ${esc(maskNames(o.l[0][7]).join(', '))}</div>`:items(o.l)}${altHint(o.m,o.l)}</td>
     <td style="white-space:nowrap">${o.r?`<span class="tag ok">${esc(o.r.how)}</span><div style="color:var(--dim);font-size:12px">${esc(o.r.by)}, ${when(o.r.at)}${o.r.note?' · '+esc(o.r.note):''}</div><button class="more" onclick="lootResolve('${encodeURIComponent(o.k)}',1)">Reopen</button>`
       :`<select id="rv_${btoa(unescape(encodeURIComponent(o.k))).replace(/[^a-z0-9]/gi,'').slice(-24)}" style="background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:4px">${REV_HOW.map(h=>`<option>${h}</option>`).join('')}</select> <button class="more" onclick="lootResolve('${encodeURIComponent(o.k)}',0,this.previousElementSibling.value)">Resolve</button>`}</td></tr>`;
   return `<div class="card" style="border-color:${open.length?'#5a2a20':'var(--line)'}"><h3>Loot review · ${esc(xpacNow(G).xpac||x.stats.xpac)} <span class="n">${open.length}</span></h3>
-   <div class="hint">Two kinds of issue: a main bought more items for one slot than it holds this expansion (2 for ears, rings and wrists; alt-round loot and two-slot weapons aren't counted), or someone won an item <b>their class can't use</b> (items with no class listed, like tradeskill tokens, are skipped). Either can be a legitimate bid for an alt who attended, so the guild's alts and the sheet's bid class are shown. Resolve each with a reason; new loot brings it back.${(D.review_from||{})[x.server]?` Reviewing loot from ${esc(D.review_from[x.server])} on.`:''}</div>
+   <div class="hint">Two kinds of issue: a main bought more items for one slot than it holds this expansion (2 for ears, rings and wrists; alt-round loot and two-slot weapons aren't counted), or someone won an item <b>their class can't use</b> (items with no class listed, like tradeskill tokens, are skipped; class is the officer-set raid class, else the class played in raid logs, else the guild dump).${xpacNow(G).code==='UF'?' <b>Underfoot:</b> armor clays are judged by tier (Palladium &lt; Iridium &lt; Rhodium), so an upgrade is fine and only a same-or-lower tier than what that slot already has is flagged; other armor is judged on its own; weapons skip the class check.':''} Either can be a legitimate bid for an alt who attended, so the guild's alts and the sheet's bid class are shown. Resolve each with a reason; new loot brings it back.${(D.review_from||{})[x.server]?` Reviewing loot from ${esc(D.review_from[x.server])} on.`:''}</div>
    ${open.length?`<table><tr><th>Main</th><th>Slot</th><th>Items</th><th>Resolve</th></tr>${open.map(row).join('')}</table>`:'<div class="hint" style="margin:0">Nothing to review. The Faceless sees all, and all is in order.</div>'}
    ${done.length?`<details style="margin-top:10px"><summary style="color:var(--mute)">Resolved (${done.length})</summary><table>${done.map(row).join('')}</table></details>`:''}</div>`}
 async function lootResolve(k,reopen,how){k=decodeURIComponent(k);let note='';if(!reopen){note=prompt('Note for the record (optional):','');if(note===null)return}
@@ -346,9 +354,21 @@ const NONRAID=/^(FnF|Alt|Box\/Alt|Decorate|Applicant)$/i;
 // Slots where the main got more items this expansion than the slot can hold (2 ears, 2 rings, 2 wrists; 1 everywhere else).
 // Loot from alt tabs (Mischief's ALT rounds) is never reviewed, nor items that fit more than one slot (e.g. Primary/Secondary weapons).
 const SLOT_CAP={Ear:2,Fingers:2,Wrist:2};
-function dupSlots(m){const by={};m.cur.filter(i=>i[2]===m.main&&i[4]&&i[4]!=='Not gear'&&!i[6]&&!i[4].includes('/')).forEach(i=>i[4].split('/').forEach(s=>(by[s]=by[s]||[]).push(i)));
-  const from=(D.review_from||{})[m._srv||'']||'';
-  return Object.fromEntries(Object.entries(by).filter(([s,l])=>l.length>(SLOT_CAP[s]||1)&&(!from||l.some(i=>/^\d{4}-/.test(i[0])&&i[0]>=from))))}
+// Underfoot armor clays: raid tiers Palladium (T6/7) < Iridium (T8) < Rhodium (T9) (Allakhazam's Underfoot Armor Guide).
+// Clays are judged by tier: an upgrade is fine, a same-or-lower tier than what's already held for that slot is flagged.
+const CLAY_RX=/^(Palladium|Iridium|Rhodium) Encrusted (Brachial|Carpal|Cephalic|Crural|Phalangeal|Tarsal|Thoracic) Clay$/i, CLAY_TIER={palladium:1,iridium:2,rhodium:3};
+function clayTier(item){const k=(item||'').match(CLAY_RX);return k?CLAY_TIER[k[1].toLowerCase()]:0}
+function dupSlots(m){const by={},clay={};const xp=m._srv?xpacNow(gIdx(m._srv)).code:'';
+  m.cur.filter(i=>i[2]===m.main&&i[4]&&i[4]!=='Not gear'&&!i[6]&&!i[4].includes('/')).forEach(i=>{const s=i[4];
+    if(xp==='UF'&&clayTier(i[1]))(clay[s]=clay[s]||[]).push(i);else (by[s]=by[s]||[]).push(i)});
+  const from=(D.review_from||{})[m._srv||'']||'';const fresh=i=>!from||(/^\d{4}-/.test(i[0])&&i[0]>=from);
+  const out=Object.fromEntries(Object.entries(by).filter(([s,l])=>l.length>(SLOT_CAP[s]||1)&&l.some(fresh)));
+  for(const[s,l]of Object.entries(clay)){const cap=SLOT_CAP[s]||1,held=[],down=[];
+    l.slice().sort((a,b)=>a[0]===b[0]?clayTier(b[1])-clayTier(a[1]):a[0].localeCompare(b[0])).forEach(i=>{const tr=clayTier(i[1]);
+      if(held.length<cap){held.push(tr);return}const best=held.slice().sort((a,b)=>b-a).slice(0,cap),weak=Math.min(...best);
+      if(tr>weak){held.splice(held.indexOf(weak),1,tr)}else down.push(i)});
+    if(down.some(fresh)){const arr=l.slice().sort((a,b)=>a[0].localeCompare(b[0]));arr.clay=true;arr.down=down;out[s]=out[s]?Object.assign(out[s].concat(arr),{clay:true,down}):arr}}
+  return out}
 function revKey(m,s,l){return m.main+'|'+s+'|'+l.map(i=>i[0]+'~'+i[1]).sort().join(';')}
 function lootRev(gi=G){return KV['glask-lootrev-'+D.guilds[gi].server]||{}}
 function openDups(m,gi=G){const R=lootRev(gi);return Object.fromEntries(Object.entries(dupSlots(m)).filter(([s,l])=>!R[revKey(m,s,l)]))}
