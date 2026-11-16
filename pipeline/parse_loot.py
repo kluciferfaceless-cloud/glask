@@ -35,6 +35,7 @@ def parse(path):
             if 'item' in cells and 'goes to' in cells: hdr=cells; hrow=i; break
         if not hdr: skipped.append(name); continue
         ii=hdr.index('item'); gi=hdr.index('goes to'); ti=hdr.index('time') if 'time' in hdr else hdr.index('date') if 'date' in hdr else None   # date looted (column is 'Time' or 'Date')
+        if ti is None and re.match(r'\d{4}-\d\d-\d\d',hdr[0]): ti=0   # some tabs have a date typed over the 'Time' header in A1
         ni=hdr.index('npc') if 'npc' in hdr else None
         ri=hdr.index('round') if 'round' in hdr else (8 if len(hdr)>8 and hdr[8]=='' else None)   # the bidding round: a 'Round' column, else column I if it has no other header
         n=0

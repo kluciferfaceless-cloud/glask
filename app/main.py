@@ -248,6 +248,7 @@ def index(request: Request):
             data['sa_email'] = None
     data['qsheets'] = {g['server']: [dict(s, status=live_loot.QSTATUS.get(s['id'])) for s in live_loot.qsheets(store, g['server'])]
                        for g in allowed if u['access'][g['server']] == 'officer'}
+    data['review_from'] = REVIEW_FROM
     data['aa'] = dict(buffer=AA['buffer'], **{g['server']: current_xpac(g['server']) for g in allowed})
     for k in [k for k in kv if k.startswith('glask-inv-')]:
         kv[k] = tag_inv(kv[k])
@@ -770,6 +771,11 @@ async def item_info(request: Request):
     if ids:
         out['_aug'] = {i: itemdb.augtypes(i) for i in ids}
     return out
+
+
+# Loot review only flags issues that include something looted on/after this date (a guild's fresh start).
+# Teek restarted its review on 2026-11-15 after the main/FF round split was added.
+REVIEW_FROM = {'Teek': os.environ.get('TEEK_REVIEW_FROM', '2026-11-16'), 'Mischief': os.environ.get('MISCHIEF_REVIEW_FROM', '')}
 
 
 TRACK_DEFAULT = {

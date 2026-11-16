@@ -146,6 +146,7 @@ footer{color:var(--dim);font-size:11.5px;text-align:center;padding:20px}
 <script id="kv" type="application/json">__STORE__</script>
 <script>
 const D=JSON.parse(document.getElementById('data').textContent);
+D.guilds.forEach(x=>x.members.forEach(m=>{m._srv=x.server}));   // each member knows its guild (loot review start date)
 const ME=JSON.parse(document.getElementById('me').textContent);
 const KV=JSON.parse(document.getElementById('kv').textContent);
 // Item slots Glask has learned (inventories + officer tags) fill in items the loot sheet can't place
@@ -332,7 +333,8 @@ const NONRAID=/^(FnF|Alt|Box\/Alt|Decorate|Applicant)$/i;
 // Loot from alt tabs (Mischief's ALT rounds) is never reviewed, nor items that fit more than one slot (e.g. Primary/Secondary weapons).
 const SLOT_CAP={Ear:2,Fingers:2,Wrist:2};
 function dupSlots(m){const by={};m.cur.filter(i=>i[2]===m.main&&i[4]&&i[4]!=='Not gear'&&!i[6]&&!i[4].includes('/')).forEach(i=>i[4].split('/').forEach(s=>(by[s]=by[s]||[]).push(i)));
-  return Object.fromEntries(Object.entries(by).filter(([s,l])=>l.length>(SLOT_CAP[s]||1)))}
+  const from=(D.review_from||{})[m._srv||'']||'';
+  return Object.fromEntries(Object.entries(by).filter(([s,l])=>l.length>(SLOT_CAP[s]||1)&&(!from||l.some(i=>/^\d{4}-/.test(i[0])&&i[0]>=from))))}
 function revKey(m,s,l){return m.main+'|'+s+'|'+l.map(i=>i[0]+'~'+i[1]).sort().join(';')}
 function lootRev(gi=G){return KV['glask-lootrev-'+D.guilds[gi].server]||{}}
 function openDups(m,gi=G){const R=lootRev(gi);return Object.fromEntries(Object.entries(dupSlots(m)).filter(([s,l])=>!R[revKey(m,s,l)]))}
