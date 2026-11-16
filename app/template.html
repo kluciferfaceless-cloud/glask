@@ -374,7 +374,7 @@ function gearCard(m,gi){
    <div class="card"><h3>${esc(xp)} loot, all characters <span class="n">${cur.length}</span></h3>${cur.length?`<table><tr><th>Date</th><th>Item</th><th>On</th><th>Slot</th></tr>${cur.map(i=>`<tr><td>${esc(i[0])}</td><td>${esc(i[1])}</td><td>${esc(i[2])}</td><td>${isOff(gi)?`<select onchange="tagSlot(this.dataset.item,this.value)" data-item="${esc(i[1])}" style="background:var(--panel2);border:1px solid ${i[4]?'var(--line)':'#5a4520'};color:var(--text);border-radius:6px;padding:2px 4px"><option value="">${i[4]?'—':'slot ?'}</option>${[...SLOTS,'Not gear'].map(s=>`<option ${i[4]===s?'selected':''}>${s}</option>`).join('')}</select>`:i[4]?esc(i[4]):'<span style="color:var(--dim)">?</span>'}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nothing awarded this expansion yet.</div>'}</div>`;
 }
 function uploadInv(ev,gi,main){const f=ev.target.files[0];if(!f)return;f.text().then(t=>{const inv=parseInv(t);if(!inv.length){alertBox('That file doesn\'t look like an /outputfile inventory.');return}
-  const m=D.guilds[gi].members.find(x=>x.main===main);m.inv=inv;kvSet(invKey(gi,m),inv);learnSlots(inv);tagInv(inv).then(()=>V==='me'?render():profile(main))})}
+  const m=D.guilds[gi].members.find(x=>x.main===main);m.inv=inv;kvSet(invKey(gi,m),inv);learnSlots(inv);tagInv(inv).then(()=>(V==='me'||isMem(gi))?render():profile(main))})}
 function alertBox(msg){const d=document.createElement('div');d.textContent=msg;d.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#3a1d17;border:1px solid var(--ember);padding:10px 16px;border-radius:8px;z-index:20';document.body.appendChild(d);setTimeout(()=>d.remove(),3500)}
 
 
@@ -514,7 +514,7 @@ function parseAchExport(text,wanted){const W=new Set(wanted),done=[],tiers=[];
   return {aa_floor:got.length?Math.max(...got):0,aa_next:nxt.length?Math.min(...nxt):null,done,source:'export',uploaded:new Date().toLocaleDateString('en-CA')}}
 function aaText(a){if(!a)return '—';return a.aa_next?`${fmt(a.aa_floor)}–${fmt(a.aa_next-1)}`:`${fmt(a.aa_floor)}+`}
 function uploadAch(ev,gi,main){const f=ev.target.files[0];if(!f)return;f.text().then(t=>{const a=parseAchExport(t,D.guilds[gi]._wanted);if(!a){alertBox("That file doesn't look like an /outputfile achievement export.");return}
-  lsSet('glask-ach-'+D.guilds[gi].server+'-'+main,a);alertBox('Achievements loaded for '+main+' · AA '+aaText(a));profile(main)})}
+  lsSet('glask-ach-'+D.guilds[gi].server+'-'+main,a);alertBox('Achievements loaded for '+main+' · AA '+aaText(a));(V==='me'||isMem(gi)?render():profile(main))})}
 function hasAch(m,a,gi=G){const x=achOf(m,gi);if(x)return x.done.includes(a)?'yes':'no';return (m.flags&&m.flags[a])||(m.raid_ach&&m.raid_ach[a])?'seen':null}
 function attendance(gi=G){const x0=D.guilds[gi],hid=hiddenRaids(gi);const base={...(x0.attendance||{})};
   (x0.raids||[]).filter(r=>hid.has(r.id+'|'+r.date)).forEach(r=>{const rest=(x0.raids||[]).filter(q=>q.date===r.date&&!hid.has(q.id+'|'+q.date));
@@ -747,7 +747,8 @@ function launch0(){const x=g(),qs=allQ();
 <!--§/C--><!--§N-->  <div class="card"><h3>Active raiders who haven't answered <span class="n">${pending.length}</span></h3><div class="hint">Raiding ranks, online in the last ${D.inactive_days} days, no response matched to any of their characters.</div>${pending.map(m=>`<span class="tag link" style="margin:2px" onclick="profile('${esc(m.main)}')">${esc(m.main)} · ${esc(m.cls)}</span>`).join(' ')}</div>
 <!--§/N-->  ${notG.length?`<div class="card"><h3>Responses Glask couldn't match to the roster <span class="n">${notG.length}</span></h3><div class="hint">Typo, a character not in the guild dump, or someone who has left. Fix the name in the form sheet or check the roster.</div>${notG.map(r=>`<span class="tag" style="margin:2px">${esc(r.raw||'(blank)')} ${qTag(r.status)}</span>`).join(' ')}</div>`:''}`}
 
-function profile(name){$('#drawer').dataset.main=name;
+function profile(name){if(ME.access[D.guilds[G].server]==='member'){closeP();V='me';render();return}   // members never get the officer panel
+  $('#drawer').dataset.main=name;
   let mi=-1,gi=G;
   mi=D.guilds[G].members.findIndex(m=>m.main===name);
   if(mi<0){for(let i=0;i<D.guilds.length;i++){const j=D.guilds[i].members.findIndex(m=>m.main===name);if(j>=0){gi=i;mi=j;break}}}
