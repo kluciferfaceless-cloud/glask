@@ -11,9 +11,12 @@ def text_time(s,name):
     """'Nov 15 19:49:51' or 'November 15 19:49:52' (no year): the year comes from the tab name (e.g. 11/15/26), else this year."""
     m=re.match(r'^([A-Za-z]{3,9})\.? +(\d{1,2}),? +(\d{1,2}):(\d\d)(?::(\d\d))?',s.strip())
     if not m or m.group(1)[:3].lower() not in MON: return None
-    y=tab_year(name) or datetime.date.today().year
-    try: return datetime.datetime(y,MON[m.group(1)[:3].lower()],int(m.group(2)),int(m.group(3)),int(m.group(4)),int(m.group(5) or 0)).isoformat(sep=' ')
+    y=tab_year(name); guess=y is None
+    if guess: y=datetime.date.today().year          # tabs named like 'TOB 11/15' carry no year
+    try: d=datetime.datetime(y,MON[m.group(1)[:3].lower()],int(m.group(2)),int(m.group(3)),int(m.group(4)),int(m.group(5) or 0))
     except ValueError: return None
+    if guess and d.date()>datetime.date.today()+datetime.timedelta(days=7): d=d.replace(year=y-1)   # a December tab read in January is last year's
+    return d.isoformat(sep=' ')
 def cell_time(v,name):
     if v is None: return ''
     if hasattr(v,'year'): return str(v)[:19]
