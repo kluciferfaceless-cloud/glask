@@ -537,7 +537,11 @@ const RAID_MIN=10, GM_RX=/^Your guildmate (\S+) has completed (.+) achievement\.
 function nightOf(t){const d=new Date((t-6*3600)*1000);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 async function parseLogFile(f,gi){
   const x=D.guilds[gi],roster={};x.members.forEach(m=>m.chars.forEach(c=>roster[c.n.toLowerCase()]={cls:c.c,main:m.main,alt:c.a,n:c.n}));
-  const st=logSettings(),me=st.owner;const isP=n=>!!roster[n.toLowerCase()];
+  // whose log is this? EverQuest names logs eqlog_<Character>_<server>.txt; otherwise the uploader's own linked character
+  const st=logSettings(),fn=(f.name.match(/eqlog_([A-Za-z]+)_/i)||[])[1];const mine=(()=>{const l=(ME.links||{})[x.server];return l&&l.status==='approved'?l.main:null})();
+  const me=fn?(roster[fn.toLowerCase()]?.n||fn):(isMem(gi)?mine:(st.owner||mine))||'You';
+  const meIsRL=!!st.ownerRL&&!isMem(gi)&&me.toLowerCase()===String(st.owner||'').toLowerCase();   // the raid-leader setting only applies to that officer's own logs
+  const isP=n=>!!roster[n.toLowerCase()];
   const own=a=>{if(/^(you|your)$/i.test(a))return me;const m=a.match(RX.OWNER);if(m)return /^your$/i.test(m[1])?me:m[1];return a};
   const N={};const night=t=>{const k=nightOf(t);return N[k]||(N[k]={P:{},first:null,last:null})};
   const get=(n,t)=>{const nt=night(t);return nt.P[n]||(nt.P[n]={dmg:0,heal:0,over:0,acts:[],deaths:0,sp:{}})};
@@ -562,7 +566,7 @@ async function parseLogFile(f,gi){
       const tally={};for(const[s,k]of Object.entries(p.sp))if(scls[s])tally[scls[s]]=(tally[scls[s]]||0)+k;const te=Object.entries(tally).sort((a,b)=>b[1]-a[1]);const tt=te.reduce((a,b)=>a+b[1],0);
       const r=roster[n.toLowerCase()];const played=te.length&&te[0][1]>=200&&te[0][1]/tt>=.8?te[0][0]:r.cls;
       return {name:r.n,main:r.main,dump_cls:r.cls,played,box:r.alt,dmg:p.dmg,heal:p.heal,overheal:p.over,active:Math.round(active),uptime:Math.min(1,active/fight),deaths:p.deaths,sdps:Math.round(p.dmg/Math.max(active,1))}});
-    raids.push({id:'Raid night',date,seconds:Math.round(fight),raid_leader:st.ownerRL?ownerMain:null,players,uploaded:true,source:f.name})}
+    raids.push({id:'Raid night',date,seconds:Math.round(fight),raid_leader:meIsRL?ownerMain:null,players,uploaded:true,source:f.name,log_owner:me})}
   return {raids,seen,skipped}}
 async function parseRaidFile(f,gi){const r=await parseLogFile(f,gi);return r.raids.sort((a,b)=>b.players.length-a.players.length)[0]||null}
 async function saveSeen(gi,seen){const x=D.guilds[gi];try{const res=await fetch('/api/ach-seen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({server:x.server,seen})});
