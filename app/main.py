@@ -577,6 +577,35 @@ def _counted(server, night, s_):
     return bool(r and r.get('uploaded_by') == s_['by'])
 
 
+def _names(r):
+    return {(p.get('name') or '').lower() for p in r.get('players', []) if p.get('name')}
+
+
+def _split_id(server, raid, *lists):
+    """Logs from the same night that share most of their players are the same raid. Logs that share few players are
+    separate splits, so each gets its own id (e.g. 'Raid night · split 2') instead of replacing the other."""
+    base = raid['id'].split(' · split ')[0]
+    g = next((x for x in DATA['guilds'] if x['server'] == server), {})
+    same_day = [r for lst in (*lists, g.get('raids') or []) for r in lst
+                if r.get('date') == raid['date'] and r.get('id', '').split(' · split ')[0] == base]
+    mine = _names(raid)
+    best, score = None, 0.0
+    for r in same_day:
+        other = _names(r)
+        ov = len(mine & other) / max(1, min(len(mine), len(other)))
+        if ov > score:
+            best, score = r, ov
+    if best is not None and score >= 0.5:
+        return best['id']                                # same raid as a log we already have
+    if not same_day:
+        return base
+    ids = {r['id'] for r in same_day}
+    n = 2
+    while f'{base} · split {n}' in ids:
+        n += 1
+    return f'{base} · split {n}'
+
+
 @app.post('/api/raid-add')
 async def raid_add(request: Request):
     """Officer logs count straight away. A member's (or recruitment team's) log only counts once an officer approves it,
@@ -595,12 +624,13 @@ async def raid_add(request: Request):
         raise HTTPException(413, 'Too large')
     who = f"{u['name']} ({u['id']})"
     trusted = lvl == 'officer'
-    night = f"{raid['id']}|{raid['date']}"
     raid['uploaded_by'] = u['id']
     raid['uploaded_name'] = (my_main(u, server) or u['name']) if not trusted else u['name']
     with REC_LOCK:
         rk, ak, pk, sk = ('glask-raids-' + server, 'glask-att-' + server, 'glask-raidpend-' + server, 'glask-raidsrc-' + server)
         raids, pend, src = store.get(rk) or [], store.get(pk) or [], store.get(sk) or {}
+        raid['id'] = _split_id(server, raid, raids, pend)
+        night = f"{raid['id']}|{raid['date']}"
         subs = [x for x in src.get(night, []) if x.get('by') != u['id']]
         subs.append(dict(by=u['id'], name=raid['uploaded_name'], level='officer' if trusted else 'member', at=time.time(), totals=_totals(raid)))
         src[night] = subs
