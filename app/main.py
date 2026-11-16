@@ -677,8 +677,13 @@ async def item_info(request: Request):
     u = user(request)
     if not u or not u['access']:
         raise HTTPException(401, 'Sign in again')
-    names = [str(n)[:120] for n in ((await request.json()).get('names') or [])][:60]
-    return {n: dict(slot=itemdb.slot(n), xp=itemdb.xpac(n)) for n in names}
+    b = await request.json()
+    names = [str(n)[:120] for n in (b.get('names') or [])][:60]
+    out = {n: dict(slot=itemdb.slot(n), xp=itemdb.xpac(n)) for n in names}
+    ids = [str(i)[:12] for i in (b.get('ids') or [])][:60]
+    if ids:
+        out['_aug'] = {i: itemdb.augtypes(i) for i in ids}
+    return out
 
 
 TRACK_DEFAULT = {

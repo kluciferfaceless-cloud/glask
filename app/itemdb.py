@@ -48,3 +48,14 @@ def xpac(name):
         if d <= added.isoformat():
             code = c
     return code
+
+
+_AUG = None
+
+
+def augtypes(item_id):
+    """The six aug slot types of an item (eqitems dump augslot1type..augslot6type), or None if unknown / no aug slots."""
+    global _AUG
+    if _AUG is None:
+        _AUG = json.load(gzip.open(Path(__file__).resolve().parent.parent / 'data' / 'aug_types.json.gz', 'rt'))
+    return _AUG.get(str(item_id or '').strip())
