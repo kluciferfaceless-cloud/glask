@@ -36,7 +36,7 @@ ADMINS = ids('ADMIN_DISCORD_USER_IDS')   # always officer on every guild (e.g. K
 
 # What each access level may change. Keys look like glask-<kind>-<Server>[-...].
 RECRUIT_WRITE = {'inv', 'ach'}                           # uploads that feed applicant tracking (raid logs go through /api/raid-add)
-OFFICER_ONLY_READ = {'pip', 'raidpend', 'raidsrc', 'raidchk'}       # PIPs and raid-log review are hidden from the recruitment team
+OFFICER_ONLY_READ = {'pip', 'raidpend', 'raidsrc', 'raidchk', 'lootrev', 'loothist'}   # PIPs, raid-log review and loot history are officers only       # PIPs and raid-log review are hidden from the recruitment team
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 app.add_middleware(SessionMiddleware, secret_key=os.environ.get('SESSION_SECRET') or secrets.token_hex(32),
@@ -454,23 +454,48 @@ async def set_slots(request: Request):
     return cur
 
 
+VIOLATION = 'Illegal bid (violation)'
+LOOT_ACTIONS = ('Warning', 'Item reassigned', 'DKP penalty', 'Other')
+
+
 @app.post('/api/lootrev')
 async def loot_review(request: Request):
-    """Officers mark a flagged loot issue as resolved (or reopen it). Keyed by the exact items, so new loot re-flags it."""
+    """Officers resolve a flagged loot issue (or reopen it, or add a note to it). Keyed by the exact items, so new loot re-flags it.
+    Each resolution keeps a copy of the items, so a member's loot history survives sheet edits. A reopened resolution is
+    archived, never erased, so violations count forever."""
     u = user(request)
     b = await request.json()
     server, key = b.get('server', ''), str(b.get('key', ''))[:6000]
     if not u or u['access'].get(server) != 'officer':
         raise HTTPException(403, 'Only officers can resolve loot issues')
+    who = f"{u['name']} ({u['id']})"; now = time.time()
     with REC_LOCK:
-        k = 'glask-lootrev-' + server
+        k, hk = 'glask-lootrev-' + server, 'glask-loothist-' + server
         cur = store.get(k) or {}
-        if b.get('reopen'):
-            cur.pop(key, None)
+        if b.get('op') == 'note':
+            text = str(b.get('text', '')).strip()[:2000]
+            if not text or key not in cur:
+                raise HTTPException(400, 'Nothing to add a note to')
+            cur[key].setdefault('notes', []).append(dict(by=u['name'], at=now, text=text))
+        elif b.get('reopen'):
+            old = cur.pop(key, None)
+            if old:
+                hist = store.get(hk) or []
+                hist.append(dict(old, key=key, reopened_by=u['name'], reopened_at=now))
+                store.put(hk, hist, who)
         else:
-            cur[key] = dict(by=u['name'], at=time.time(), how=str(b.get('how', ''))[:60], note=str(b.get('note', ''))[:500])
-        store.put(k, cur, f"{u['name']} ({u['id']})")
-    return cur
+            how = str(b.get('how', ''))[:60]; note = str(b.get('note', '')).strip()[:2000]
+            action = str(b.get('action', ''))[:40] if how == VIOLATION else ''
+            if how == VIOLATION and not note:
+                raise HTTPException(400, 'A violation needs a note saying what happened')
+            if action and action not in LOOT_ACTIONS:
+                raise HTTPException(400, 'Unknown action')
+            items = [[str(x)[:120] for x in (i or [])[:3]] for i in (b.get('items') or [])[:40]]
+            cur[key] = dict(by=u['name'], at=now, how=how, note=note, action=action, main=str(b.get('main', ''))[:40],
+                            kind=str(b.get('kind', ''))[:40], slot=str(b.get('slot', ''))[:40], items=items,
+                            notes=[dict(by=u['name'], at=now, text=note)] if note else [])
+        store.put(k, cur, who)
+    return {'rev': cur, 'hist': store.get(hk) or []}
 
 
 def _norm_handle(h):
