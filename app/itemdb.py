@@ -59,3 +59,16 @@ def augtypes(item_id):
     if _AUG is None:
         _AUG = json.load(gzip.open(Path(__file__).resolve().parent.parent / 'data' / 'aug_types.json.gz', 'rt'))
     return _AUG.get(str(item_id or '').strip())
+
+
+CLASS_BITS = ['Warrior', 'Cleric', 'Paladin', 'Ranger', 'Shadow Knight', 'Druid', 'Monk', 'Bard', 'Rogue', 'Shaman',
+              'Necromancer', 'Wizard', 'Magician', 'Enchanter', 'Beastlord', 'Berserker']   # EQ class bitmask order (checked against the loot sheet)
+ALL_CLASSES = (1 << 16) - 1
+
+
+def classes(name):
+    """Class bitmask of an item, or 0 when the item doesn't say (unknown, every class, or no class restriction such as tradeskill tokens)."""
+    r = _rec(name)
+    if not r or len(r) < 3 or not r[2] or (r[2] & ALL_CLASSES) == ALL_CLASSES:
+        return 0
+    return r[2] & ALL_CLASSES

@@ -152,18 +152,36 @@ def fetch(sheet_id, token):
     return rows, len(used)
 
 
-def is_alt(server, x):
+def round_no(x):
+    """The bidding round as a number, or None when the cell isn't a round."""
+    m = re.fullmatch(r'(?:round|rd|r)?\s*(\d+)(?:\.0+)?', str(x.get('round') or '').strip().lower())
+    return int(m.group(1)) if m else None
+
+
+def main_rounds(rows):
+    """Faceless Fury: the lowest round number on each tab (night) is the main round."""
+    lo = {}
+    for x in rows:
+        n = round_no(x)
+        if n is not None:
+            lo[x['tab']] = min(n, lo.get(x['tab'], n))
+    return lo
+
+
+def is_alt(server, x, lo=None):
     """Alt-round loot never counts toward gear, loot review or raid dates.
-    Mischief: tabs named 'alt'. Teek (Faceless Fury): column I is the round; round 1 is the main round, round 2 and up is the FF round.
-    Teek rows with no round (everything before rounds were recorded) count as main round."""
+    Mischief: tabs named 'alt'. Teek (Faceless Fury): column I is the round; the lowest round on a tab is the main round and
+    any higher round is the FF round. Teek rows with no round (everything before rounds were recorded) count as main round."""
     if server == 'Teek':
         rd = str(x.get('round') or '').strip().lower()
         if not rd:
             return False
         if re.fullmatch(r'(ff|alt)( round)?', rd):
             return True
-        m = re.fullmatch(r'(?:round|rd|r)?\s*(\d+)(?:\.0+)?', rd)   # only values that look like a round number; older tabs used column I for notes
-        return bool(m and int(m.group(1)) > 1)
+        n = round_no(x)
+        if n is None:
+            return False                               # older tabs used column I for notes
+        return n > (lo or {}).get(x['tab'], n)
     return 'alt' in x['tab'].lower()
 
 
@@ -224,6 +242,7 @@ def rollup(server, guild, rows, aa, slotmap):
         m = TOKEN_RE.match(item)
         return m.group(1).capitalize() if m else (slotmap.get(item) or itemdb.slot(item))
 
+    lo = main_rounds(loot)
     by = collections.defaultdict(list)
     for x in loot:
         by[x['to'].lower()].append(x)
@@ -231,12 +250,12 @@ def rollup(server, guild, rows, aa, slotmap):
         n_all = 0; dkp = 0; cur = []; slot_last = {}
         for c in mem['chars']:
             for x in by.get(c['n'].lower(), []):
-                if is_alt(server, x):
+                if is_alt(server, x, lo):
                     continue                      # alt-round loot never counts toward gear or loot
                 n_all += 1; dkp += x['cost'] or 0
                 xc = code_of(x); sl = slot_of(x['item'])
                 if xc in keep:
-                    cur.append([when(x), x['item'], c['n'], x['cost'], sl, xc, 0])
+                    cur.append([when(x), x['item'], c['n'], x['cost'], sl, xc, 0, itemdb.classes(x['item']), x.get('cls', '')])
                 if c['n'] == mem['main'] and sl and sl != 'Not gear':
                     for s1 in sl.split('/'):
                         w = when(x); old = slot_last.get(s1)
@@ -251,7 +270,7 @@ def rollup(server, guild, rows, aa, slotmap):
             return (datetime.datetime.fromisoformat(t[:19]) - datetime.timedelta(hours=6)).date().isoformat()
         except Exception:
             return None
-    guild['raid_dates'] = sorted({n for x in loot if not is_alt(server, x) and (n := night(x['time'])) and n >= '2026-01-01'})
+    guild['raid_dates'] = sorted({n for x in loot if not is_alt(server, x, lo) and (n := night(x['time'])) and n >= '2026-01-01'})
     for r in guild.get('recruits', []):
         if r.get('start') and r.get('raids') is not None:
             r['raids'] = sum(1 for d in guild['raid_dates'] if d >= r['start'])

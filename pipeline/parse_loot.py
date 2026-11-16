@@ -37,6 +37,7 @@ def parse(path):
         ii=hdr.index('item'); gi=hdr.index('goes to'); ti=hdr.index('time') if 'time' in hdr else hdr.index('date') if 'date' in hdr else None   # date looted (column is 'Time' or 'Date')
         if ti is None and re.match(r'\d{4}-\d\d-\d\d',hdr[0]): ti=0   # some tabs have a date typed over the 'Time' header in A1
         ni=hdr.index('npc') if 'npc' in hdr else None
+        ci=hdr.index('class') if 'class' in hdr and hdr.index('class')<10 else None   # the class the item was bid for (Faceless Fury, column H)
         ri=hdr.index('round') if 'round' in hdr else (8 if len(hdr)>8 and hdr[8]=='' else None)   # the bidding round: a 'Round' column, else column I if it has no other header
         n=0
         for r in ws.iter_rows(min_row=hrow+1,values_only=True):
@@ -45,7 +46,7 @@ def parse(path):
             if not item or not to: continue
             cost=None   # Glask doesn't use DKP: costs are never read
             rnd=str(r[ri]).strip() if ri is not None and len(r)>ri and r[ri] is not None else ''   # Faceless Fury: round 1 = main round, 2+ = FF round
-            out.append(dict(tab=name,time=cell_time(r[ti],name) if ti is not None else '',item=str(item).strip(),npc=str(r[ni]).strip() if ni is not None and r[ni] else '',to=str(to).strip(),cost=cost,round=rnd))
+            out.append(dict(tab=name,time=cell_time(r[ti],name) if ti is not None else '',item=str(item).strip(),npc=str(r[ni]).strip() if ni is not None and r[ni] else '',to=str(to).strip(),cost=cost,round=rnd,cls=str(r[ci]).strip() if ci is not None and len(r)>ci and r[ci] else ''))
             n+=1
         if n: used.append((name,n))
     return out,used,skipped
