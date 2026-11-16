@@ -35,8 +35,8 @@ GUILDS = {
 ADMINS = ids('ADMIN_DISCORD_USER_IDS')   # always officer on every guild (e.g. Klucifer)
 
 # What each access level may change. Keys look like glask-<kind>-<Server>[-...].
-RECRUIT_WRITE = {'inv', 'ach', 'att', 'raids'}          # uploads that feed applicant tracking
-OFFICER_ONLY_READ = {'pip'}                              # PIPs are hidden from the recruitment team
+RECRUIT_WRITE = {'inv', 'ach'}                           # uploads that feed applicant tracking (raid logs go through /api/raid-add)
+OFFICER_ONLY_READ = {'pip', 'raidpend', 'raidsrc'}       # PIPs and raid-log review are hidden from the recruitment team
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 app.add_middleware(SessionMiddleware, secret_key=os.environ.get('SESSION_SECRET') or secrets.token_hex(32),
@@ -520,9 +520,52 @@ async def link_decide(request: Request):
     return cur
 
 
+def _rebuild_att(raids):
+    att = {}
+    for r in raids:   # attendance from uploads is rebuilt from the counted raid logs
+        att[r['date']] = sorted({p['main'] for p in r['players'] if p.get('main')} | set(att.get(r['date'], [])))
+    return att
+
+
+def _totals(raid):
+    return {p['name']: [int(p.get('dmg') or 0), int(p.get('heal') or 0)] for p in raid.get('players', []) if p.get('name')}
+
+
+def raid_checks(server):
+    """Compare every log submitted for the same night. Honest logs can show LESS for someone (range, chat filters)
+    but never MORE, so a log showing a player well above another log of the same night is flagged."""
+    src = dict(store.get('glask-raidsrc-' + server) or {})
+    g = next((x for x in DATA['guilds'] if x['server'] == server), {})
+    for r in g.get('raids') or []:
+        src.setdefault(f"{r['id']}|{r['date']}", [])
+        src[f"{r['id']}|{r['date']}"] = [dict(by='starting data', name='Starting data', level='officer', totals=_totals(r))] + \
+            [x for x in src[f"{r['id']}|{r['date']}"] if x.get('by') != 'starting data']
+    out = {}
+    for night, subs in src.items():
+        if len(subs) < 2:
+            continue
+        issues = []
+        for i, a in enumerate(subs):
+            for b in subs:
+                if a is b:
+                    continue
+                for who, (d1, h1) in a['totals'].items():
+                    if who not in b['totals']:
+                        continue
+                    d2, h2 = b['totals'][who]
+                    for kind, x, y in (('damage', d1, d2), ('healing', h1, h2)):
+                        if x > y * 1.15 and x - y > 5_000_000:   # 15% and 5M more than another log saw
+                            issues.append(dict(log=a['name'], level=a['level'], player=who, kind=kind, this=x, other=y, other_log=b['name']))
+        if issues:
+            issues.sort(key=lambda z: -(z['this'] - z['other']))
+            out[night] = dict(logs=[dict(name=s_['name'], level=s_['level'], at=s_.get('at')) for s_ in subs], issues=issues[:40])
+    return out
+
+
 @app.post('/api/raid-add')
 async def raid_add(request: Request):
-    """Add (or replace) one parsed raid log and rebuild uploaded-raid attendance on the server, so uploads never overwrite each other."""
+    """Officer logs count straight away. A member's (or recruitment team's) log only counts once an officer approves it,
+    and if an officer log already covers that night it is kept just for cross-checking."""
     u = user(request)
     b = await request.json()
     server, raid = b.get('server', ''), b.get('raid') or {}
@@ -536,27 +579,82 @@ async def raid_add(request: Request):
     if len(json.dumps(raid)) > 3_000_000:
         raise HTTPException(413, 'Too large')
     who = f"{u['name']} ({u['id']})"
+    trusted = lvl == 'officer'
+    night = f"{raid['id']}|{raid['date']}"
+    raid['uploaded_by'] = u['id']
+    raid['uploaded_name'] = (my_main(u, server) or u['name']) if not trusted else u['name']
     with REC_LOCK:
-        rk, ak = 'glask-raids-' + server, 'glask-att-' + server
-        raids = store.get(rk) or []
-        same = next((r for r in raids if r.get('id') == raid['id'] and r.get('date') == raid['date']), None)
-        if same and len(same.get('players', [])) > len(raid['players']):
-            raid = same                               # the same night was already uploaded from a fuller log: keep that one
-        raids = [r for r in raids if not (r.get('id') == raid['id'] and r.get('date') == raid['date'])]
-        raid.setdefault('uploaded_by', u['id'])
-        raids.append(raid)
-        att = {}
-        for r in raids:
-            att[r['date']] = sorted({p['main'] for p in r['players'] if p.get('main')} | set(att.get(r['date'], [])))
-        store.put(rk, raids, who); store.put(ak, att, who)
+        rk, ak, pk, sk = ('glask-raids-' + server, 'glask-att-' + server, 'glask-raidpend-' + server, 'glask-raidsrc-' + server)
+        raids, pend, src = store.get(rk) or [], store.get(pk) or [], store.get(sk) or {}
+        subs = [x for x in src.get(night, []) if x.get('by') != u['id']]
+        subs.append(dict(by=u['id'], name=raid['uploaded_name'], level='officer' if trusted else 'member', at=time.time(), totals=_totals(raid)))
+        src[night] = subs
+        store.put(sk, src, who)
+        g = next((x for x in DATA['guilds'] if x['server'] == server), {})
+        covered = any(r.get('id') == raid['id'] and r.get('date') == raid['date'] for r in raids) or \
+            any(r.get('id') == raid['id'] and r.get('date') == raid['date'] for r in (g.get('raids') or []))
+        if trusted:
+            same = next((r for r in raids if r.get('id') == raid['id'] and r.get('date') == raid['date']), None)
+            if same and len(same.get('players', [])) > len(raid['players']):
+                raid = same                               # the same night was already counted from a fuller officer log: keep that one
+            raids = [r for r in raids if not (r.get('id') == raid['id'] and r.get('date') == raid['date'])]
+            raid['verified'] = 'officer log'
+            raids.append(raid)
+            pend = [r for r in pend if not (r.get('id') == raid['id'] and r.get('date') == raid['date'])]   # an officer log covers it now
+            store.put(rk, raids, who); store.put(ak, _rebuild_att(raids), who); store.put(pk, pend, who)
+            status = 'counted'
+        elif covered:
+            status = 'checked'                             # an officer log already covers this night: used for cross-checking only
+        else:
+            same = next((r for r in pend if r.get('id') == raid['id'] and r.get('date') == raid['date']), None)
+            subm = sorted(set((same or {}).get('submitted_by', [])) | {raid['uploaded_name']})
+            if same and len(same.get('players', [])) >= len(raid['players']):
+                raid = same
+            raid['submitted_by'] = subm
+            pend = [r for r in pend if not (r.get('id') == raid['id'] and r.get('date') == raid['date'])] + [raid]
+            store.put(pk, pend, who)
+            status = 'pending'
+        att = store.get(ak) or {}
     if lvl == 'member':
         main = my_main(u, server)
-        g = next(x for x in DATA['guilds'] if x['server'] == server)
         m = next((x for x in g['members'] if x['main'] == main), None)
         own = {c['n'].lower() for c in m['chars']} if m else set()
         ovr = store.get('glask-cls-' + server) or {}
-        return dict(raids=anon_raids(raids, own, ovr), att={d: [main] for d, l in att.items() if main in l})
-    return dict(raids=raids, att=att)
+        return dict(status=status, raids=anon_raids(raids, own, ovr), att={d: [main] for d, l in att.items() if main in l})
+    return dict(status=status, raids=raids, att=att, pend=pend if trusted else None)
+
+
+@app.post('/api/raid-approve')
+async def raid_approve(request: Request):
+    """Officers: count (or discard) a raid log a member submitted for a night no officer log covers."""
+    u = user(request)
+    b = await request.json()
+    server, rid, date, ok = b.get('server', ''), b.get('id', ''), b.get('date', ''), bool(b.get('ok'))
+    if not u or u['access'].get(server) != 'officer':
+        raise HTTPException(403, 'Only officers can approve raid logs')
+    who = f"{u['name']} ({u['id']})"
+    with REC_LOCK:
+        rk, ak, pk = 'glask-raids-' + server, 'glask-att-' + server, 'glask-raidpend-' + server
+        raids, pend = store.get(rk) or [], store.get(pk) or []
+        r = next((x for x in pend if x.get('id') == rid and x.get('date') == date), None)
+        if not r:
+            raise HTTPException(404, 'That log is no longer waiting for review')
+        pend = [x for x in pend if x is not r]
+        if ok:
+            r['verified'] = 'approved by ' + u['name']
+            raids = [x for x in raids if not (x.get('id') == rid and x.get('date') == date)] + [r]
+            store.put(rk, raids, who); store.put(ak, _rebuild_att(raids), who)
+        store.put(pk, pend, who)
+        store.audit(who, 'approve raid' if ok else 'reject raid', pk, f'{rid} {date}')
+    return dict(raids=store.get(rk) or [], att=store.get(ak) or {}, pend=pend)
+
+
+@app.get('/api/raid-checks')
+async def raid_checks_ep(request: Request, server: str = ''):
+    u = user(request)
+    if not u or u['access'].get(server) != 'officer':
+        raise HTTPException(403, 'Officers only')
+    return raid_checks(server)
 
 
 @app.post('/api/signup')
@@ -716,12 +814,12 @@ async def raid_delete(request: Request):
         raids = store.get(rk) or []
         keep = [r for r in raids if not (r.get('id') == rid and r.get('date') == date)]
         hidden = store.get(hk) or []
+        src = store.get('glask-raidsrc-' + server) or {}
+        if f'{rid}|{date}' in src:
+            src.pop(f'{rid}|{date}'); store.put('glask-raidsrc-' + server, src, who)
         if len(keep) != len(raids):
-            att = {}
-            for r in keep:   # attendance from uploads is rebuilt from the raid logs that remain
-                att[r['date']] = sorted({p['main'] for p in r['players'] if p.get('main')} | set(att.get(r['date'], [])))
             store.put(rk, keep, who)
-            store.put(ak, att, who)
+            store.put(ak, _rebuild_att(keep), who)
         else:
             if f'{rid}|{date}' not in hidden:   # a raid that came with Glask's starting data: hide it
                 hidden.append(f'{rid}|{date}')
