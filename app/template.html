@@ -885,15 +885,15 @@ function pipeline(gi=G){const x=D.guilds[gi],R=recs(gi),S=recSet(gi),out={};
     const start=p.recruit?.start||p.applied;p.raidDates=p.m?attendedSince(p.m.main,start,gi):[];p.raidsN=p.raidDates.length;
     const aa=p.rec.aa_override?parseAA(p.rec.aa_override):parseAA(p.app?.aa);p.aaN=aa;p.aaOver=!!p.rec.aa_override, lv=+(p.m?.level||p.app?.level||0);
     p.flags=[];{const h=aaHeat(gi,p.cls,aa);if(h&&h.aa<h.ag+h.buf)p.flags.push(h.aa<h.ag?'AA below autogrant':`AA < autogrant +${h.buf}`)}if(S.aa&&aa&&aa<S.aa)p.flags.push(`AA ${fmt(aa)} < ${fmt(S.aa)}`);if(S.level&&lv&&lv<S.level)p.flags.push(`Level ${lv} < ${S.level}`);
-    if(p.rec.contact==='unreachable')p.flags.push("Can't reach");
+    if(p.rec.contact==='unreachable')p.flags.push("Can't reach");if(p.member&&p.app)p.flags.push(`Already in guild (${p.m.rank})`);
     const vs=Object.values(p.rec.votes||{});p.votes={promote:vs.filter(v=>v.vote==='promote').length,extend:vs.filter(v=>v.vote==='extend').length,decline:vs.filter(v=>v.vote==='decline').length};
     // stage: explicit choice wins; otherwise inferred from the dump and raid logs
     let st=p.rec.stage;
     if(DONE[st])p.col='done';
-    else{if(!st)st=p.inGuild?'trial':'new';if(st==='trial'&&p.raidsN>=S.raids)st='decision';if(['new','claimed','interview'].includes(st)&&p.recruit)st='trial';p.col=st}
+    else{if(!st)st=p.inGuild&&!p.member?'trial':'new';if(st==='trial'&&p.raidsN>=S.raids)st='decision';if(['new','claimed','interview'].includes(st)&&p.recruit)st='trial';p.col=st}
     p.rankNow=p.m?.rank||'';p.promotedInDump=p.m&&p.col!=='done'&&!/applicant|recruit|trial/i.test(p.m.rank)&&!/recruit/i.test(p.m.note||'')&&p.recruit===undefined&&p.rec.stage;
     p.age=daysSince(p.applied);return p})
-  .filter(p=>!(p.member&&!p.rec.stage))
+  .filter(p=>!(p.member&&!p.rec.stage&&!p.app))   // members show up only if they've applied (e.g. FNF applying to raid) or an officer is tracking them
   .filter(p=>p.col!=='done'||(Date.now()/1000-(p.rec.decision?.at||0))<45*864e2)}
 function classNeed(gi,cls){const x=D.guilds[gi];const act=x.members.filter(m=>m.days!=null&&m.days<=D.inactive_days&&!/applicant|fnf|alt/i.test(m.rank));
   const n=act.filter(m=>m.cls===cls).length;const role=ROLES.find(r=>r[1].includes(cls));const rn=role?act.filter(m=>role[1].includes(m.cls)).length:0;
