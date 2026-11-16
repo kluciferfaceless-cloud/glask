@@ -506,12 +506,12 @@ function savePip(gi,main,f){const p=Object.fromEntries(new FormData(f).entries()
 // ---- achievement exports (AA + definitive flags) and raid attendance from uploaded logs ----
 function lsGet(k){if(k==='glask-logsettings')k+='-'+ME.id;return kvGet(k)}
 function lsSet(k,v){if(k==='glask-logsettings')k+='-'+ME.id;kvSet(k,v)}
-function achOf(m,gi=G){return m.achx||lsGet('glask-ach-'+D.guilds[gi].server+'-'+m.main)}
+function achOf(m,gi=G){return lsGet('glask-ach-'+D.guilds[gi].server+'-'+m.main)||m.achx}   // an uploaded export always beats the starting data
 function parseAchExport(text,wanted){const W=new Set(wanted),done=[],tiers=[];
   for(const raw of text.split(/\r?\n/)){if(!/^[CI]\t/.test(raw)||/^[CI]\t\t/.test(raw))continue;const ok=raw[0]==='C',name=raw.slice(2);
     const mm=name.match(/^([\d,]+) Alternate Advancement Points$/);if(mm)tiers.push([+mm[1].replace(/,/g,''),ok]);if(ok)done.push(name)}
   if(!tiers.length&&!done.length)return null;const got=tiers.filter(t=>t[1]).map(t=>t[0]),nxt=tiers.filter(t=>!t[1]).map(t=>t[0]);
-  return {aa_floor:got.length?Math.max(...got):0,aa_next:nxt.length?Math.min(...nxt):null,done,source:'export',uploaded:new Date().toISOString().slice(0,10)}}
+  return {aa_floor:got.length?Math.max(...got):0,aa_next:nxt.length?Math.min(...nxt):null,done,source:'export',uploaded:new Date().toLocaleDateString('en-CA')}}
 function aaText(a){if(!a)return '—';return a.aa_next?`${fmt(a.aa_floor)}–${fmt(a.aa_next-1)}`:`${fmt(a.aa_floor)}+`}
 function uploadAch(ev,gi,main){const f=ev.target.files[0];if(!f)return;f.text().then(t=>{const a=parseAchExport(t,D.guilds[gi]._wanted);if(!a){alertBox("That file doesn't look like an /outputfile achievement export.");return}
   lsSet('glask-ach-'+D.guilds[gi].server+'-'+main,a);alertBox('Achievements loaded for '+main+' · AA '+aaText(a));profile(main)})}
