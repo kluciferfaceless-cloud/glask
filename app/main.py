@@ -235,7 +235,7 @@ def index(request: Request):
             guilds.append(mg); kv.update(mkv)
         else:
             guilds.append(g)
-            kv.update({k: v for k, v in full.items() if k.split('-')[2:3] == [s] and can(u, k, write=False)})
+            kv.update({k: v for k, v in full.items() if k.split('-')[2:3] == [s] and not k.startswith('glask-fights-') and can(u, k, write=False)})
     kv['glask-trackach-all'] = dict(TRACK_DEFAULT, **(full.get('glask-trackach-all') or {}))
     kv.update({k: v for k, v in full.items() if k == 'glask-slots-all' or (k.startswith(('glask-logsettings-', 'glask-qcount-')) and can(u, k, False))})
     data = dict(DATA, guilds=guilds)
@@ -628,6 +628,8 @@ async def raid_add(request: Request):
     trusted = lvl == 'officer'
     raid['uploaded_by'] = u['id']
     raid['uploaded_name'] = (my_main(u, server) or u['name']) if not trusted else u['name']
+    fights = raid.pop('fights', None)                  # per-fight detail is stored on its own key and fetched on demand
+    new_raid = raid
     with REC_LOCK:
         rk, ak, pk, sk = ('glask-raids-' + server, 'glask-att-' + server, 'glask-raidpend-' + server, 'glask-raidsrc-' + server)
         raids, pend, src = store.get(rk) or [], store.get(pk) or [], store.get(sk) or {}
@@ -668,6 +670,8 @@ async def raid_add(request: Request):
             pend = [r for r in pend if not (r.get('id') == raid['id'] and r.get('date') == raid['date'])] + [raid]
             store.put(pk, pend, who)
             status = 'pending'
+        if fights is not None and raid is new_raid and status in ('counted', 'pending'):
+            store.put(f"glask-fights-{server}-{raid['id']}|{raid['date']}", fights, who)
         att = store.get(ak) or {}
     if lvl == 'member':
         main = my_main(u, server)
@@ -700,6 +704,8 @@ async def raid_approve(request: Request):
             raids = [x for x in raids if not (x.get('id') == rid and x.get('date') == date)] + [r]
             store.put(rk, raids, who); store.put(ak, _rebuild_att(raids), who)
         store.put(pk, pend, who)
+        if not ok:
+            store.put(f'glask-fights-{server}-{rid}|{date}', None, who)
         store.audit(who, 'approve raid' if ok else 'reject raid', pk, f'{rid} {date}')
     return dict(raids=store.get(rk) or [], att=store.get(ak) or {}, pend=pend)
 
@@ -734,6 +740,35 @@ async def raid_check_act(request: Request):
             raise HTTPException(400, 'Unknown action')
         store.audit(who, 'raid check ' + act, 'glask-raidsrc-' + server, night)
     return raid_checks(server)
+
+
+@app.get('/api/fights')
+async def get_fights(request: Request, server: str = '', id: str = '', date: str = ''):
+    """Per-fight detail for one raid night. Officers and the recruitment team get everyone; a member gets only their own
+    characters, their own deaths, and the medians of their own class (never anyone else's numbers or names)."""
+    u = user(request)
+    lvl = (u or {}).get('access', {}).get(server)
+    if not u or not lvl:
+        raise HTTPException(403, "You don't have access to that guild")
+    fights = store.get(f'glask-fights-{server}-{id}|{date}')
+    if fights is None:
+        return {'fights': None}
+    if lvl != 'member':
+        return {'fights': fights}
+    main = my_main(u, server)
+    g = next((x for x in DATA['guilds'] if x['server'] == server), {})
+    m = next((x for x in g.get('members', []) if x['main'] == main), None) if main else None
+    own = {c['n'] for c in m['chars']} if m else set()
+    out = []
+    for f in fights:
+        P = {n: p for n, p in (f.get('P') or {}).items() if n in own}
+        if not P:
+            continue
+        cls = {p['c'] for p in P.values()}
+        out.append(dict(name=f.get('name'), start=f.get('start'), dur=f.get('dur'), P=P,
+                        cm={c: v for c, v in (f.get('cm') or {}).items() if c in cls},
+                        deaths=[d for d in f.get('deaths', []) if d[1] in own]))
+    return {'fights': out}
 
 
 @app.get('/api/raid-checks')
@@ -911,6 +946,7 @@ async def raid_delete(request: Request):
         raids = store.get(rk) or []
         keep = [r for r in raids if not (r.get('id') == rid and r.get('date') == date)]
         hidden = store.get(hk) or []
+        store.put(f'glask-fights-{server}-{rid}|{date}', None, who)
         src = store.get('glask-raidsrc-' + server) or {}
         if f'{rid}|{date}' in src:
             src.pop(f'{rid}|{date}'); store.put('glask-raidsrc-' + server, src, who)
