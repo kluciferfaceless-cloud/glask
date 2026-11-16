@@ -33,6 +33,8 @@ GUILDS = {
                  leader=ids('TEEK_LEADER_ROLES') or {'1114320364470812683'}),               # Leadership
 }
 ADMINS = ids('ADMIN_DISCORD_USER_IDS')   # always officer on every guild (e.g. Klucifer)
+# Temporary officer access by Discord username, one guild at a time (must also be in that guild's Discord). Remove when done.
+TEMP_OFFICERS = {'Mischief': {'koushirou_kikantsuiku'}, 'Teek': set()}
 
 # What each access level may change. Keys look like glask-<kind>-<Server>[-...].
 RECRUIT_WRITE = {'inv', 'ach'}                           # uploads that feed applicant tracking (raid logs go through /api/raid-add)
@@ -382,6 +384,8 @@ async def callback(request: Request, code: str = '', state: str = ''):
                 access[server] = 'officer'
             elif roles & cfg['recruit']:
                 access[server] = 'recruit'
+            if (me.get('username') or '').lower() in TEMP_OFFICERS.get(server, set()):
+                access[server] = 'officer'                   # temporary access granted by Leadership
     name = me.get('global_name') or me.get('username')
     av = f"https://cdn.discordapp.com/avatars/{me['id']}/{me['avatar']}.png?size=64" if me.get('avatar') else None
     # Roles are re-checked at each sign-in; sessions last 12 hours so role changes take effect the same day.
