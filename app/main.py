@@ -629,6 +629,7 @@ async def raid_add(request: Request):
     with REC_LOCK:
         rk, ak, pk, sk = ('glask-raids-' + server, 'glask-att-' + server, 'glask-raidpend-' + server, 'glask-raidsrc-' + server)
         raids, pend, src = store.get(rk) or [], store.get(pk) or [], store.get(sk) or {}
+        sent = len(raid['players'])
         raid['id'] = _split_id(server, raid, raids, pend)
         night = f"{raid['id']}|{raid['date']}"
         subs = [x for x in src.get(night, []) if x.get('by') != u['id']]
@@ -642,12 +643,13 @@ async def raid_add(request: Request):
             same = next((r for r in raids if r.get('id') == raid['id'] and r.get('date') == raid['date']), None)
             if same and len(same.get('players', [])) > len(raid['players']):
                 raid = same                               # the same night was already counted from a fuller officer log: keep that one
+                status = 'kept'
             raids = [r for r in raids if not (r.get('id') == raid['id'] and r.get('date') == raid['date'])]
             raid['verified'] = 'officer log'
             raids.append(raid)
             pend = [r for r in pend if not (r.get('id') == raid['id'] and r.get('date') == raid['date'])]   # an officer log covers it now
             store.put(rk, raids, who); store.put(ak, _rebuild_att(raids), who); store.put(pk, pend, who)
-            status = 'counted'
+            status = 'kept' if raid.get('uploaded_by') != u['id'] else 'counted'
         elif covered:
             status = 'checked'                             # an officer log already covers this night: used for cross-checking only
         else:
@@ -665,8 +667,9 @@ async def raid_add(request: Request):
         m = next((x for x in g['members'] if x['main'] == main), None)
         own = {c['n'].lower() for c in m['chars']} if m else set()
         ovr = store.get('glask-cls-' + server) or {}
-        return dict(status=status, raids=anon_raids(raids, own, ovr), att={d: [main] for d, l in att.items() if main in l})
-    return dict(status=status, raids=raids, att=att, pend=pend if trusted else None)
+        return dict(status=status, saved_as=raid['id'], raids=anon_raids(raids, own, ovr), att={d: [main] for d, l in att.items() if main in l})
+    return dict(status=status, saved_as=raid['id'], sent=sent, kept_n=len(raid['players']), kept_by=raid.get('uploaded_name'),
+                raids=raids, att=att, pend=pend if trusted else None)
 
 
 @app.post('/api/raid-approve')

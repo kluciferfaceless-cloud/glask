@@ -581,7 +581,7 @@ async function uploadRaidLog(ev,gi){const f=ev.target.files[0];if(!f)return;aler
   alertBox(s.status==='counted'?`${r.id} (${r.date}): ${r.players.length} players parsed, attendance and performance updated.`:`${r.id} (${r.date}): saved, ${RSTAT[s.status]}.`);render()}
 async function saveRaid(gi,r){const x=D.guilds[gi];try{const res=await fetch('/api/raid-add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({server:x.server,raid:r})});
   if(!res.ok){let d='';try{d=(await res.json()).detail}catch(e){}return {ok:false,msg:d||('server said '+res.status)}}
-  const j=await res.json();KV['glask-raids-'+x.server]=j.raids;KV['glask-att-'+x.server]=j.att;if(j.pend)KV['glask-raidpend-'+x.server]=j.pend;RCHK[x.server]=null;return {ok:true,status:j.status,date:r.date}}catch(e){return {ok:false,msg:'could not reach Glask'}}}
+  const j=await res.json();KV['glask-raids-'+x.server]=j.raids;KV['glask-att-'+x.server]=j.att;if(j.pend)KV['glask-raidpend-'+x.server]=j.pend;RCHK[x.server]=null;return {ok:true,status:j.status,date:r.date,as:j.saved_as,sent:j.sent,keptN:j.kept_n,keptBy:j.kept_by}}catch(e){return {ok:false,msg:'could not reach Glask'}}}
 const RSTAT={counted:'counted',pending:'waiting for an officer to approve it',checked:'an officer log already covers this night, so yours is used to double-check it'};
 // ---- class overrides set by officers ----
 function clsOverrides(gi=G){return lsGet('glask-cls-'+D.guilds[gi].server)||{}}
@@ -706,7 +706,7 @@ async function handleFiles(files){let nOk=0,nBad=0;for(const f of files){let kin
   if(!ok){ent.st='skipped';nBad++;render();continue}
   render();const res=await Promise.all(saves.map(s=>s.pr));const bad=res.find(r=>!r.ok);
   if(bad){ent.st='failed';ent.ok=false;ent.msg+=' · NOT SAVED: '+bad.msg;nBad++}else{ent.st='saved';nOk++;
-    const rs=res.filter(r=>r.status&&r.status!=='counted');if(rs.length){ent.msg+=' · '+rs.map(r=>`${r.date.slice(5)}: ${RSTAT[r.status]}`).join(' · ');msg=ent.msg}
+    const rs=res.filter(r=>r.status);if(rs.length){ent.msg+=' · '+rs.map(r=>r.status==='counted'?`${r.date.slice(5)}: counted as "${r.as}"`:r.status==='kept'?`${r.date.slice(5)}: matched "${r.as}" already uploaded by ${r.keptBy||'someone'} with more players (${r.keptN} vs your ${r.sent}), so that one was kept`:`${r.date.slice(5)}: ${RSTAT[r.status]}`).join(' · ');msg=ent.msg}
     const srv=saves.length?saves[0].k.split('-')[2]:D.guilds[G].server;
     fetch('/api/upload-log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({server:srv,file:f.name,kind,msg})})
       .then(r=>r.ok?r.json():null).then(j=>{if(j){KV['glask-uploads-'+j.server]=j.list;render()}})}
