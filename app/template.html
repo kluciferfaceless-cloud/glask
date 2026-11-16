@@ -696,11 +696,13 @@ async function parseLogFile(f,gi){
   const live=t=>F&&t-F.last<=FG;
   const fTaken=(t,who,src,amt,ab)=>{const r=ring[who]||(ring[who]=[]);r.push([t,src,ab,amt]);while(r.length&&t-r[0][0]>15)r.shift()};
   const fDeath=(t,who,by)=>{if(!live(t))return;F.deaths.push([Math.round(t-F.start),who,by,(ring[who]||[]).filter(e=>t-e[0]<=15).slice(-12).map(e=>[Math.round(e[0]-t),e[1],e[2],e[3]])])};
+  // Vanquisher achievements share names with their group missions, so a call-out for one only counts if it was heard during a raid fight the guildmate was in
+  const VQ=new Set();(x.vanq||[]).forEach(([,evs])=>evs.forEach(e=>{VQ.add(e.name);(e.subs||[]).forEach(s=>VQ.add(s.name))}));const calls=[];
   const seen={};let carry='';const reader=f.stream().pipeThrough(new TextDecoderStream('latin1')).getReader();
   while(true){const{value,done}=await reader.read();if(done)break;const lines=(carry+value).split('\n');carry=lines.pop();
     for(const raw of lines){const m=raw.replace(/\r$/,'').match(RX.TS);if(!m)continue;const msg=m[7];
       const t=new Date(+m[6],MONI[m[1]],+m[2],+m[3],+m[4],+m[5]).getTime()/1000;let k;
-      if(msg.startsWith('Your guildmate ')){if((k=msg.match(GM_RX))){const c=k[1].toLowerCase(),d=new Date(t*1000).toISOString().slice(0,10);(seen[c]??={});if(!seen[c][k[2]]||d<seen[c][k[2]])seen[c][k[2]]=d}continue}
+      if(msg.startsWith('Your guildmate ')){if((k=msg.match(GM_RX))){const c=k[1].toLowerCase(),d=new Date(t*1000).toISOString().slice(0,10);if(VQ.has(k[2])){calls.push([c,k[2],d,t]);continue}(seen[c]??={});if(!seen[c][k[2]]||d<seen[c][k[2]])seen[c][k[2]]=d}continue}
       if((k=msg.match(RX.MELEE))){const src=own(k[1]),tgt=own(k[2]);if(isP(src)&&!isP(tgt)&&!RX.OWNER.test(tgt)){const p=get(src,t);p.dmg+=+k[3];p.acts.push(t);if(k[5]&&!RX.OWNER.test(k[1]))p.sp[norm(k[5])]=(p.sp[norm(k[5])]||0)+1;hit(t);
           if(!RX.OWNER.test(k[1]))fDmg(t,roster[src.toLowerCase()].n,tgt,+k[3],k[5]?norm(k[5]):'Melee',/Crit/.test(k[6]||''))}
         else if(isP(tgt)&&!isP(src))fTaken(t,roster[tgt.toLowerCase()].n,k[1],+k[3],k[5]?norm(k[5]):'Melee');continue}
@@ -713,6 +715,8 @@ async function parseLogFile(f,gi){
       if((k=msg.match(RX.CAST))||((k=msg.match(/^You begin casting (.+?)\.$/))&&(k=[k[0],'You',k[1]]))){const who=own(k[1]);if(isP(who)&&live(t)){const n=roster[who.toLowerCase()].n,q=fP(n);fAb(q,norm(k[2])).c++;if(HEALERS.has(roster[who.toLowerCase()].cls))q.acts.add(Math.floor(t))}continue}
       if((k=msg.match(RX.SLAIN))){const who=k[1]==='You'?me:k[1];if(isP(who)){get(who,t).deaths++;fDeath(t,roster[who.toLowerCase()].n,k[2])}}}}
   fEnd();
+  for(const[c,a,d,t]of calls){const F=FIGHTS.find(F=>t>=F.start-120&&t<=F.last+180&&Object.keys(F.P).some(n=>n.toLowerCase()===c));
+    if(!F)continue;(seen[c]??={});if(!seen[c][a]||d<seen[c][a])seen[c][a]=d}
   const ownerMain=roster[(me||'').toLowerCase()]?roster[me.toLowerCase()].main:me;const raids=[];let skipped=0;
   for(const[date,nt]of Object.entries(N).sort()){
     const fighters=Object.values(nt.P).filter(p=>p.dmg>0).length;if(nt.first==null||fighters<RAID_MIN){if(nt.first!=null)skipped++;continue}
