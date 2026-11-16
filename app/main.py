@@ -586,8 +586,9 @@ def _split_id(server, raid, *lists):
     separate splits, so each gets its own id (e.g. 'Raid night · split 2') instead of replacing the other."""
     base = raid['id'].split(' · split ')[0]
     g = next((x for x in DATA['guilds'] if x['server'] == server), {})
-    same_day = [r for lst in (*lists, g.get('raids') or []) for r in lst
-                if r.get('date') == raid['date'] and r.get('id', '').split(' · split ')[0] == base]
+    hid = set(store.get('glask-hidden-' + server) or [])
+    same_day = [r for lst in (*lists, [r for r in g.get('raids') or [] if f"{r['id']}|{r['date']}" not in hid]) for r in lst
+                if r.get('date') == raid['date']]
     mine = _names(raid)
     best, score = None, 0.0
     for r in same_day:
@@ -639,6 +640,11 @@ async def raid_add(request: Request):
         g = next((x for x in DATA['guilds'] if x['server'] == server), {})
         covered = any(r.get('id') == raid['id'] and r.get('date') == raid['date'] for r in raids) or \
             any(r.get('id') == raid['id'] and r.get('date') == raid['date'] for r in (g.get('raids') or []))
+        if trusted and any(r['id'] == raid['id'] and r['date'] == raid['date'] for r in g.get('raids') or []):
+            hk = 'glask-hidden-' + server             # the same night came with Glask's starting data: the upload replaces it
+            hid = store.get(hk) or []
+            if night not in hid:
+                hid.append(night); store.put(hk, hid, who)
         if trusted:
             same = next((r for r in raids if r.get('id') == raid['id'] and r.get('date') == raid['date']), None)
             if same and len(same.get('players', [])) > len(raid['players']):
@@ -668,7 +674,7 @@ async def raid_add(request: Request):
         own = {c['n'].lower() for c in m['chars']} if m else set()
         ovr = store.get('glask-cls-' + server) or {}
         return dict(status=status, saved_as=raid['id'], raids=anon_raids(raids, own, ovr), att={d: [main] for d, l in att.items() if main in l})
-    return dict(status=status, saved_as=raid['id'], sent=sent, kept_n=len(raid['players']), kept_by=raid.get('uploaded_name'),
+    return dict(status=status, saved_as=raid['id'], sent=sent, hidden=store.get('glask-hidden-' + server) or [], kept_n=len(raid['players']), kept_by=raid.get('uploaded_name'),
                 raids=raids, att=att, pend=pend if trusted else None)
 
 
