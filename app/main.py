@@ -36,7 +36,7 @@ ADMINS = ids('ADMIN_DISCORD_USER_IDS')   # always officer on every guild (e.g. K
 
 # What each access level may change. Keys look like glask-<kind>-<Server>[-...].
 RECRUIT_WRITE = {'inv', 'ach'}                           # uploads that feed applicant tracking (raid logs go through /api/raid-add)
-OFFICER_ONLY_READ = {'pip', 'raidpend', 'raidsrc'}       # PIPs and raid-log review are hidden from the recruitment team
+OFFICER_ONLY_READ = {'pip', 'raidpend', 'raidsrc', 'raidchk'}       # PIPs and raid-log review are hidden from the recruitment team
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 app.add_middleware(SessionMiddleware, secret_key=os.environ.get('SESSION_SECRET') or secrets.token_hex(32),
@@ -541,9 +541,12 @@ def raid_checks(server):
         src[f"{r['id']}|{r['date']}"] = [dict(by='starting data', name='Starting data', level='officer', totals=_totals(r))] + \
             [x for x in src[f"{r['id']}|{r['date']}"] if x.get('by') != 'starting data']
     out = {}
+    ok = store.get('glask-raidchk-' + server) or {}
     for night, subs in src.items():
         if len(subs) < 2:
             continue
+        if ok.get(night, {}).get('sig') == _sig(subs):
+            continue                                     # an officer marked these logs reviewed (a new log for the night brings it back)
         issues = []
         for i, a in enumerate(subs):
             for b in subs:
@@ -558,8 +561,20 @@ def raid_checks(server):
                             issues.append(dict(log=a['name'], level=a['level'], player=who, kind=kind, this=x, other=y, other_log=b['name']))
         if issues:
             issues.sort(key=lambda z: -(z['this'] - z['other']))
-            out[night] = dict(logs=[dict(name=s_['name'], level=s_['level'], at=s_.get('at')) for s_ in subs], issues=issues[:40])
+            out[night] = dict(logs=[dict(name=s_['name'], level=s_['level'], at=s_.get('at'), by=s_['by'], counted=_counted(server, night, s_)) for s_ in subs], issues=issues[:40])
     return out
+
+
+def _sig(subs):
+    return '|'.join(sorted(f"{s_['by']}:{int(s_.get('at') or 0)}" for s_ in subs))
+
+
+def _counted(server, night, s_):
+    if s_['by'] == 'starting data':
+        return True
+    rid, date = night.split('|', 1)
+    r = next((x for x in (store.get('glask-raids-' + server) or []) if x.get('id') == rid and x.get('date') == date), None)
+    return bool(r and r.get('uploaded_by') == s_['by'])
 
 
 @app.post('/api/raid-add')
@@ -647,6 +662,38 @@ async def raid_approve(request: Request):
         store.put(pk, pend, who)
         store.audit(who, 'approve raid' if ok else 'reject raid', pk, f'{rid} {date}')
     return dict(raids=store.get(rk) or [], att=store.get(ak) or {}, pend=pend)
+
+
+@app.post('/api/raid-check-act')
+async def raid_check_act(request: Request):
+    """Officers: mark a night's disagreement reviewed, or drop one submitted log from the comparison."""
+    u = user(request)
+    b = await request.json()
+    server, night, act = b.get('server', ''), str(b.get('night', '')), b.get('action')
+    if not u or u['access'].get(server) != 'officer':
+        raise HTTPException(403, 'Officers only')
+    who = f"{u['name']} ({u['id']})"
+    with REC_LOCK:
+        src = store.get('glask-raidsrc-' + server) or {}
+        subs = src.get(night) or []
+        if act == 'reviewed':
+            ok = store.get('glask-raidchk-' + server) or {}
+            full = list(subs)
+            g = next((x for x in DATA['guilds'] if x['server'] == server), {})
+            if any(f"{r['id']}|{r['date']}" == night for r in g.get('raids') or []):
+                full = [dict(by='starting data')] + full
+            ok[night] = dict(sig=_sig(full), by=u['name'], at=time.time())
+            store.put('glask-raidchk-' + server, ok, who)
+        elif act == 'remove':
+            by = str(b.get('by', ''))
+            if _counted(server, night, dict(by=by)):
+                raise HTTPException(400, "That's the log being counted. Delete the raid log under Raid logs instead.")
+            src[night] = [s_ for s_ in subs if s_['by'] != by]
+            store.put('glask-raidsrc-' + server, src, who)
+        else:
+            raise HTTPException(400, 'Unknown action')
+        store.audit(who, 'raid check ' + act, 'glask-raidsrc-' + server, night)
+    return raid_checks(server)
 
 
 @app.get('/api/raid-checks')
