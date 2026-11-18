@@ -699,6 +699,10 @@ async def raid_add(request: Request):
             pend = [r for r in pend if not (r.get('id') == raid['id'] and r.get('date') == raid['date'])] + [raid]
             store.put(pk, pend, who)
             status = 'pending'
+        if fights is not None:
+            for f in fights:
+                f['av'] = 2
+            raid['upt_v'] = 2
         if fights is not None and raid is new_raid and status in ('counted', 'pending'):
             store.put(f"glask-fights-{server}-{raid['id']}|{raid['date']}", fights, who)
         att = store.get(ak) or {}
@@ -1089,9 +1093,76 @@ async def rec_settings(request: Request):
     return v
 
 
+HEALER_CLASSES = {'Cleric', 'Shaman', 'Druid'}
+
+
+def _med(a):
+    a = sorted(a)
+    return a[(len(a) - 1) // 2] if a else 0
+
+
+def _upgrade_fights(fights):
+    """Fights saved before 2026-11-17 counted active time as single seconds with a hit. Rebuild it from each player's
+    10-second record (gaps of one empty slice count as active), then redo damage/healing per second and the class medians."""
+    if not fights or all(f.get('av') == 2 for f in fights):
+        return False
+    for f in fights:
+        if f.get('av') == 2:
+            continue
+        dur = max(1, f.get('dur') or 1)
+        for p in (f.get('P') or {}).values():
+            tl = p.get('tl') or []
+            on = [i for i, v in enumerate(tl) if v]
+            n = 0
+            if on:
+                s = e = on[0]
+                for i in on[1:]:
+                    if i - e <= 2:
+                        e = i
+                    else:
+                        n += e - s + 1; s = e = i
+                n += e - s + 1
+            a = max(p.get('a') or 1, min(dur, n * 10))
+            p['a'] = a
+            p['v'] = round(((p.get('h') if p.get('c') in HEALER_CLASSES else p.get('d')) or 0) / max(a, 1))
+        for c, cm in (f.get('cm') or {}).items():
+            ps = [p for p in f['P'].values() if p.get('c') == c and not p.get('b') and p['a'] >= 0.3 * dur]
+            if ps:
+                cm['v'] = _med([p['v'] for p in ps]); cm['n'] = len(ps)
+        f['av'] = 2
+    return True
+
+
+def migrate_active_time():
+    """One-time: recount active time in fights already uploaded, and measure each night's % active against fight time."""
+    try:
+        for k, v in list(store.all().items()):
+            if k.startswith('glask-fights-') and isinstance(v, list) and _upgrade_fights(v):
+                store.put(k, v, 'glask (active time recount)')
+        for g in DATA['guilds']:
+            s = g['server']
+            for key in ('glask-raids-' + s, 'glask-raidpend-' + s):
+                raids = store.get(key) or []
+                changed = False
+                for r in raids:
+                    if r.get('upt_v') == 2:
+                        continue
+                    fights = store.get(f"glask-fights-{s}-{r['id']}|{r['date']}") or []
+                    total = sum(f.get('dur') or 0 for f in fights)
+                    if total >= 60:
+                        for p in r.get('players', []):
+                            p['uptime'] = min(1, (p.get('active') or 0) / total)
+                    r['upt_v'] = 2; changed = True
+                if changed:
+                    store.put(key, raids, 'glask (active time recount)')
+    except Exception as e:
+        print('active time recount failed:', e)
+
+
 @app.on_event('startup')
 def _start_live_loot():
     live_loot.start(DATA, AA, store)
+    threading.Thread(target=migrate_active_time, daemon=True).start()
 
 
 @app.post('/api/loot-refresh')
