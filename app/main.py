@@ -363,7 +363,15 @@ async def callback(request: Request, code: str = '', state: str = ''):
             grant_type='authorization_code', code=code, redirect_uri=BASE_URL + '/auth/callback'),
             auth=(CLIENT_ID, CLIENT_SECRET))
         if tok.status_code != 200:
-            return page('<p>Discord sign-in failed. Try again.</p><a class="btn" href="/login">Sign in with Discord</a>')
+            try:
+                why = tok.json(); why = f"{why.get('error', '')}: {why.get('error_description', '')}".strip(': ')
+            except Exception:
+                why = (tok.text or '')[:120].replace('<', ' ')
+            print(f'Discord token exchange failed: HTTP {tok.status_code} {why}', flush=True)
+            import html as _h
+            return page('<p>Discord sign-in failed. Try again.</p>'
+                        f'<p style="color:#8a847b;font-size:13px">Discord answered {tok.status_code}: {_h.escape(why or "no reason given")}</p>'
+                        '<a class="btn" href="/login">Sign in with Discord</a>')
         h = {'Authorization': 'Bearer ' + tok.json()['access_token']}
         me = (await c.get(DISCORD_API + '/users/@me', headers=h)).json()
         access = {}; lead = []
