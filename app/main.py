@@ -88,6 +88,8 @@ def current_xpac(server, now=None):
 def user(request):
     u = request.session.get('user')
     if not u or u.get('exp', 0) < time.time():
+        if request.url.path.startswith('/api/'):     # say so plainly instead of "no access" when a session runs out
+            raise HTTPException(401, "You've been signed out (sign-ins last 12 hours). Sign in again and retry.")
         return None
     return u
 

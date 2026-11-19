@@ -146,6 +146,8 @@ footer{color:var(--dim);font-size:11.5px;text-align:center;padding:20px}
 <script id="kv" type="application/json">__STORE__</script>
 <script>
 const D=JSON.parse(document.getElementById('data').textContent);
+{const _f=window.fetch.bind(window);let told=false;window.fetch=async(...a)=>{const r=await _f(...a);
+  if(r.status===401&&String(a[0]).startsWith('/api/')&&!told){told=true;setTimeout(()=>{if(confirm("You've been signed out of Glask (sign-ins last 12 hours). Sign in again now?"))location.href='/login';else setTimeout(()=>told=false,60000)},50)}return r}}
 D.guilds.forEach(x=>x.members.forEach(m=>{m._srv=x.server}));   // each member knows its guild (loot review start date)
 const ME=JSON.parse(document.getElementById('me').textContent);
 const KV=JSON.parse(document.getElementById('kv').textContent);
