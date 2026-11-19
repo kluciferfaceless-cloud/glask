@@ -27,10 +27,12 @@ def ids(name):
 GUILDS = {
     'Mischief': dict(discord=os.environ.get('MISCHIEF_DISCORD_ID', ''),
                      officer=ids('MISCHIEF_OFFICER_ROLES'), recruit=ids('MISCHIEF_RECRUIT_ROLES'),
-                     leader=ids('MISCHIEF_LEADER_ROLES') or {'1085933966843973643'}),        # Leadership
+                     leader=ids('MISCHIEF_LEADER_ROLES') or {'1085933966843973643'},        # Leadership
+                     raidlead=ids('MISCHIEF_RAIDLEAD_ROLES')),
     'Teek': dict(discord=os.environ.get('TEEK_DISCORD_ID', ''),
                  officer=ids('TEEK_OFFICER_ROLES'), recruit=ids('TEEK_RECRUIT_ROLES'),
-                 leader=ids('TEEK_LEADER_ROLES') or {'1114320364470812683'}),               # Leadership
+                 leader=ids('TEEK_LEADER_ROLES') or {'1114320364470812683'},               # Leadership
+                 raidlead=ids('TEEK_RAIDLEAD_ROLES') or {'1244648980948717639'}),         # Raid Leaders
 }
 ADMINS = ids('ADMIN_DISCORD_USER_IDS')   # always officer on every guild (e.g. Klucifer)
 # Temporary officer access by Discord username, one guild at a time (must also be in that guild's Discord). Remove when done.
@@ -103,6 +105,8 @@ def can(u, key, write):
         return False
     if kind == 'logsettings':
         return scope == u['id']                       # personal setting
+    if kind == 'raidnotes':                           # "Glask …" lines from raid chat: Leadership and Raid Leaders only
+        return not write and (scope in u.get('lead', []) or scope in u.get('rl', []))
     if kind == 'trackach':
         return bool(u['access']) and not write
     if kind == 'slots':
@@ -256,7 +260,7 @@ def index(request: Request):
         kv[k] = tag_inv(kv[k])
     for k in [k for k in kv if k.startswith('glask-uploads-')]:
         kv[k] = uploads_for(u, k.split('-', 2)[2], kv[k])
-    me = dict(id=u['id'], name=u['name'], avatar=u.get('avatar'), access=u['access'], lead=u.get('lead', []), links=mylinks)
+    me = dict(id=u['id'], name=u['name'], avatar=u.get('avatar'), access=u['access'], lead=u.get('lead', []), rl=u.get('rl', []), links=mylinks)
     safe = lambda o: json.dumps(o).replace('</', '<\\/')
     html = (TEMPLATE.replace('__DATA__', safe(data)).replace('__MASK__', MASK)
             .replace('__ME__', safe(me)).replace('__STORE__', safe(kv)))
@@ -374,7 +378,7 @@ async def callback(request: Request, code: str = '', state: str = ''):
                         '<a class="btn" href="/login">Sign in with Discord</a>')
         h = {'Authorization': 'Bearer ' + tok.json()['access_token']}
         me = (await c.get(DISCORD_API + '/users/@me', headers=h)).json()
-        access = {}; lead = []
+        access = {}; lead = []; rl = []
         for server, cfg in GUILDS.items():
             if me['id'] in ADMINS:
                 access[server] = 'officer'; lead.append(server)
@@ -388,6 +392,8 @@ async def callback(request: Request, code: str = '', state: str = ''):
             access[server] = 'member'                         # anyone in the guild's Discord gets their own character page
             if roles & cfg['leader']:
                 lead.append(server)
+            if roles & cfg.get('raidlead', set()):
+                rl.append(server)
             if roles & (cfg['officer'] | cfg['leader']):
                 access[server] = 'officer'
             elif roles & cfg['recruit']:
@@ -397,7 +403,7 @@ async def callback(request: Request, code: str = '', state: str = ''):
     name = me.get('global_name') or me.get('username')
     av = f"https://cdn.discordapp.com/avatars/{me['id']}/{me['avatar']}.png?size=64" if me.get('avatar') else None
     # Roles are re-checked at each sign-in; sessions last 12 hours so role changes take effect the same day.
-    request.session['user'] = dict(id=me['id'], name=name, username=me.get('username', ''), avatar=av, access=access, lead=lead, exp=time.time() + 12 * 3600)
+    request.session['user'] = dict(id=me['id'], name=name, username=me.get('username', ''), avatar=av, access=access, lead=lead, rl=rl, exp=time.time() + 12 * 3600)
     store.audit(f"{name} ({me['id']})", 'sign-in', '', json.dumps(access))
     return RedirectResponse('/')
 
@@ -408,8 +414,8 @@ def dev_login(request: Request, level: str = 'officer'):
         raise HTTPException(404)
     request.session['user'] = dict(id='dev-' + level, name='Dev ' + level, avatar=None, exp=time.time() + 3600,
                                    username='dev' + level,
-                                   access={'Mischief': 'officer' if level == 'leader' else level, 'Teek': 'officer' if level == 'leader' else level},
-                                   lead=['Mischief', 'Teek'] if level == 'leader' else [])
+                                   access={s: 'officer' if level in ('leader', 'raidlead') else level for s in ('Mischief', 'Teek')},
+                                   lead=['Mischief', 'Teek'] if level == 'leader' else [], rl=['Teek'] if level == 'raidlead' else [])
     return RedirectResponse('/')
 
 
@@ -666,6 +672,7 @@ async def raid_add(request: Request):
     raid['uploaded_by'] = u['id']
     raid['uploaded_name'] = (my_main(u, server) or u['name']) if not trusted else u['name']
     fights = raid.pop('fights', None)                  # per-fight detail is stored on its own key and fetched on demand
+    notes = raid.pop('glask_notes', None) or []
     new_raid = raid
     with REC_LOCK:
         rk, ak, pk, sk = ('glask-raids-' + server, 'glask-att-' + server, 'glask-raidpend-' + server, 'glask-raidsrc-' + server)
@@ -707,6 +714,17 @@ async def raid_add(request: Request):
             pend = [r for r in pend if not (r.get('id') == raid['id'] and r.get('date') == raid['date'])] + [raid]
             store.put(pk, pend, who)
             status = 'pending'
+        if notes:                                     # chat lines that mention Glask, kept per raid night, never duplicated
+            nk = 'glask-raidnotes-' + server
+            allnotes = store.get(nk) or {}
+            day = allnotes.setdefault(raid['date'], [])
+            seenk = {(n.get('t'), n.get('who'), n.get('text')) for n in day}
+            for n in notes[:200]:
+                n = dict(t=int(n.get('t') or 0), who=str(n.get('who', ''))[:40], ch=str(n.get('ch', ''))[:20], text=str(n.get('text', ''))[:500])
+                if (n['t'], n['who'], n['text']) not in seenk:
+                    day.append(n); seenk.add((n['t'], n['who'], n['text']))
+            day.sort(key=lambda n: n['t'])
+            store.put(nk, allnotes, who)
         if fights is not None:
             for f in fights:
                 f['av'] = 2

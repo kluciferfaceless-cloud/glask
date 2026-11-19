@@ -559,6 +559,12 @@ function memberFightsCard(m,gi){const own=new Set(m.chars.map(c=>c.n));const RA=
    <h3>Your ${H?'heals':'abilities'} vs. the ${esc(mine.c)} median</h3>${abTable(mine,cm.ab,H,true)}
    <h3 style="margin-top:14px">Your deaths</h3>${myD.length?myD.map(d=>`<div style="background:var(--panel2);border-radius:8px;padding:10px 12px;margin-top:8px">${recapHtml(d)}</div>`).join(''):'<div class="hint" style="margin:0">You didn\'t die in this fight.</div>'}
    <div class="hint" style="margin:10px 0 0">Only your own numbers are shown; class medians combine everyone playing your class and name no one.</div></div>`}
+function canNotes(gi=G){const s=D.guilds[gi].server;return (ME.lead||[]).includes(s)||(ME.rl||[]).includes(s)}
+function glaskNotesCard(r){if(!canNotes()||!r)return '';const N=(KV['glask-raidnotes-'+g().server]||{})[r.date]||[];
+  return `<div class="card" style="border-color:${N.length?'#5a2a20':'var(--line)'}"><h3>Notes for Glask · ${esc(r.date)} <span class="n">${N.length}</span></h3>
+   <div class="hint">Anything said in chat that night mentioning “Glask”, from every log uploaded for it. Only Leadership and Raid Leaders see this.</div>
+   ${N.length?`<table>${N.map(n=>`<tr><td style="white-space:nowrap;color:var(--dim);width:70px">${new Date(n.t*1000).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}</td><td style="white-space:nowrap;width:120px"><b>${esc(n.who)}</b> <span class="tag">${esc(n.ch)}</span></td><td>${esc(n.text)}</td></tr>`).join('')}</table>`
+     :'<div class="hint" style="margin:0">Nothing mentioned Glask that night. Say “Glask, …” in raid or guild chat during a raid to leave a note here.</div>'}</div>`}
 function perf(){
   const x=g();
   const RA=allRaids(G); if(raidIdx>=RA.length)raidIdx=0; const st=logSettings();
@@ -568,14 +574,14 @@ function perf(){
   const controls=`<div class="filters" style="align-items:center">${modeSw}${pick}<label class="more" style="margin:0;cursor:pointer">Upload raid log<input type="file" accept=".txt" style="display:none" onchange="uploadRaidLog(event,G)"></label><span style="color:var(--dim);font-size:12px">Log owner (“You”):</span><input style="width:110px" value="${esc(st.owner)}" onchange="const s=logSettings();s.owner=this.value.trim();lsSet('glask-logsettings',s)"><label style="color:var(--mute);font-size:12px"><input type="checkbox" ${st.ownerRL?'checked':''} onchange="const s=logSettings();s.ownerRL=this.checked;lsSet('glask-logsettings',s)"> owner was raid leading</label></div>`;
   if(!RA.length)return controls+`<div class="card"><h3>Performance</h3><div class="hint" style="margin:0">No ${x.server} raid logs loaded yet. Upload a raid log and Glask ranks everyone against their own class.</div></div>`;
   if(perfMode==='multi')return controls+perfMulti(RA,x);
-  if(perfMode==='fights')return controls+perfFights(RA,x);
+  if(perfMode==='fights')return controls+glaskNotesCard(RA[raidIdx])+perfFights(RA,x);
   const r=RA[raidIdx]; const ps=r.players;
   const classes=[...new Set(ps.map(p=>p.cls))].sort();
   const watch=ps.filter(onWatch).sort((a,b)=>(a.pct??0)-(b.pct??0));
   const pips=x.members.map(m=>[m,pipOf(G,m.main)]).filter(([m,p])=>p&&p.status!=='Closed');
   const mainOf=n=>{const p=ps.find(p=>p.name===n);if(p&&p.rl)return p.main;const m=x.members.find(m=>m.chars.some(c=>c.n===n));return m?m.main:null};
   const owner=null;
-  return controls+`<div class="glask"><div class="who">GLASK</div><div><p><em>“I have measured them against their own kind.”</em> <b>${esc(r.id)}</b>, ${esc(r.date)}: ${Math.round(r.seconds/60)} minutes, ${ps.length} players parsed from the raw log.</p>
+  return controls+glaskNotesCard(r)+`<div class="glask"><div class="who">GLASK</div><div><p><em>“I have measured them against their own kind.”</em> <b>${esc(r.id)}</b>, ${esc(r.date)}: ${Math.round(r.seconds/60)} minutes, ${ps.length} players parsed from the raw log.</p>
    <p style="color:var(--mute);font-size:13px">Each player is compared with the <b>median of their class</b> in this raid (mains only; boxes and anyone active under 30% of the fight are left out of the median). Because of personas, class comes from the <b>spells each person cast in this log</b>, not the guild dump; anyone whose class differs is tagged so an officer can confirm. DPS classes use SDPS (damage over their own active time); Clerics and Shamans use healing per active second. Tank DPS is shown for reference only. ${r.raid_leader?`<b>${esc(r.raid_leader)}</b> was raid leading, so their characters are tagged and left out of medians and the watch list.`:''} ${owner?`The log owner shows as “You” in the log, so their ${kfmt(owner.dmg)} damage isn't credited to anyone yet.`:''}</p></div></div>
   <div class="grid2"><div class="card"><h3>Watch list <span class="n">${watch.length}</span></h3><div class="hint">Non-box, non-tank players under 70% of class median, active less than half the fight, or more deaths than this raid's average (${(r.avgDeaths||0).toFixed(1)} per player; never for a single death).</div>
    <table><tr><th>Player</th><th>Class</th><th class="num">vs class</th><th>Flags</th></tr>${watch.map(p=>`<tr class="click" onclick="profile('${esc(mainOf(p.name)||p.name)}')"><td>${esc(p.name)}</td><td>${esc(p.cls)}</td><td class="num">${p.pct}%</td><td>${perfFlags(p)}</td></tr>`).join('')}</table></div>
@@ -716,6 +722,7 @@ function logSettings(){return Object.assign({owner:'Klucifer',ownerRL:true},lsGe
 // ---- client-side EverQuest log reader ----
 // Reads any eqlog (one raid or weeks of play): splits combat into raid nights (6 AM cutoff, like the loot sheets), keeps nights
 // where at least RAID_MIN guild characters fought, and collects "Your guildmate X has completed Y achievement." lines.
+const CHAT_RX=/^(You|\S+) (?:tells?|says?|shouts?|auctions?)(?: to)?(?: the| your)?(?: ([a-z]+)(?::\d+)?)?,\s+'(.*)'$/i, GLASK_RX=/\bglask\b/i;
 const RAID_MIN=10, GM_RX=/^Your guildmate (\S+) has completed (.+) achievement\.$/;
 function nightOf(t){const d=new Date((t-6*3600)*1000);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 async function parseLogFile(f,gi){
@@ -742,10 +749,12 @@ async function parseLogFile(f,gi){
   const fDeath=(t,who,by)=>{if(!live(t))return;F.deaths.push([Math.round(t-F.start),who,by,(ring[who]||[]).filter(e=>t-e[0]<=15).slice(-12).map(e=>[Math.round(e[0]-t),e[1],e[2],e[3]])])};
   // Vanquisher achievements share names with their group missions, so a call-out for one only counts if it was heard during a raid fight the guildmate was in
   const VQ=new Set();(x.vanq||[]).forEach(([,evs])=>evs.forEach(e=>{VQ.add(e.name);(e.subs||[]).forEach(s=>VQ.add(s.name))}));const calls=[];
+  const notes=[];   // chat lines that mention Glask (shown to Leadership and Raid Leaders)
   const seen={};let carry='';const reader=f.stream().pipeThrough(new TextDecoderStream('latin1')).getReader();
   while(true){const{value,done}=await reader.read();if(done)break;const lines=(carry+value).split('\n');carry=lines.pop();
     for(const raw of lines){const m=raw.replace(/\r$/,'').match(RX.TS);if(!m)continue;const msg=m[7];
       const t=new Date(+m[6],MONI[m[1]],+m[2],+m[3],+m[4],+m[5]).getTime()/1000;let k;
+      if(GLASK_RX.test(msg)&&(k=msg.match(CHAT_RX))){notes.push({t:Math.round(t),who:k[1]==='You'?me:k[1],ch:(k[2]||'say').toLowerCase(),text:k[3]});continue}
       if(msg.startsWith('Your guildmate ')){if((k=msg.match(GM_RX))){const c=k[1].toLowerCase(),d=new Date(t*1000).toISOString().slice(0,10);if(VQ.has(k[2])){calls.push([c,k[2],d,t]);continue}(seen[c]??={});if(!seen[c][k[2]]||d<seen[c][k[2]])seen[c][k[2]]=d}continue}
       if((k=msg.match(RX.MELEE))){const src=own(k[1]),tgt=own(k[2]);if(isP(src)&&!isP(tgt)&&!RX.OWNER.test(tgt)){const p=get(src,t);p.dmg+=+k[3];p.acts.push(t);if(k[5]&&!RX.OWNER.test(k[1]))p.sp[norm(k[5])]=(p.sp[norm(k[5])]||0)+1;hit(t);
           if(!RX.OWNER.test(k[1]))fDmg(t,roster[src.toLowerCase()].n,tgt,+k[3],k[5]?norm(k[5]):'Melee',/Crit/.test(k[6]||''))}
@@ -775,7 +784,8 @@ async function parseLogFile(f,gi){
       return {name:r.n,main:r.main,dump_cls:r.cls,played,box:r.alt,dmg:p.dmg,heal:p.heal,overheal:p.over,active:Math.round(active),uptime:Math.min(1,active/upDen),deaths:p.deaths,sdps:Math.round(p.dmg/Math.max(active,1))}});
     const playedOf={};players.forEach(p=>playedOf[p.name]=p.played);
     const fights=FIGHTS.filter(F=>nightOf(F.start)===date).map(F=>packFight(F,roster,playedOf,HEALERS));
-    raids.push({id:'Raid night',date,seconds:Math.round(fight),raid_leader:meIsRL?ownerMain:null,players,uploaded:true,source:f.name,log_owner:me,fights})}
+    const glask_notes=notes.filter(n=>nightOf(n.t)===date);
+    raids.push({id:'Raid night',date,seconds:Math.round(fight),raid_leader:meIsRL?ownerMain:null,players,uploaded:true,source:f.name,log_owner:me,fights,glask_notes})}
   return {raids,seen,skipped}}
 // one fight's compact summary: per player totals, top abilities (casts/hits/damage/heals), 10-second timeline, deaths with recaps,
 // and per-class medians (value, casts per ability, timeline) so members can be compared without seeing anyone else
