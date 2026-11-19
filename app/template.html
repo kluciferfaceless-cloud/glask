@@ -528,7 +528,7 @@ function abTable(p,medAb,heal,you){procsLoad();const AB=mergePairs(p.ab);const c
       <td class="num">${(heal?hn:h)||'—'}</td><td class="num">${(heal?hd:d)?kk(heal?hd:d):'—'}</td><td class="num">${heal?(hd+o?Math.round(100*o/(hd+o))+'%':'—'):(d?(100*d/tot).toFixed(1)+'%':'—')}</td>
       <td class="num" style="color:var(--dim)">${heal?(hd?(100*hd/tot).toFixed(1)+'%':'—'):((h)?Math.round(100*cr/h)+'%':'—')}</td></tr>`}).join('');
   return `<div style="overflow-x:auto"><table style="min-width:600px"><tr><th>${heal?'Heal':'Ability'}</th><th class="num">${you?'Your casts':'Casts'}</th><th class="num">Class median</th><th class="num">${heal?'Heals landed':'Hits'}</th><th class="num">${heal?'Healed':'Damage'}</th><th class="num">${heal?'Overheal':'Share'}</th><th class="num">${heal?'Share of healing':'Crit'}</th></tr>${rows}</table></div>
-   <div class="hint" style="margin:8px 0 0">Casts come from "begins casting" lines; abilities that never show a cast (melee, procs, pulsing songs) are counted by ${heal?'heals':'hits'}. <span style="color:var(--warn)">Amber</span> = cast less than the class median this fight. Proc labels come from EQLogParser's proc list; <span style="color:#7fb4e6">blue</span> ones are procs from another player's buff (${Math.round(otherShare*100)}% of this ${heal?'healing':'damage'}), not part of the rotation. Boastful Bellow → Boastful Conclusion are shown together.</div>`}
+   <div class="hint" style="margin:8px 0 0">Casts come from "begins casting", "begins singing" and "activates" lines (spells, songs, disciplines, combat abilities, AAs); things that never show a cast (melee, procs, kicks and other auto skills) are counted by ${heal?'heals':'hits'}. <span style="color:var(--warn)">Amber</span> = cast less than the class median this fight. Proc labels come from EQLogParser's proc list; <span style="color:#7fb4e6">blue</span> ones are procs from another player's buff (${Math.round(otherShare*100)}% of this ${heal?'healing':'damage'}), not part of the rotation. Boastful Bellow → Boastful Conclusion are shown together.</div>`}
 function recapHtml(d){return `<div style="font-weight:600">${esc(d[1])} died at ${mmss(d[0])}</div><div class="hint" style="margin:2px 0 8px">Killed by ${esc(d[2])} · damage taken in the 15 seconds before</div>
   ${d[3].length?`<table>${d[3].map(l=>`<tr><td style="color:var(--dim);width:44px">${l[0]}s</td><td>${esc(l[2])} <span style="color:var(--dim)">· ${esc(l[1])}</span></td><td class="num" style="color:var(--ember2)">${kk(l[3])}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">The uploaded log didn\'t see the hits before this death (out of range, or a one-shot).</div>'}`}
 function noFights(F){return F==='loading'?'<div class="card"><div class="hint" style="margin:0">Loading fights…</div></div>'
@@ -733,7 +733,7 @@ const RX={TS:/^\[\w{3} (\w{3}) (\d+) (\d\d):(\d\d):(\d\d) (\d{4})\] (.*)$/,
  MELEE:/^(.+?) (?:hit|hits|slash|slashes|crush|crushes|pierce|pierces|kick|kicks|bash|bashes|punch|punches|strike|strikes|bite|bites|backstab|backstabs|shoot|shoots|claw|claws|frenzy on|frenzies on|sting|stings|slam|slams|smash|smashes|maul|mauls|gore|gores) (.+?) for (\d+) points? of (?:(\w+) )?damage(?: by (.+?))?\.(?: \((.+)\))?$/,
  DOT:/^(.+?) has taken (\d+) damage from (your )?(.+?)(?: by (.+?))?\.(?: \((.+)\))?$/,
  HEAL:/^(.+?) healed (.+?) for (\d+)(?: \((\d+)\))? hit points?(?: by (.+?))?\.(?: \((.+)\))?$/,
- SLAIN:/^(.+?) (?:has been slain by|have been slain by) (.+?)!$/, CAST:/^(\S+) begins? (?:casting|to cast) (.+?)\.$/, YDOT:/^You have taken (\d+) damage from (.+?)(?: by (.+?))?\.(?: \((.+)\))?$/, OWNER:/^(.+?)`s (?:pet|warder|ward)$/, RANK:/(?: Rk\. ?[IVX]+| [IVXL]+| Effect)+$/};
+ SLAIN:/^(.+?) (?:has been slain by|have been slain by) (.+?)!$/, CAST:/^(\S+) (?:begins? (?:casting|to cast|singing)|activates) (.+?)\.$/, YDOT:/^You have taken (\d+) damage from (.+?)(?: by (.+?))?\.(?: \((.+)\))?$/, OWNER:/^(.+?)`s (?:pet|warder|ward)$/, RANK:/(?: Rk\. ?[IVX]+| [IVXL]+| Effect)+$/};
 const MONI={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
 function logSettings(){return Object.assign({owner:'Klucifer',ownerRL:true},lsGet('glask-logsettings')||{})}
 // ---- client-side EverQuest log reader ----
@@ -782,7 +782,7 @@ async function parseLogFile(f,gi){
         else if(isP(tgt)&&k[5]&&!isP(k[5]))fTaken(t,roster[tgt.toLowerCase()].n,k[5],+k[2],norm(k[4]));continue}
       if((k=msg.match(RX.HEAL))){const src=own(k[1]);if(isP(src)){const p=get(src,t),a=+k[3],tot=+(k[4]||k[3]);p.heal+=a;p.over+=tot-a;p.acts.push(t);if(k[5]&&!RX.OWNER.test(k[1]))p.sp[norm(k[5])]=(p.sp[norm(k[5])]||0)+1;
           if(live(t)&&!RX.OWNER.test(k[1])){const n=roster[src.toLowerCase()].n,q=fP(n),ab=fAb(q,k[5]?norm(k[5]):'Heal'),b=fB(t);q.h+=a;q.o+=tot-a;q.acts.add(Math.floor(t));q.htl[b]=(q.htl[b]||0)+a;ab.hn++;ab.hd+=a;ab.o+=tot-a;if(/Crit/.test(k[6]||''))ab.cr++}}continue}
-      if((k=msg.match(RX.CAST))||((k=msg.match(/^You begin casting (.+?)\.$/))&&(k=[k[0],'You',k[1]]))){const who=own(k[1]);if(isP(who)&&N[nightOf(t)]?.P[roster[who.toLowerCase()].n]){get(roster[who.toLowerCase()].n,t).acts.push(t)}if(isP(who)&&live(t)){const n=roster[who.toLowerCase()].n,q=fP(n);fAb(q,norm(k[2])).c++;q.acts.add(Math.floor(t))}continue}
+      if((k=msg.match(RX.CAST))||((k=msg.match(/^You (?:begin (?:casting|singing)|activate) (.+?)\.$/))&&(k=[k[0],'You',k[1]]))){const who=own(k[1]);if(isP(who)&&N[nightOf(t)]?.P[roster[who.toLowerCase()].n]){get(roster[who.toLowerCase()].n,t).acts.push(t)}if(isP(who)&&live(t)){const n=roster[who.toLowerCase()].n,q=fP(n);fAb(q,norm(k[2])).c++;q.acts.add(Math.floor(t))}continue}
       if((k=msg.match(RX.SLAIN))){const who=k[1]==='You'?me:k[1];if(isP(who)){get(who,t).deaths++;fDeath(t,roster[who.toLowerCase()].n,k[2])}}}}
   fEnd();
   for(const[c,a,d,t]of calls){const F=FIGHTS.find(F=>t>=F.start-120&&t<=F.last+180&&Object.keys(F.P).some(n=>n.toLowerCase()===c));
@@ -813,7 +813,7 @@ function packFight(F,roster,playedOf,HEALERS){const dur=Math.max(1,Math.round(F.
   const fill=a=>Array.from({length:nb},(_,i)=>Math.round((a[i]||0)/10));const P={};
   for(const[n,p]of Object.entries(F.P)){const r=roster[n.toLowerCase()];if(!r)continue;const cls=playedOf[r.n]||r.cls,heal=HEALERS.has(cls),act=Math.max(1,Math.min(dur,activeSecs([...p.acts])));
     const ab=Object.entries(p.ab).map(([k,v])=>[k,v.c,v.h,v.d,v.cr,v.hn,v.hd,v.o]);const by=heal?6:3;
-    const top=ab.filter(a=>a[by]).sort((a,b)=>b[by]-a[by]).slice(0,10),casts=ab.filter(a=>!a[by]&&a[1]).sort((a,b)=>b[1]-a[1]).slice(0,8);
+    const top=ab.filter(a=>a[by]).sort((a,b)=>b[by]-a[by]).slice(0,10),casts=ab.filter(a=>!a[by]&&a[1]).sort((a,b)=>b[1]-a[1]).slice(0,12);
     P[r.n]={c:cls,b:r.alt?1:0,d:p.d,h:p.h,o:p.o,a:act,v:Math.round((heal?p.h:p.d)/act),ab:top.concat(casts),tl:fill(heal?p.htl:p.tl),_all:p.ab}}
   const cm={};const ok=q=>!q.b&&q.a>=0.3*dur;
   for(const q of Object.values(P))if(ok(q))(cm[q.c]??={ps:[]}).ps.push(q);
