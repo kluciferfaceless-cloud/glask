@@ -1,0 +1,4 @@
+data/procs.json is derived from data/procs.txt in EQLogParser by John Kauffman (Kizant),
+https://github.com/kauffman12/EQLogParser, licensed under the Apache License 2.0
+(see procs.LICENSE-Apache-2.0.txt). Changes: rank suffixes stripped and each proc mapped
+to the source heading it is listed under, as JSON.

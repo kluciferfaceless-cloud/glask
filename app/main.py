@@ -36,7 +36,7 @@ GUILDS = {
 }
 ADMINS = ids('ADMIN_DISCORD_USER_IDS')   # always officer on every guild (e.g. Klucifer)
 # Temporary officer access by Discord username, one guild at a time (must also be in that guild's Discord). Remove when done.
-TEMP_OFFICERS = {'Mischief': {'koushirou_kikantsuiku'}, 'Teek': set()}
+TEMP_OFFICERS = {'Mischief': set(), 'Teek': set()}
 
 # What each access level may change. Keys look like glask-<kind>-<Server>[-...].
 RECRUIT_WRITE = {'inv', 'ach'}                           # uploads that feed applicant tracking (raid logs go through /api/raid-add)
@@ -830,6 +830,21 @@ async def get_fights(request: Request, server: str = '', id: str = '', date: str
                         cm={c: v for c, v in (f.get('cm') or {}).items() if c in cls},
                         deaths=[d for d in f.get('deaths', []) if d[1] in own]))
     return {'fights': out}
+
+
+_PROCS = None
+
+
+@app.get('/api/procs')
+async def get_procs(request: Request):
+    """Proc spell -> the ability or buff that triggers it, from EQLogParser's procs.txt (Apache 2.0, see data/procs.NOTICE.txt)."""
+    global _PROCS
+    u = user(request)
+    if not u or not u['access']:
+        raise HTTPException(403, 'Sign in first')
+    if _PROCS is None:
+        _PROCS = json.load(open(Path(__file__).resolve().parent.parent / 'data' / 'procs.json'))
+    return _PROCS
 
 
 @app.get('/api/raid-checks')

@@ -511,13 +511,24 @@ function fightChart(lines,dur,marks,h){const n=Math.max(...lines.map(l=>l.v.leng
     ${lines.map(l=>(l.fill?`<polygon points="0,${h-1} ${pts(l.v)} 1000,${h-1}" fill="${l.color}" fill-opacity=".14"/>`:'')+`<polyline points="${pts(l.v)}" fill="none" stroke="${l.color}" stroke-width="1.6" ${l.dash?'stroke-dasharray="5 4"':''} vector-effect="non-scaling-stroke"/>`).join('')}
     ${marks.map(m=>`<line x1="${(Math.min(dur,m.t)/dur*1000).toFixed(1)}" y1="0" x2="${(Math.min(dur,m.t)/dur*1000).toFixed(1)}" y2="${h}" stroke="#e5484d" stroke-opacity="${m.strong?1:.5}" stroke-width="${m.strong?2:1}" vector-effect="non-scaling-stroke"/>`).join('')}</svg>
     <div style="display:flex;justify-content:space-between;color:var(--dim);font-size:11.5px;margin-top:3px">${[0,.25,.5,.75,1].map(f=>`<span>${mmss(dur*f)}</span>`).join('')}</div>`}
-function abTable(p,medAb,heal,you){const rows=p.ab.map(a=>{const[k,c,h,d,cr,hn,hd,o]=a;const md=medAb&&k in medAb?medAb[k]:null;const low=md!=null&&(c||md)&&c<md;
-    const tot=heal?Math.max(p.h,1):Math.max(p.d,1);
-    return `<tr><td>${esc(k)}</td><td class="num" style="${low?'color:var(--warn);font-weight:700':''}">${c||((heal?hn:h)?'—':0)}</td><td class="num" style="color:var(--dim)">${md!=null&&(c||md)?Math.round(md*10)/10:'—'}</td>
+// Proc sources come from EQLogParser's procs.txt (Kizant, Apache 2.0): which ability or buff triggers each proc.
+let PROCS=null;function procsLoad(){if(PROCS!==null)return;PROCS={};fetch('/api/procs').then(r=>r.ok?r.json():{}).then(j=>{PROCS=j;render()}).catch(()=>{})}
+const procKey=n=>(n||'').replace(/( Rk\. ?[IVXL]+| [IVXL]+| \d+)+$/,'').trim();
+function procOf(n){return PROCS&&PROCS[procKey(n)]||null}
+// A cast whose damage lands under a different name (confirmed by Leadership; add pairs here as they're confirmed)
+const CAST_PAIRS={'Boastful Bellow':'Boastful Conclusion'};
+function mergePairs(ab){const out=ab.map(a=>a.slice());for(const[cast,dmg]of Object.entries(CAST_PAIRS)){const c=out.find(a=>a[0]===cast),d=out.find(a=>a[0]===dmg);if(!c||!d)continue;
+    c[0]=cast+' → '+dmg;for(const i of[2,3,4,5,6,7])c[i]=(c[i]||0)+(d[i]||0);c[1]=c[1]||0;c.pairOf=cast;out.splice(out.indexOf(d),1)}return out}
+function abTable(p,medAb,heal,you){procsLoad();const AB=mergePairs(p.ab);const cls=normCls(p.cls||p.c||'');
+  const tot0=heal?Math.max(p.h,1):Math.max(p.d,1);const other=AB.filter(a=>{const pr=procOf(a[0]);return pr&&pr[1]&&pr[1]!==cls&&(heal?a[6]:a[3])});
+  const otherShare=other.reduce((s,a)=>s+(heal?a[6]:a[3]),0)/tot0;
+  const rows=AB.map(a=>{const[k,c,h,d,cr,hn,hd,o]=a;const md=medAb&&(a.pairOf||k) in medAb?medAb[a.pairOf||k]:null;const low=md!=null&&(c||md)&&c<md;
+    const tot=heal?Math.max(p.h,1):Math.max(p.d,1);const pr=procOf(a.pairOf||k),fromOther=pr&&pr[1]&&pr[1]!==cls;
+    return `<tr><td>${esc(k)}${pr?` <span class="tag" style="${fromOther?'color:#7fb4e6;border-color:#2f4a63':''}" title="${fromOther?'Damage from another player\'s buff on you, not your own rotation':'A proc from your own ability'} (source list: EQLogParser)">${fromOther?'from '+esc(pr[0]):'proc · '+esc(pr[0].replace(/^\S+ /,''))}</span>`:''}</td><td class="num" style="${low?'color:var(--warn);font-weight:700':''}">${c||((heal?hn:h)?'—':0)}</td><td class="num" style="color:var(--dim)">${md!=null&&(c||md)?Math.round(md*10)/10:'—'}</td>
       <td class="num">${(heal?hn:h)||'—'}</td><td class="num">${(heal?hd:d)?kk(heal?hd:d):'—'}</td><td class="num">${heal?(hd+o?Math.round(100*o/(hd+o))+'%':'—'):(d?(100*d/tot).toFixed(1)+'%':'—')}</td>
       <td class="num" style="color:var(--dim)">${heal?(hd?(100*hd/tot).toFixed(1)+'%':'—'):((h)?Math.round(100*cr/h)+'%':'—')}</td></tr>`}).join('');
   return `<div style="overflow-x:auto"><table style="min-width:600px"><tr><th>${heal?'Heal':'Ability'}</th><th class="num">${you?'Your casts':'Casts'}</th><th class="num">Class median</th><th class="num">${heal?'Heals landed':'Hits'}</th><th class="num">${heal?'Healed':'Damage'}</th><th class="num">${heal?'Overheal':'Share'}</th><th class="num">${heal?'Share of healing':'Crit'}</th></tr>${rows}</table></div>
-   <div class="hint" style="margin:8px 0 0">Casts come from "begins casting" lines; abilities that never show a cast (melee, procs, pulsing songs) are counted by ${heal?'heals':'hits'}. <span style="color:var(--warn)">Amber</span> = cast less than the class median this fight.</div>`}
+   <div class="hint" style="margin:8px 0 0">Casts come from "begins casting" lines; abilities that never show a cast (melee, procs, pulsing songs) are counted by ${heal?'heals':'hits'}. <span style="color:var(--warn)">Amber</span> = cast less than the class median this fight. Proc labels come from EQLogParser's proc list; <span style="color:#7fb4e6">blue</span> ones are procs from another player's buff (${Math.round(otherShare*100)}% of this ${heal?'healing':'damage'}), not part of the rotation. Boastful Bellow → Boastful Conclusion are shown together.</div>`}
 function recapHtml(d){return `<div style="font-weight:600">${esc(d[1])} died at ${mmss(d[0])}</div><div class="hint" style="margin:2px 0 8px">Killed by ${esc(d[2])} · damage taken in the 15 seconds before</div>
   ${d[3].length?`<table>${d[3].map(l=>`<tr><td style="color:var(--dim);width:44px">${l[0]}s</td><td>${esc(l[2])} <span style="color:var(--dim)">· ${esc(l[1])}</span></td><td class="num" style="color:var(--ember2)">${kk(l[3])}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">The uploaded log didn\'t see the hits before this death (out of range, or a one-shot).</div>'}`}
 function noFights(F){return F==='loading'?'<div class="card"><div class="hint" style="margin:0">Loading fights…</div></div>'
@@ -943,9 +954,14 @@ async function handleFiles(files){let nOk=0,nBad=0;for(const f of files){let kin
        L.raids.forEach(r=>SAVES.push({k:'glask-raids-'+x.server,pr:saveRaid(gi,r)}));if(na)SAVES.push({k:'glask-seen-'+x.server,pr:saveSeen(gi,L.seen)});
        if(!L.raids.length&&!na)msg=`No raid nights (${RAID_MIN}+ guild members fighting) or guildmate achievements found.`;
        else{ok=true;msg=`${x.server}: ${L.raids.length?`${L.raids.length} raid night${L.raids.length>1?'s':''} (${L.raids.map(r=>r.date.slice(5)+' · '+r.players.length+' players').join(', ')})`:'no raid nights'}${na?` · ${na} guildmate achievement${na>1?'s':''}`:''}${L.skipped?` · ${L.skipped} small night${L.skipped>1?'s':''} skipped`:''}`}}
-     else if(looksLikeDump(head)){kind='Guild dump';const t=await f.text();const gi=guildFor(f.name,t);const res=applyDump(gi,t,f.name);
+     else if(looksLikeDump(head)){kind='Guild dump';const t=await f.text();const gi=guildFor(f.name,t);
+       {const rows=t.split(/\r?\n/).filter(l=>l.split('\t').length>5),nAlt=rows.filter(l=>l.split('\t')[4]==='A').length;
+        const cur=D.guilds[gi].members.reduce((s,m)=>s+m.chars.length,0),curAlt=D.guilds[gi].members.reduce((s,m)=>s+m.chars.filter(c=>c.a).length,0);
+        if((cur>=200&&rows.length<cur*0.6)||(curAlt>=50&&nAlt===0)){
+          if(!confirm(`${D.guilds[gi].server} guild dump check: this file has ${rows.length} characters and ${nAlt} alts. Glask's current ${D.guilds[gi].server} roster has ${cur} characters and ${curAlt} alts.\n\nA dump exported with alts hidden in the guild window leaves them out, and replacing the roster with it drops every alt link.\n\nReplace the roster with this file anyway?`)){msg=`Not applied: ${rows.length} characters and ${nAlt} alts, far fewer than the current roster (${cur} / ${curAlt}). Export the dump again with alts showing.`;throw {skip:1}}}}
+       const res=applyDump(gi,t,f.name);
        if(!res)msg='No rows found.';else{lsSet('glask-dump-'+D.guilds[gi].server,{name:f.name,text:t,at:new Date().toISOString()});ok=true;msg=`${D.guilds[gi].server}: ${res.chars} characters, ${res.mains} people`}}
-     else{const first=(head.split(/\r?\n/).find(l=>l.trim())||'').slice(0,90);msg=`Couldn't tell what this file is (${fmt(f.size)} bytes). It starts with: "${first}". Raid logs are EverQuest's eqlog_Name_server.txt, with lines like [Thu Nov 12 22:28:33 2026].`}}}catch(e){msg='Error: '+e.message}
+     else{const first=(head.split(/\r?\n/).find(l=>l.trim())||'').slice(0,90);msg=`Couldn't tell what this file is (${fmt(f.size)} bytes). It starts with: "${first}". Raid logs are EverQuest's eqlog_Name_server.txt, with lines like [Thu Nov 12 22:28:33 2026].`}}}catch(e){if(!(e&&e.skip))msg='Error: '+e.message}
   const saves=SAVES;SAVES=null;Object.assign(ent,{kind,msg,ok});
   if(!ok){ent.st='skipped';nBad++;render();continue}
   render();const res=await Promise.all(saves.map(s=>s.pr));const bad=res.find(r=>!r.ok);
