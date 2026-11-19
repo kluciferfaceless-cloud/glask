@@ -472,7 +472,7 @@ function pipOf(gi,main){return kvGet(pipKey(gi,main))}
 function perfFlags(p){const f=[];if(p.override)f.push(`<span class="tag ok" title="Set by an officer">class set: ${esc(p.cls)}</span>`);if(p.persona)f.push(`<span class="tag warn" title="Guild dump says ${esc(p.dump_cls)}; the spells cast in this log say ${esc(p.cls)}">persona: ${esc(p.dump_cls)} → ${esc(p.cls)}</span>`);if(p.rl)f.push('<span class="tag ok">raid leader</span>');if(p.box)f.push('<span class="tag">box</span>');if(p.mismatch)f.push('<span class="tag warn" title="Guild dump class does not match what they cast">class?</span>');
   if(p.uptime<0.5)f.push(`<span class="tag warn">${Math.round(p.uptime*100)}% active</span>`);if(p.deathsHigh)f.push(`<span class="tag red" title="Above this raid's average deaths">${p.deaths} deaths</span>`);else if(p.deaths>=2)f.push(`<span class="tag" title="At or below this raid's average, so not flagged">${p.deaths} deaths</span>`);return f.join('')}
 function onWatch(p){return !p.box&&!p.mismatch&&!p.rl&&!TANKS.has(p.cls)&&((p.pct!=null&&p.pct<70)||p.uptime<0.5||p.deathsHigh)}
-var perfMode='one',perfN=10,perfCls='',perfSort='avg';
+var perfMode='night',perfN=10,perfCls='',perfSort='avg';
 function raidLabel(q){const who=q.log_owner||q.uploaded_name;return `${q.date} · ${q.id}${who?` (${who}'s log, ${q.players.length} players)`:q.uploaded?` (uploaded, ${q.players.length} players)`:` (${q.players.length} players)`}`}
 function spark(v){if(!v.length)return '';const w=Math.max(60,v.length*10),h=22,max=Math.max(150,...v.map(z=>z??0));const pts=v.map((z,i)=>z==null?null:[v.length===1?w/2:i*(w-4)/(v.length-1)+2,h-2-(Math.min(z,max)/max)*(h-4)]);
   const y70=h-2-(70/max)*(h-4),y100=h-2-(100/max)*(h-4);const line=pts.filter(Boolean).map(p=>p.join(',')).join(' ');
@@ -578,35 +578,107 @@ function memberFightsCard(m,gi){const own=new Set(m.chars.map(c=>c.n));const RA=
    <div class="hint" style="margin:10px 0 0">Only your own numbers are shown; class medians combine everyone playing your class and name no one.</div></div>`}
 function canNotes(gi=G){const s=D.guilds[gi].server;return (ME.lead||[]).includes(s)||(ME.rl||[]).includes(s)}
 function glaskNotesCard(r){if(!canNotes()||!r)return '';const N=(KV['glask-raidnotes-'+g().server]||{})[r.date]||[];
+  if(!N.length)return `<div class="card" style="padding:10px 16px"><div class="hint" style="margin:0"><b style="color:var(--mute)">Notes for Glask</b> · nothing tonight. Say “Glask, …” in raid or guild chat during a raid to leave a note (Leadership and Raid Leaders only).</div></div>`;
   return `<div class="card" style="border-color:${N.length?'#5a2a20':'var(--line)'}"><h3>Notes for Glask · ${esc(r.date)} <span class="n">${N.length}</span></h3>
    <div class="hint">Anything said in chat that night mentioning “Glask”, from every log uploaded for it. Only Leadership and Raid Leaders see this.</div>
    ${N.length?`<table>${N.map(n=>`<tr><td style="white-space:nowrap;color:var(--dim);width:70px">${new Date(n.t*1000).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}</td><td style="white-space:nowrap;width:120px"><b>${esc(n.who)}</b> <span class="tag">${esc(n.ch)}</span></td><td>${esc(n.text)}</td></tr>`).join('')}</table>`
      :'<div class="hint" style="margin:0">Nothing mentioned Glask that night. Say “Glask, …” in raid or guild chat during a raid to leave a note here.</div>'}</div>`}
+// ---- Performance: raid night page (Normal / Advanced) ----
+let perfAdv=(()=>{try{return localStorage.getItem('glask-perfadv')==='1'}catch(e){return false}})(),perfOpen=null,nightFight=-1,perfLow=true,perfRowCls='',meNightFight=-1;
+function setPerfAdv(v){perfAdv=!!v;try{localStorage.setItem('glask-perfadv',v?'1':'0')}catch(e){}render()}
+function advSw(){return `<span class="seg" style="display:inline-flex;padding:2px" role="group" aria-label="Detail level"><button class="${perfAdv?'':'on'}" onclick="setPerfAdv(0)">Normal</button><button class="${perfAdv?'on':''}" onclick="setPerfAdv(1)">Advanced</button></span>`}
+const medOf=a=>{const s=a.slice().sort((u,v)=>u-v);return s.length?s[Math.floor((s.length-1)/2)]:0};
+// Combine several fights into one: per player totals and abilities summed, timelines joined end to end, deaths shifted onto one clock.
+function joinFights(FS){if(FS.length===1)return FS[0];const P={},cm={},deaths=[],rtl=[];let off=0,dur=0,len=0;
+  FS.forEach(f=>{const n=f.rtl?f.rtl.length:Math.max(0,...Object.values(f.P).map(p=>(p.tl||[]).length),...Object.values(f.cm||{}).map(m=>(m.tl||[]).length));
+    for(const[name,p]of Object.entries(f.P)){const q=P[name]||(P[name]={c:p.c,b:p.b,d:0,h:0,o:0,a:0,ab:[],tl:new Array(len).fill(0)});
+      q.d+=p.d;q.h+=p.h;q.o+=p.o||0;q.a+=p.a;for(const a of p.ab){const b=q.ab.find(x=>x[0]===a[0]);if(b){for(let i=1;i<8;i++)b[i]=(b[i]||0)+(a[i]||0)}else q.ab.push(a.slice())}
+      const t=p.tl||[];for(let i=0;i<n;i++)q.tl.push(t[i]||0)}
+    for(const q of Object.values(P))while(q.tl.length<len+n)q.tl.push(0);
+    for(const[c,m]of Object.entries(f.cm||{})){const q=cm[c]||(cm[c]={ab:{},tl:new Array(len).fill(0),vs:[],n:0});for(const[k,v]of Object.entries(m.ab||{}))q.ab[k]=(q.ab[k]||0)+v;
+      const t=m.tl||[];for(let i=0;i<n;i++)q.tl.push(t[i]||0);q.vs.push([m.v||0,f.dur]);q.n=Math.max(q.n,m.n||0)}
+    for(const q of Object.values(cm))while(q.tl.length<len+n)q.tl.push(0);
+    f.deaths.forEach(d=>deaths.push([d[0]+off,d[1],d[2],d[3],fname(f.name)]));if(f.rtl)rtl.push(...f.rtl);len+=n;off+=f.dur;dur+=f.dur});
+  for(const q of Object.values(P)){const heal=HEAL_CLS.has(q.c);q.v=Math.round((heal?q.h:q.d)/Math.max(1,q.a))}
+  for(const q of Object.values(cm)){const w=q.vs.reduce((s,x)=>s+x[1],0)||1;q.v=Math.round(q.vs.reduce((s,x)=>s+x[0]*x[1],0)/w)}
+  return {name:'Whole night',dur,P,cm,deaths,rtl:rtl.length?rtl:null,dmg:FS.reduce((s,f)=>s+f.dmg,0)}}
+function fightPills(FS,cur,setter){if(!Array.isArray(FS)||!FS.length)return '';const tot=FS.reduce((s,f)=>s+f.dur,0);
+  return [[-1,'Whole night · '+mmss(tot)]].concat(FS.map((f,i)=>[i,fname(f.name)+' · '+mmss(f.dur)])).map(([i,l])=>`<button class="more" style="margin:0;border-radius:999px;${i===cur?'background:var(--ember);color:#fff;border-color:var(--ember)':''}" onclick="${setter}=${i};perfOpen=null;render()">${esc(l)}</button>`).join('')}
+// Ability list: Normal = top 5 with casts vs class median; Advanced = everything (hits, damage, share, crit) via abTable
+function abShort(p,medAb,heal){procsLoad();const cls=normCls(p.cls||p.c||'');const AB=mergePairs(p.ab).filter(a=>(heal?a[6]:a[3])||a[1]).sort((a,b)=>(heal?b[6]-a[6]:b[3]-a[3])||b[1]-a[1]).slice(0,5);
+  if(!AB.length)return '<div class="hint" style="margin:0">Nothing recorded.</div>';
+  return `<table><tr><th>Top ${heal?'heals':'abilities'}</th><th class="num">Casts</th><th class="num">Class median</th></tr>${AB.map(a=>{const md=medAb&&(a.pairOf||a[0]) in medAb?medAb[a.pairOf||a[0]]:null,low=md!=null&&(a[1]||md)&&a[1]<md;const pr=procOf(a.pairOf||a[0]),fromOther=pr&&pr[1]&&pr[1]!==cls;
+    return `<tr><td>${esc(a[0])}${fromOther?` <span class="tag" style="color:#7fb4e6;border-color:#2f4a63">from ${esc(pr[0])}</span>`:''}</td><td class="num" style="${low?'color:var(--warn);font-weight:700':''}">${a[1]||'—'}</td><td class="num" style="color:var(--dim)">${md!=null&&(a[1]||md)?Math.round(md*10)/10:'—'}</td></tr>`}).join('')}</table>
+   <div class="hint" style="margin:6px 0 0"><span style="color:var(--warn)">Amber</span> = cast less than the class median. Switch to Advanced for every ability with hits, damage, share and crit.</div>`}
+function playerDetail(F,n,medTl,medAb,extra){const p=F.P[n];if(!p)return `<div class="hint" style="margin:0">No fight breakdown for ${esc(n)} here.</div>`;const H=HEAL_CLS.has(p.c);
+  const myD=F.deaths.filter(d=>d[1]===n);
+  return `<div style="display:flex;flex-wrap:wrap;gap:18px"><div style="flex:1 1 300px;min-width:0">${extra||''}
+     <div class="hint" style="margin:0 0 4px">${H?'Healing':'Damage'} over ${esc(fname(F.name))} · blue: ${esc(n)}, dashed: ${esc(p.c)} median${myD.length?', red: deaths':''}</div>
+     ${fightChart([{v:p.tl,color:'#7fb4e6'}].concat(medTl?[{v:medTl,color:'#b5aea3',dash:1}]:[]),F.dur,myD.map(d=>({t:d[0],strong:1})),90)}
+     ${myD.map(d=>`<div style="background:var(--panel2);border-radius:8px;padding:10px 12px;margin-top:8px">${d[4]?`<div class="hint" style="margin:0 0 2px">${esc(d[4])}</div>`:''}${recapHtml(d)}</div>`).join('')}</div>
+   <div style="flex:${perfAdv?'3':'1'} 1 340px;min-width:0">${perfAdv?abTable(p,medAb,H,false):abShort(p,medAb,H)}</div></div>`}
+function nightRows(rows,ctx){// rows: {n,cls,pct,med,metric,deaths,box,tags,tot,ps,act,profile}
+  const classes=[...new Set(rows.map(r=>r.cls))].sort();if(perfRowCls&&!classes.includes(perfRowCls))perfRowCls='';
+  const list=rows.filter(r=>!perfRowCls||r.cls===perfRowCls).sort((a,b)=>perfLow?((a.pct??999)-(b.pct??999)):(a.cls.localeCompare(b.cls)||(b.pct||0)-(a.pct||0)));
+  const head=`<tr><th style="width:150px">Name</th><th style="width:110px">Class</th><th>% of class median</th><th class="num" style="width:56px"></th><th class="num" style="width:120px">Class median</th>${perfAdv?'<th class="num">Total</th><th class="num">Per sec</th><th class="num">Active</th>':''}<th class="num" style="width:70px">Deaths</th></tr>`;
+  return `<div class="card"><h3>Everyone vs. their class <span class="n">${list.length}</span><span style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0"><select onchange="perfRowCls=this.value;render()"><option value="">All classes</option>${classes.map(c=>`<option ${c===perfRowCls?'selected':''}>${esc(c)}</option>`).join('')}</select><button class="more" style="margin:0" onclick="perfLow=!perfLow;render()">${perfLow?'Lowest first':'By class'}</button></span></h3>
+   <div style="overflow-x:auto"><table>${head}${list.map(r=>{const open=perfOpen===r.n,low=r.pct!=null&&r.pct<70&&!TANKS.has(r.cls)&&!r.box;
+     return `<tr class="click" onclick="perfOpen=${open?'null':`'${esc(r.n)}'`};render()" style="${open?'background:var(--panel2)':''}" aria-expanded="${open}"><td>${open?'▾':'▸'} ${esc(r.n)}${r.box?' <span class="tag">box</span>':''}</td><td style="color:var(--dim)">${esc(r.cls)}</td>
+      <td><div class="rankbar" style="margin:0"><span class="tr"><span class="fl" style="display:block;width:${Math.min(100,(r.pct||0)/1.6)}%;background:${low?'var(--ember)':'var(--bone)'}"></span></span></div></td>
+      <td class="num" style="font-weight:600;${low?'color:var(--ember2)':''}">${r.pct!=null?r.pct+'%':'—'}</td><td class="num" style="color:var(--dim)">${r.med?kk(r.med)+(r.heal?' heal/s':'/s'):'—'}</td>
+      ${perfAdv?`<td class="num">${kk(r.tot)}</td><td class="num">${kk(r.ps)}/s</td><td class="num">${r.act!=null?r.act+'%':'—'}</td>`:''}
+      <td class="num" style="color:var(--ember2)">${r.deaths?r.deaths+(r.deaths>1?' deaths':' death'):''}</td></tr>
+      ${open?`<tr><td colspan="${perfAdv?9:6}" style="background:var(--panel);padding:12px 14px 16px">${ctx(r)}</td></tr>`:''}`}).join('')}</table></div>
+   <div class="hint" style="margin:10px 0 0">Everyone is compared with the median of their own class: damage per active second, or healing per active second for Clerics, Shamans and Druids. Active means any damage, heal, cast or ability, with gaps under 12 seconds counted. Boxes and anyone active under 30% of the fight aren't in the medians. Needs a look: under 70% of class (tanks excluded), more deaths than the raid average (never for one death), or active less than half the time. Numbers are what one log saw; the raid leader's unfiltered log gives the fullest picture.</div></div>`}
+function needsLook(items,pips){return `<div class="card" style="border-color:${items.length?'#5a2a20':'var(--line)'}"><h3>Needs a look <span class="n">${items.length}</span></h3>
+   ${items.length?`<table>${items.map(x=>`<tr class="click" onclick="perfOpen='${esc(x.n)}';render()"><td style="width:150px"><b>${esc(x.n)}</b></td><td style="width:110px;color:var(--dim)">${esc(x.cls)}</td><td>${x.tags.map(t=>`<span class="tag red">${esc(t)}</span>`).join(' ')}${x.flags||''}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nobody stands out.</div>'}
+   ${pips.length?`<div class="hint" style="margin:10px 0 0">On a Performance Improvement Plan: ${pips.map(([m])=>`<a href="#" style="color:var(--ember2)" onclick="openPip(G,'${esc(m.main)}');return false">${esc(m.main)}</a>`).join(', ')}</div>`:''}</div>`}
+function raidNight(RA,x){const r=RA[raidIdx];const FS=fightsFor(G,r);const have=Array.isArray(FS)&&FS.length;if(!have||nightFight>=FS.length)nightFight=-1;
+  const mainOf=n=>{const p=r.players.find(p=>p.name===n);if(p&&p.rl)return p.main;const m=x.members.find(m=>m.chars.some(c=>c.n===n));return m?m.main:null};
+  const pips=x.members.map(m=>[m,pipOf(G,m.main)]).filter(([m,p])=>p&&p.status!=='Closed');
+  const F=have?(nightFight<0?joinFights(FS):FS[nightFight]):null;
+  let rows,items;
+  if(nightFight<0){// whole night: the raid's own numbers (raid leader excluded, personas, average deaths)
+    rows=r.players.map(p=>({n:p.name,cls:p.cls,pct:p.pct,med:p.median,heal:p.metric==='hps',deaths:p.deaths||0,box:p.box,tot:F&&F.P[p.name]?(HEAL_CLS.has(F.P[p.name].c)?F.P[p.name].h:F.P[p.name].d):0,ps:p.val,act:p.uptime!=null?Math.round(p.uptime*100):null,p}));
+    items=r.players.filter(onWatch).sort((a,b)=>(a.pct??0)-(b.pct??0)).map(p=>{const t=[];if(p.pct!=null&&p.pct<70)t.push(p.pct+'% of class');if(p.deathsHigh)t.push(p.deaths+' deaths');if(p.uptime<0.5)t.push('active '+Math.round(p.uptime*100)+'%');return {n:p.name,cls:p.cls,tags:t}})}
+  else{const ps=Object.entries(F.P).map(([n,p])=>({n,...p,cls:classOf(n,p.c)}));const by={};ps.forEach(p=>{if(!p.b&&p.a>=0.3*F.dur)(by[p.cls]??=[]).push(p.v)});
+    const nd=n=>F.deaths.filter(d=>d[1]===n).length;const avgD=ps.filter(p=>!p.b).reduce((s,p)=>s+nd(p.n),0)/Math.max(1,ps.filter(p=>!p.b).length);
+    rows=ps.map(p=>{const m=by[p.cls]?medOf(by[p.cls]):0;return {n:p.n,cls:p.cls,pct:m?Math.round(100*p.v/m):null,med:m,heal:HEAL_CLS.has(p.cls),deaths:nd(p.n),box:!!p.b,tot:HEAL_CLS.has(p.cls)?p.h:p.d,ps:p.v,act:Math.round(100*p.a/F.dur)}});
+    items=rows.filter(q=>!q.box&&!TANKS.has(q.cls)).map(q=>{const t=[];if(q.pct!=null&&q.pct<70)t.push(q.pct+'% of class');if(q.deaths>=2&&q.deaths>avgD)t.push(q.deaths+' deaths');if(q.act<50)t.push('active '+q.act+'%');return {n:q.n,cls:q.cls,tags:t,pct:q.pct}}).filter(q=>q.tags.length).sort((a,b)=>b.tags.length-a.tags.length||(a.pct??0)-(b.pct??0))}
+  const ctx=row=>{const who=mainOf(row.n)||row.n;const flags=row.p?perfFlags(Object.assign({},row.p,{uptime:1,deathsHigh:false,deaths:0})):'';
+    const head=`<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:13px;margin-bottom:8px">${row.act!=null?`<span>Active <b>${row.act}%</b></span>`:''}<span>Deaths <b>${row.deaths}</b></span>${flags}<a href="#" style="color:var(--ember2)" onclick="profile('${esc(who)}');return false">Open ${esc(who)}'s profile</a></div>`;
+    if(!F)return head+`<div class="hint" style="margin:0">${FS==='loading'?'Loading fights…':'No fight breakdown for this raid log. Upload the night\'s log again to see abilities, the chart and death recaps.'}</div>`;
+    const p=F.P[row.n];return playerDetail(F,row.n,p&&F.cm[p.c]?F.cm[p.c].tl:null,p&&F.cm[p.c]?F.cm[p.c].ab:null,head)};
+  const chart=F?`<div class="card"><h3>Raid damage over time <span style="color:var(--dim);font-size:12px;text-transform:none;letter-spacing:0">${esc(nightFight<0?'Whole night ('+FS.length+' fights)':fname(F.name))} · ${kk(F.dmg)} damage · ${F.deaths.length} deaths</span></h3>${fightChart([{v:F.rtl,color:'var(--ember2)',fill:1}],F.dur,F.deaths.map(d=>({t:d[0]})),110)}</div>`:'';
+  return `<div class="filters" style="align-items:center">${have?fightPills(FS,nightFight,'nightFight'):FS==='loading'?'<span class="hint" style="margin:0">Loading fights…</span>':''}</div>
+   ${chart}${needsLook(items,pips)}${nightRows(rows,ctx)}`}
+// Member: one card per character, same Normal / Advanced switch, only their own characters plus class medians
+function memberNightCard(m,gi){const own=new Set(m.chars.map(c=>c.n));const RA=allRaids(gi).filter(r=>r.uploaded&&r.players.some(p=>own.has(p.name)));
+  if(!RA.length)return '';if(meFightRaid>=RA.length)meFightRaid=0;const r=RA[meFightRaid];const FS=fightsFor(gi,r);
+  const pick=`<select onchange="meFightRaid=+this.value;meNightFight=-1;render()">${RA.map((q,i)=>`<option value="${i}" ${i===meFightRaid?'selected':''}>${esc(q.date)} · ${esc(q.id)}</option>`).join('')}</select>`;
+  const top=x=>`<div class="card"><h3>Raid performance ${advSw()}</h3><div class="filters" style="margin:0 0 10px">${pick}${x}</div>`;
+  if(!Array.isArray(FS)||!FS.length)return top('')+`<div class="hint" style="margin:0">${FS==='loading'?'Loading…':'No fight breakdown for this raid night yet. Fights are recorded for raid logs uploaded from now on.'}</div></div>`;
+  if(meNightFight>=FS.length)meNightFight=-1;const F=meNightFight<0?joinFights(FS):FS[meNightFight];
+  const chars=Object.entries(F.P).filter(([n])=>own.has(n)).map(([n,p])=>({n,...p})).sort((a,b)=>((b.n===m.main)-(a.n===m.main))||(a.b-b.b)||(b.d-a.d));
+  if(!chars.length)return top(fightPills(FS,meNightFight,'meNightFight'))+'<div class="hint" style="margin:0">None of your characters fought in this one.</div></div>';
+  const me=chars.find(c=>c.n===meFightChar)||chars[0];const cm=F.cm[me.c]||{},H=HEAL_CLS.has(me.c),pct=cm.v?Math.round(100*me.v/cm.v):null;const myD=F.deaths.filter(d=>d[1]===me.n);
+  return top(fightPills(FS,meNightFight,'meNightFight'))+`${chars.length>1?`<div class="filters" style="margin:0 0 10px">${chars.map(c=>`<button class="more" style="margin:0;${c.n===me.n?'background:var(--panel2);border-color:var(--ember)':''}" onclick="meFightChar='${esc(c.n)}';render()">${esc(c.n)} · ${esc(c.c)}${c.b?' (box)':''}</button>`).join('')}</div>`:''}
+   <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="font-size:36px;font-weight:700;color:${pct!=null&&pct<70?'var(--ember2)':'inherit'}">${pct!=null?pct+'%':'—'}</span><span style="color:var(--mute)">of the ${esc(me.c)} median · ${esc(me.n)}, ${esc(meNightFight<0?'whole night':fname(F.name))}</span></div>
+   <div class="hint" style="margin:2px 0 0">${H?'Healing':'Damage'} per active second, compared with ${cm.n||0} ${esc(me.c)}${cm.n===1?'':'s'} (boxes left out). Class medians name no one.</div>
+   <div class="facts"><div><b>${mmss(me.a)}</b><span>active of ${mmss(F.dur)}</span></div><div><b>${myD.length}</b><span>deaths</span></div>${perfAdv?`<div><b>${kk(H?me.h:me.d)}</b><span>total ${H?'healing':'damage'}</span></div><div><b>${kk(me.v)}/s</b><span>you · ${esc(me.c)} median ${kk(cm.v||0)}/s</span></div>`:''}</div>
+   ${perfAdv?`<div style="margin-top:10px">${fightChart([{v:me.tl,color:'#7fb4e6'}].concat(cm.tl?[{v:cm.tl,color:'#b5aea3',dash:1}]:[]),F.dur,myD.map(d=>({t:d[0],strong:1})),110)}<div class="hint" style="margin:4px 0 0">Blue: you · dashed: ${esc(me.c)} median · red: your deaths</div></div>`:''}
+   <h3 style="margin-top:14px">${perfAdv?`All your ${H?'heals':'abilities'}`:`Your top ${H?'heals':'abilities'}`}</h3>${perfAdv?abTable(me,cm.ab,H,true):abShort(me,cm.ab,H)}
+   ${myD.length?`<h3 style="margin-top:14px">What killed you</h3>${myD.map(d=>`<div style="background:var(--panel2);border-radius:8px;padding:10px 12px;margin-top:8px">${d[4]?`<div class="hint" style="margin:0 0 2px">${esc(d[4])}</div>`:''}${recapHtml(d)}</div>`).join('')}`:''}</div>`}
 function perf(){
   const x=g();
-  const RA=allRaids(G); if(raidIdx>=RA.length)raidIdx=0; const st=logSettings();
-  const modeSw=`<span class="seg" style="display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden">${[['one','One raid'],['fights','Fights'],['multi','Across raids']].map(([k,l])=>`<button class="more" style="margin:0;border:0;border-radius:0;${perfMode===k?'background:var(--ember);color:#fff':''}" onclick="perfMode='${k}';render()">${l}</button>`).join('')}</span>`;
+  const RA=allRaids(G); if(raidIdx>=RA.length)raidIdx=0; const st=logSettings(); if(perfMode!=='multi')perfMode='night';
+  const modeSw=`<span class="seg" style="display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden">${[['night','Raid night'],['multi','Across raids']].map(([k,l])=>`<button class="more" style="margin:0;border:0;border-radius:0;${perfMode===k?'background:var(--ember);color:#fff':''}" onclick="perfMode='${k}';perfOpen=null;render()">${l}</button>`).join('')}</span>${advSw()}`;
   const pick=perfMode==='multi'?`<select onchange="perfN=+this.value;render()">${[[5,'Last 5 raid logs'],[10,'Last 10 raid logs'],[20,'Last 20 raid logs'],[0,'All raid logs']].map(([n,l])=>`<option value="${n}" ${perfN===n?'selected':''}>${l}</option>`).join('')}</select>`
-    :`<select onchange="raidIdx=+this.value;fightIdx=0;fightPlayer=null;fightDeath=0;render()">${RA.map((q,i)=>`<option value="${i}" ${i===raidIdx?'selected':''}>${esc(raidLabel(q))}</option>`).join('')}</select>`;
+    :`<select onchange="raidIdx=+this.value;fightIdx=0;fightPlayer=null;fightDeath=0;nightFight=-1;perfOpen=null;render()">${RA.map((q,i)=>`<option value="${i}" ${i===raidIdx?'selected':''}>${esc(raidLabel(q))}</option>`).join('')}</select>`;
   const controls=`<div class="filters" style="align-items:center">${modeSw}${pick}<label class="more" style="margin:0;cursor:pointer">Upload raid log<input type="file" accept=".txt" style="display:none" onchange="uploadRaidLog(event,G)"></label><span style="color:var(--dim);font-size:12px">Log owner (“You”):</span><input style="width:110px" value="${esc(st.owner)}" onchange="const s=logSettings();s.owner=this.value.trim();lsSet('glask-logsettings',s)"><label style="color:var(--mute);font-size:12px"><input type="checkbox" ${st.ownerRL?'checked':''} onchange="const s=logSettings();s.ownerRL=this.checked;lsSet('glask-logsettings',s)"> owner was raid leading</label></div>`;
   if(!RA.length)return controls+`<div class="card"><h3>Performance</h3><div class="hint" style="margin:0">No ${x.server} raid logs loaded yet. Upload a raid log and Glask ranks everyone against their own class.</div></div>`;
   if(perfMode==='multi')return controls+perfMulti(RA,x);
-  if(perfMode==='fights')return controls+glaskNotesCard(RA[raidIdx])+perfFights(RA,x);
-  const r=RA[raidIdx]; const ps=r.players;
-  const classes=[...new Set(ps.map(p=>p.cls))].sort();
-  const watch=ps.filter(onWatch).sort((a,b)=>(a.pct??0)-(b.pct??0));
-  const pips=x.members.map(m=>[m,pipOf(G,m.main)]).filter(([m,p])=>p&&p.status!=='Closed');
-  const mainOf=n=>{const p=ps.find(p=>p.name===n);if(p&&p.rl)return p.main;const m=x.members.find(m=>m.chars.some(c=>c.n===n));return m?m.main:null};
-  const owner=null;
-  return controls+glaskNotesCard(r)+`<div class="glask"><div class="who">GLASK</div><div><p><em>“I have measured them against their own kind.”</em> <b>${esc(r.id)}</b>, ${esc(r.date)}: ${Math.round(r.seconds/60)} minutes, ${ps.length} players parsed from the raw log.</p>
-   <p style="color:var(--mute);font-size:13px">Each player is compared with the <b>median of their class</b> in this raid (mains only; boxes and anyone active under 30% of the fight are left out of the median). Because of personas, class comes from the <b>spells each person cast in this log</b>, not the guild dump; anyone whose class differs is tagged so an officer can confirm. DPS classes use SDPS (damage over their own active time); Clerics and Shamans use healing per active second. Tank DPS is shown for reference only. ${r.raid_leader?`<b>${esc(r.raid_leader)}</b> was raid leading, so their characters are tagged and left out of medians and the watch list.`:''} ${owner?`The log owner shows as “You” in the log, so their ${kfmt(owner.dmg)} damage isn't credited to anyone yet.`:''}</p></div></div>
-  <div class="grid2"><div class="card"><h3>Watch list <span class="n">${watch.length}</span></h3><div class="hint">Non-box, non-tank players under 70% of class median, active less than half the fight, or more deaths than this raid's average (${(r.avgDeaths||0).toFixed(1)} per player; never for a single death).</div>
-   <table><tr><th>Player</th><th>Class</th><th class="num">vs class</th><th>Flags</th></tr>${watch.map(p=>`<tr class="click" onclick="profile('${esc(mainOf(p.name)||p.name)}')"><td>${esc(p.name)}</td><td>${esc(p.cls)}</td><td class="num">${p.pct}%</td><td>${perfFlags(p)}</td></tr>`).join('')}</table></div>
-   <div class="card"><h3>On a Performance Improvement Plan <span class="n">${pips.length}</span></h3><div class="hint">Click someone to open their PIP. Start one from anyone's profile.</div>
-   ${pips.length?`<table><tr><th>Member</th><th>Concern</th><th>Review</th></tr>${pips.map(([m,p])=>`<tr class="click" onclick="openPip(G,'${esc(m.main)}')"><td>${esc(m.main)}</td><td>${esc(p.concern)}</td><td>${esc(p.review||'')}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nobody yet.</div>'}</div></div>
-  ${classes.map(cls=>{const grp=ps.filter(p=>p.cls===cls).sort((a,b)=>b.val-a.val);const med=grp[0].median;
-    return `<div class="card"><h3>${esc(cls)} ${TANKS.has(cls)?'<span class="tag">tank · DPS for reference</span>':''}<span style="color:var(--dim);font-size:12px;text-transform:none;letter-spacing:0">class median ${kfmt(med)} ${grp[0].metric==='hps'?'HPS':'SDPS'}</span></h3>
-    <table>${grp.map(p=>`<tr class="click" onclick="profile('${esc(mainOf(p.name)||p.name)}')"><td style="width:140px">${esc(p.name)}</td><td style="width:40%"><div class="rankbar" style="margin:0"><span class="tr"><span class="fl" style="display:block;width:${Math.min(100,(p.pct||0)/2)}%;background:${(p.pct||0)<70?'var(--ember)':'var(--bone)'}"></span></span></div></td><td class="num" style="width:70px">${p.pct}%</td><td class="num" style="width:80px">${kfmt(p.val)}</td><td class="num" style="width:50px">#${p.rank}/${p.of}</td><td>${perfFlags(p)}</td></tr>`).join('')}</table></div>`}).join('')}`;
+  return controls+glaskNotesCard(RA[raidIdx])+raidNight(RA,x);
 }
 function achCell(st,date){return st==='yes'?'<span class="tag ok">✓ done</span>':st==='no'?'<span class="tag red">✗ missing</span>':st==='seen'?'<span class="tag ok">seen '+esc(date||'')+'</span>':'<span style="color:var(--dim)">not seen</span>'}
 function flagCard(m,gi){const fr=D.guilds[gi].flag_ref, refs=[...fr.progression], ax=achOf(m,gi);if(!refs.length)return `<div class="card"><h3>Achievement export<label class="more" style="margin:0;cursor:pointer">Upload achievements<input type="file" accept=".txt" style="display:none" onchange="uploadAch(event,${gi},'${esc(m.main)}')"></label></h3><div class="hint" style="margin:0">${ax?`Loaded${ax.uploaded?' '+esc(ax.uploaded):''}: <b>${fmt((ax.done||[]).length)} achievements completed</b>. Every achievement on this page comes from this export, so done and missing are definitive.`:'Upload the /outputfile achievements export for definitive done and missing achievements.'}</div></div>`;const n=refs.filter(a=>['yes','seen'].includes(hasAch(m,a,gi))).length;
@@ -1235,7 +1307,7 @@ function me0(){const gi=G,x=D.guilds[gi],l=(ME.links||{})[x.server];
     <p style="color:var(--mute);font-size:13px;margin-top:10px">If your Discord username matches the one on your guild application, you're linked right away. Otherwise an officer approves it, usually within a day. You only ever see your own character here.</p></div></div>`;
   if(l.status!=='approved')return `<div class="glask"><div class="who">GLASK</div><div><p>Your link to <b>${esc(l.main)}</b> is waiting for an officer to approve it. Check back soon.</p><p style="color:var(--mute);font-size:13px">Wrong character? <a href="#" onclick="event.preventDefault();ME.links['${esc(x.server)}']=null;render()" style="color:var(--ember2)">Request a different one</a>.</p></div></div>`;
   const m=myMain(gi);if(!m)return `<div class="glask"><div class="who">GLASK</div><div><p><b>${esc(l.main)}</b> isn't in the latest ${esc(x.server)} guild roster. If you've changed mains, ask an officer to update your link.</p></div></div>`;
-  return charHeader(m,gi)+signupCard(m,gi)+gearCard(m,gi)+perfSummary(m,gi)+memberFightsCard(m,gi)+perfCard(m,gi)+trackedAchCard(m,gi)+vqCard(m,gi)+flagCard(m,gi)+memberUploadCard(gi)}
+  return charHeader(m,gi)+signupCard(m,gi)+gearCard(m,gi)+perfSummary(m,gi)+memberNightCard(m,gi)+trackedAchCard(m,gi)+vqCard(m,gi)+flagCard(m,gi)+memberUploadCard(gi)}
 // ---- officers: approve character links; set the launch sign-up ----
 function linksCard(){const x=g(),L=KV['glask-links-'+x.server]||{};const all=Object.entries(L);const pend=all.filter(([,v])=>v.status!=='approved');
   if(!all.length)return '';const when=t=>new Date(t*1000).toLocaleDateString([], {month:'short',day:'numeric'});
