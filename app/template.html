@@ -879,7 +879,8 @@ TATTLE.push({id:'dock-mites',event:'Immature Transport',label:"Mites: didn't cle
  {id:'dock-energy',event:'Immature Transport',label:'Embedded energy: explosion',kind:'emote-carrier-blast',pre:'The Chief Mechanic focuses energy',
   emote:/^The Chief Mechanic focuses energy on (.+)\.$/i,ability:'Embedded Explosion',hitWin:[12,30],max:4,killer:'Chief Mechanic'});
 // orb-target: each emote names one target an orb is heading for; it detonates about 30s later. A target caught in a blast that
-// hit more than `maxOthers` other people failed (two targets in the same blast both fail).
+// hit more than `maxOthers` other people, and seen with the raid (their own swings, casts, spell hits, heals on others) in the
+// last 5 seconds before it, failed. That separates the one who brought it from a target who ran but was still in range.
 TATTLE.push({id:'cannons-orb',event:'Silence the Cannons',label:'Overcharged orb: brought it to the raid',kind:'orb-target',pre:'An overcharged orb moves toward',
   emote:/^An overcharged orb moves toward (\w+)\.$/i,ability:'Overload',hitWin:[25,35],maxOthers:2});
 const TANK_CLS=new Set(['Warrior','Paladin','Shadow Knight']);
@@ -935,7 +936,7 @@ async function parseLogFile(f,gi){const SC=await spellClsLoad();
       if((k=msg.match(RX.DOT))){const tgt=k[1];const src=k[3]?me:own(k[5]||'You');if(isP(src)&&!isP(tgt)&&!RX.OWNER.test(tgt)){const p=get(src,t);p.dmg+=+k[2];p.acts.push(t);if(!RX.OWNER.test(k[5]||''))p.sp[norm(k[4])]=(p.sp[norm(k[4])]||0)+1;hit(t);
           if(!RX.OWNER.test(k[5]||''))fDmg(t,roster[src.toLowerCase()].n,tgt,+k[2],norm(k[4]),/Crit/.test(k[6]||''))}
         else if(isP(tgt)&&k[5]&&!isP(k[5]))fTaken(t,roster[tgt.toLowerCase()].n,k[5],+k[2],norm(k[4]));continue}
-      if((k=msg.match(RX.HEAL))){const src=own(k[1]);if(isP(src)){if(!RX.OWNER.test(k[1]))seenAt(roster[src.toLowerCase()].n,t);const p=get(src,t),a=+k[3],tot=+(k[4]||k[3]);p.heal+=a;p.over+=tot-a;p.acts.push(t);if(k[5]&&!RX.OWNER.test(k[1]))p.sp[norm(k[5])]=(p.sp[norm(k[5])]||0)+1;
+      if((k=msg.match(RX.HEAL))){const src=own(k[1]);if(isP(src)){if(!RX.OWNER.test(k[1])&&!/^(himself|herself|itself|yourself)$|over time/i.test(k[2]))seenAt(roster[src.toLowerCase()].n,t);const p=get(src,t),a=+k[3],tot=+(k[4]||k[3]);p.heal+=a;p.over+=tot-a;p.acts.push(t);if(k[5]&&!RX.OWNER.test(k[1]))p.sp[norm(k[5])]=(p.sp[norm(k[5])]||0)+1;
           if(live(t)&&!RX.OWNER.test(k[1])){const n=roster[src.toLowerCase()].n,q=fP(n),ab=fAb(q,k[5]?norm(k[5]):'Heal'),b=fB(t);q.h+=a;q.o+=tot-a;q.acts.add(Math.floor(t));q.htl[b]=(q.htl[b]||0)+a;ab.hn++;ab.hd+=a;ab.o+=tot-a;if(/Crit/.test(k[6]||''))ab.cr++;if(/^(himself|herself|itself|yourself)$/i.test(k[2])||own(k[2])===src)q.sh+=a}}continue}
       if((k=msg.match(RX.CAST))||((k=msg.match(/^You (?:begin (?:casting|singing)|activate) (.+?)\.$/))&&(k=[k[0],'You',k[1]]))){const who=own(k[1]);if(isP(who)){const rn=roster[who.toLowerCase()].n;seenAt(rn,t);if(N[nightOf(t)]?.P[rn])get(rn,t).acts.push(t);const sc=SC[norm(k[2])];if(sc){const cc=(night(t).CC??={})[rn]??={};cc[sc]=(cc[sc]||0)+1}}if(isP(who)&&live(t)){const n=roster[who.toLowerCase()].n,q=fP(n);fAb(q,norm(k[2])).c++;q.acts.add(Math.floor(t))}continue}
       if((k=msg.match(RX.SLAIN))){const who=k[1]==='You'?me:k[1];if(isP(who)){get(who,t).deaths++;fDeath(t,roster[who.toLowerCase()].n,k[2]);TTD.push([t,roster[who.toLowerCase()].n,k[2]])}}}}
@@ -986,7 +987,8 @@ async function parseLogFile(f,gi){const SC=await spellClsLoad();
     for(const[T,ru,names]of TTW.filter(w=>nightOf(w[0])===date&&w[1].kind==='orb-target')){const n=rn(names[0]||'');if(!n)continue;
       const mine=TTH.find(h=>h[1]===n&&h[2]===ru.ability&&h[0]>=T+ru.hitWin[0]&&h[0]<=T+ru.hitWin[1]);if(!mine)continue;
       const burst=new Set(TTH.filter(h=>h[2]===ru.ability&&Math.abs(h[0]-mine[0])<=1).map(h=>h[1]));const others=burst.size-1;
-      const key=n+'|'+Math.round(mine[0]);if(others>ru.maxOthers&&!orbDone.has(key)){orbDone.add(key);ttAdd(T,n,ru.id,ru.label,`the orb went off on them and hit ${others} others`,others)}}
+      const seen=((nt.SEEN||{})[n]||[]).some(x=>x>=mine[0]-5&&x<=mine[0]);
+      const key=n+'|'+Math.round(mine[0]);if(others>ru.maxOthers&&seen&&!orbDone.has(key)){orbDone.add(key);ttAdd(T,n,ru.id,ru.label,`the orb went off on them and hit ${others} others`,others)}}
     for(const[T,ru,names]of TTW.filter(w=>nightOf(w[0])===date&&w[1].kind==='emote-runaway')){
       const hitBy=new Set(TTH.filter(h=>h[2]===ru.ability&&h[0]-T>=ru.hitWin[0]&&h[0]-T<=ru.hitWin[1]).map(h=>h[1]));
       const named=names.map(z=>roster[z.toLowerCase()]?roster[z.toLowerCase()].n:null).filter(Boolean),others=[...hitBy].filter(z=>!named.includes(z)).length;if(!others)continue;
