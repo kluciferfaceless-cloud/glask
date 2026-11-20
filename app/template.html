@@ -209,7 +209,7 @@ function glaskSay(){
   const s=g().stats;
   return `<div class="glask"><div class="who">GLASK</div><div>
   <p><em>“The Faceless sees all.”</em> ${g().guild} on ${g().server} holds <b>${fmt(s.chars)}</b> characters belonging to <b>${fmt(s.mains)}</b> people.</p>
-  <p>I found <b>${s.departed_alts}</b> alts still in the guild whose mains have left (${s.departed_mains} departed mains), <b>${s.unreadable}</b> alts I can't tie to anyone, and <b>${s.inactive_raiders}</b> of ${s.raiders} Raiders with no character online in ${D.inactive_days}+ days.</p></div></div>`;
+  <p>I found <b>${s.departed_alts}</b> alts still in the guild whose mains have left (${s.departed_mains} departed mains), <b>${s.unreadable}</b> alts that can't link to a main, and <b>${s.inactive_raiders}</b> of ${s.raiders} Raiders with no character online in ${D.inactive_days}+ days.</p></div></div>`;
 }
 
 
@@ -344,6 +344,8 @@ function lootHistoryCard(m,gi){if(!isOff(gi))return '';const recs=lootRecords(gi
      ${(r.notes||[]).length?(r.notes||[]).map(n=>`<div style="margin-top:6px;font-size:13px"><span class="tag ok">${esc(n.by)}</span> <span style="color:var(--dim);font-size:12px">${when(n.at)}</span><div style="white-space:pre-wrap;margin-top:3px">${esc(n.text)}</div></div>`).join(''):(r.note?`<div style="margin-top:6px;font-size:13px;white-space:pre-wrap">${esc(r.note)}</div>`:'')}
      ${r.reopened?'':`<form onsubmit="event.preventDefault();lootNote('${encK(r.key)}',this)" style="display:flex;gap:6px;margin-top:6px"><input name="t" placeholder="Add a note…" style="flex:1;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:5px"><button class="more" type="submit" style="margin:0">Add</button></form>`}</div>`).join('')
    :'<div class="hint" style="margin:0">No loot issues have been reviewed for this person.</div>'}</div>`}
+function noLinkWhy(a){const n=(a.note||'').trim();if(!n)return 'marked as an alt, note is blank';const m=n.match(LINK);
+  if(!m)return "note doesn't name a main";return m[1].toLowerCase()===a.n.toLowerCase()?'points to itself':'points to '+m[1]+', which is an alt with no main'}
 function cleanup(){
   const x=g(), s=x.stats;
   // only people still holding the Raider rank count; anyone gone who's already been demoted is fine
@@ -352,9 +354,9 @@ function cleanup(){
   <div class="hint">Each alt's note points to a main who's no longer in ${x.guild}. One decision per main: remove the alts, or re-link them if the person is still around under a new main. A <span class="tag warn">in other chapter</span> tag means that name is in the other guild.</div>
   ${x.departed.map(d=>`<details><summary><b>${esc(d.main)}</b>${d.elsewhere?`<span class="tag warn">in ${otherServer(G)} as ${esc(d.elsewhere[0])}</span>`:''}<span class="c">${d.alts.length} alt${d.alts.length>1?'s':''} · last seen ${esc(d.last||'?')}</span></summary>
   <div class="inner">${d.alts.map(a=>`${esc(a.n)} <span class="tag">${a.l} ${esc(a.c)}</span> last on ${esc(a.s)}`).join('<br>')}</div></details>`).join('')}</div>
-  <div class="card"><h3>2 · Alt notes Glask can't read <span class="n">${s.unreadable} alts</span></h3>
-  <div class="hint">Grouped by the character whose note needs fixing. Fix that one note to "Alt - Mainname" and everything under it links automatically.</div>
-  ${x.unreadable.map(u=>`<details><summary><b>${esc(u.anchor.n)}</b><span class="tag">${u.anchor.l} ${esc(u.anchor.c)}</span> note: <i>${esc(u.anchor.note)||'(blank)'}</i><span class="c">${u.alts.length?'+'+u.alts.length+' alts point here':''}</span></summary>
+  <div class="card"><h3>2 · Alts that can't link to a main <span class="n">${s.unreadable} alts</span></h3>
+  <div class="hint">Glask links an alt to its main from the public note, which needs to name the main ("Alt - Mainname", "Box Mainname" or "Raid box: Mainname"). These are grouped by the character whose note needs fixing: fix that one note and everything under it links automatically. If the character is really a main, take the alt flag off it in game instead.</div>
+  ${x.unreadable.map(u=>`<details><summary><b>${esc(u.anchor.n)}</b><span class="tag">${u.anchor.l} ${esc(u.anchor.c)}</span> note: <i>${esc(u.anchor.note)||'(blank)'}</i> <span class="tag warn">${esc(noLinkWhy(u.anchor))}</span><span class="c">${u.alts.length?'+'+u.alts.length+' alts point here':''}</span></summary>
   ${u.alts.length?`<div class="inner">${u.alts.map(a=>`${esc(a.n)} <span class="tag">${a.l} ${esc(a.c)}</span> “${esc(a.note)}”`).join('<br>')}</div>`:''}</details>`).join('')}</div>
   <div class="card"><h3>3 · Still ranked Raider, inactive ${D.inactive_days}+ days <span class="n">${inact.length}</span></h3>
   <div class="hint">People who still hold the Raider rank but haven't logged in on any character for ${D.inactive_days}+ days: demote or remove them. Anyone gone who's already been moved to another rank isn't listed. Last seen is the most recent login across <b>all</b> of a person's characters, so someone raiding on an alt doesn't show here.</div>
