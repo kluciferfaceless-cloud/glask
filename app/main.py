@@ -828,6 +828,7 @@ async def get_fights(request: Request, server: str = '', id: str = '', date: str
         cls = {p['c'] for p in P.values()}
         out.append(dict(name=f.get('name'), start=f.get('start'), dur=f.get('dur'), P=P,
                         cm={c: v for c, v in (f.get('cm') or {}).items() if c in cls},
+                        tkm=f.get('tkm') or {}, hm=f.get('hm') or 0, sw=f.get('sw') or 0,   # group medians and the raid's swing count name no one
                         deaths=[d for d in f.get('deaths', []) if d[1] in own]))
     return {'fights': out}
 
