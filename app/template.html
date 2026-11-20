@@ -346,8 +346,8 @@ function lootHistoryCard(m,gi){if(!isOff(gi))return '';const recs=lootRecords(gi
    :'<div class="hint" style="margin:0">No loot issues have been reviewed for this person.</div>'}</div>`}
 function cleanup(){
   const x=g(), s=x.stats;
-  const ranks=[...new Set(x.members.map(m=>m.rank))];
-  const inact=x.members.filter(m=>(m.days==null||m.days>D.inactive_days)&&(!inactiveRank||m.rank===inactiveRank)).sort((a,b)=>(b.days??9999)-(a.days??9999));
+  // only people still holding the Raider rank count; anyone gone who's already been demoted is fine
+  const inact=x.members.filter(m=>(m.days==null||m.days>D.inactive_days)&&/^raiders?$/i.test(m.rank)).sort((a,b)=>(b.days??9999)-(a.days??9999));
   return glaskSay()+linksCard()+lootReviewCard()+`<div class="card"><h3>1 · Departed mains with alts still in the guild <span class="n">${s.departed_alts} alts</span></h3>
   <div class="hint">Each alt's note points to a main who's no longer in ${x.guild}. One decision per main: remove the alts, or re-link them if the person is still around under a new main. A <span class="tag warn">in other chapter</span> tag means that name is in the other guild.</div>
   ${x.departed.map(d=>`<details><summary><b>${esc(d.main)}</b>${d.elsewhere?`<span class="tag warn">in ${otherServer(G)} as ${esc(d.elsewhere[0])}</span>`:''}<span class="c">${d.alts.length} alt${d.alts.length>1?'s':''} · last seen ${esc(d.last||'?')}</span></summary>
@@ -356,11 +356,10 @@ function cleanup(){
   <div class="hint">Grouped by the character whose note needs fixing. Fix that one note to "Alt - Mainname" and everything under it links automatically.</div>
   ${x.unreadable.map(u=>`<details><summary><b>${esc(u.anchor.n)}</b><span class="tag">${u.anchor.l} ${esc(u.anchor.c)}</span> note: <i>${esc(u.anchor.note)||'(blank)'}</i><span class="c">${u.alts.length?'+'+u.alts.length+' alts point here':''}</span></summary>
   ${u.alts.length?`<div class="inner">${u.alts.map(a=>`${esc(a.n)} <span class="tag">${a.l} ${esc(a.c)}</span> “${esc(a.note)}”`).join('<br>')}</div>`:''}</details>`).join('')}</div>
-  <div class="card"><h3>3 · Inactive ${D.inactive_days}+ days <span class="n">${inact.length}</span></h3>
-  <div class="hint">Based on the most recent login across <b>all</b> of a person's characters, so someone raiding on an alt doesn't show as inactive.</div>
-  <div class="filters"><select onchange="inactiveRank=this.value;render()"><option value="">All ranks</option>${ranks.map(r=>`<option ${r===inactiveRank?'selected':''}>${esc(r)}</option>`).join('')}</select></div>
-  <table><tr><th>Member</th><th>Rank</th><th>Class</th><th class="num">Chars</th><th class="num">Last seen</th></tr>
-  ${inact.map(m=>`<tr class="click" onclick="profile('${esc(m.main)}')"><td>${esc(m.main)}</td><td>${esc(m.rank)}</td><td>${esc(m.cls)}</td><td class="num">${m.chars.length}</td><td class="num">${ago(m.days)}</td></tr>`).join('')}</table></div>`;
+  <div class="card"><h3>3 · Still ranked Raider, inactive ${D.inactive_days}+ days <span class="n">${inact.length}</span></h3>
+  <div class="hint">People who still hold the Raider rank but haven't logged in on any character for ${D.inactive_days}+ days: demote or remove them. Anyone gone who's already been moved to another rank isn't listed. Last seen is the most recent login across <b>all</b> of a person's characters, so someone raiding on an alt doesn't show here.</div>
+  ${inact.length?`<table><tr><th>Member</th><th>Rank</th><th>Class</th><th class="num">Chars</th><th class="num">Last seen</th></tr>
+  ${inact.map(m=>`<tr class="click" onclick="profile('${esc(m.main)}')"><td>${esc(m.main)}</td><td>${esc(m.rank)}</td><td>${esc(m.cls)}</td><td class="num">${m.chars.length}</td><td class="num">${ago(m.days)}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nobody: every inactive person has already been moved off the Raider rank.</div>'}</div>`;
 }
 
 // collapsible section; open/closed is remembered per browser
