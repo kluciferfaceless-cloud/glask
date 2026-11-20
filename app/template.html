@@ -858,7 +858,10 @@ function logSettings(){return Object.assign({owner:'Klucifer',ownerRL:true},lsGe
 const CHAT_RX=/^(You|\S+) (?:tells?|says?|shouts?|auctions?)(?: to)?(?: the| your)?(?: ([a-z]+)(?::\d+)?)?,\s+'(.*)'$/i, GLASK_RX=/\bglask\b/i;
 const RAID_MIN=10, GM_RX=/^Your guildmate (\S+) has completed (.+) achievement\.$/;
 function nightOf(t){const d=new Date((t-6*3600)*1000);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
-async function parseLogFile(f,gi){
+// Which class each spell or ability belongs to, from EQLogParser's spells.txt class masks (Apache 2.0, data/procs.NOTICE.txt);
+// a log shows what class someone actually played that night (personas), whatever the guild dump says.
+let SPELLCLS=null;async function spellClsLoad(){if(SPELLCLS)return SPELLCLS;try{const r=await fetch('/api/spellclass');SPELLCLS=r.ok?await r.json():{}}catch(e){SPELLCLS={}}return SPELLCLS}
+async function parseLogFile(f,gi){const SC=await spellClsLoad();
   const x=D.guilds[gi],roster={};x.members.forEach(m=>m.chars.forEach(c=>roster[c.n.toLowerCase()]={cls:c.c,main:m.main,alt:c.a,n:c.n}));
   // whose log is this? EverQuest names logs eqlog_<Character>_<server>.txt; otherwise the uploader's own linked character
   const st=logSettings(),fn=(f.name.match(/eqlog_([A-Za-z]+)_/i)||[])[1];const mine=(()=>{const l=(ME.links||{})[x.server];return l&&l.status==='approved'?l.main:null})();
@@ -900,7 +903,7 @@ async function parseLogFile(f,gi){
         else if(isP(tgt)&&k[5]&&!isP(k[5]))fTaken(t,roster[tgt.toLowerCase()].n,k[5],+k[2],norm(k[4]));continue}
       if((k=msg.match(RX.HEAL))){const src=own(k[1]);if(isP(src)){const p=get(src,t),a=+k[3],tot=+(k[4]||k[3]);p.heal+=a;p.over+=tot-a;p.acts.push(t);if(k[5]&&!RX.OWNER.test(k[1]))p.sp[norm(k[5])]=(p.sp[norm(k[5])]||0)+1;
           if(live(t)&&!RX.OWNER.test(k[1])){const n=roster[src.toLowerCase()].n,q=fP(n),ab=fAb(q,k[5]?norm(k[5]):'Heal'),b=fB(t);q.h+=a;q.o+=tot-a;q.acts.add(Math.floor(t));q.htl[b]=(q.htl[b]||0)+a;ab.hn++;ab.hd+=a;ab.o+=tot-a;if(/Crit/.test(k[6]||''))ab.cr++;if(/^(himself|herself|itself|yourself)$/i.test(k[2])||own(k[2])===src)q.sh+=a}}continue}
-      if((k=msg.match(RX.CAST))||((k=msg.match(/^You (?:begin (?:casting|singing)|activate) (.+?)\.$/))&&(k=[k[0],'You',k[1]]))){const who=own(k[1]);if(isP(who)&&N[nightOf(t)]?.P[roster[who.toLowerCase()].n]){get(roster[who.toLowerCase()].n,t).acts.push(t)}if(isP(who)&&live(t)){const n=roster[who.toLowerCase()].n,q=fP(n);fAb(q,norm(k[2])).c++;q.acts.add(Math.floor(t))}continue}
+      if((k=msg.match(RX.CAST))||((k=msg.match(/^You (?:begin (?:casting|singing)|activate) (.+?)\.$/))&&(k=[k[0],'You',k[1]]))){const who=own(k[1]);if(isP(who)){const rn=roster[who.toLowerCase()].n;if(N[nightOf(t)]?.P[rn])get(rn,t).acts.push(t);const sc=SC[norm(k[2])];if(sc){const cc=(night(t).CC??={})[rn]??={};cc[sc]=(cc[sc]||0)+1}}if(isP(who)&&live(t)){const n=roster[who.toLowerCase()].n,q=fP(n);fAb(q,norm(k[2])).c++;q.acts.add(Math.floor(t))}continue}
       if((k=msg.match(RX.SLAIN))){const who=k[1]==='You'?me:k[1];if(isP(who)){get(who,t).deaths++;fDeath(t,roster[who.toLowerCase()].n,k[2])}}}}
   fEnd();
   for(const[c,a,d,t]of calls){const F=FIGHTS.find(F=>t>=F.start-120&&t<=F.last+180&&Object.keys(F.P).some(n=>n.toLowerCase()===c));
@@ -915,7 +918,8 @@ async function parseLogFile(f,gi){
     const scls={};for(const[s,v]of Object.entries(votes)){const e=Object.entries(v).sort((a,b)=>b[1]-a[1]);const tot=e.reduce((a,b)=>a+b[1],0);if(e[0][1]>=3&&e[0][1]/tot>=.6)scls[s]=e[0][0]}
     const players=Object.entries(nt.P).map(([n,p])=>{const ts=p.acts.sort((a,b)=>a-b);let active=0,s0=null,e0=null;for(const u of ts){if(s0==null){s0=e0=u}else if(u-e0<=12)e0=u;else{active+=e0-s0+1;s0=e0=u}}if(s0!=null)active+=e0-s0+1;
       const tally={};for(const[s,k]of Object.entries(p.sp))if(scls[s])tally[scls[s]]=(tally[scls[s]]||0)+k;const te=Object.entries(tally).sort((a,b)=>b[1]-a[1]);const tt=te.reduce((a,b)=>a+b[1],0);
-      const r=roster[n.toLowerCase()];const played=te.length&&te[0][1]>=200&&te[0][1]/tt>=.8?te[0][0]:r.cls;
+      const r=roster[n.toLowerCase()];const ce=Object.entries((nt.CC||{})[n]||{}).sort((a,b)=>b[1]-a[1]),ct=ce.reduce((a,b)=>a+b[1],0);
+      const played=ce.length&&ce[0][1]>=10&&ce[0][1]/ct>=.8?ce[0][0]:te.length&&te[0][1]>=200&&te[0][1]/tt>=.8?te[0][0]:r.cls;
       return {name:r.n,main:r.main,dump_cls:r.cls,played,box:r.alt,dmg:p.dmg,heal:p.heal,overheal:p.over,active:Math.round(active),uptime:Math.min(1,active/upDen),deaths:p.deaths,sdps:Math.round(p.dmg/Math.max(active,1))}});
     const playedOf={};players.forEach(p=>playedOf[p.name]=p.played);
     const fights=FIGHTS.filter(F=>nightOf(F.start)===date).map(F=>packFight(F,roster,playedOf,HEALERS));

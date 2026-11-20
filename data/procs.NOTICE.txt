@@ -2,3 +2,7 @@ data/procs.json is derived from data/procs.txt in EQLogParser by John Kauffman (
 https://github.com/kauffman12/EQLogParser, licensed under the Apache License 2.0
 (see procs.LICENSE-Apache-2.0.txt). Changes: rank suffixes stripped and each proc mapped
 to the source heading it is listed under, as JSON.
+
+data/spellclass.json is derived from data/spells.txt in the same project (same license): each spell or
+ability name (rank suffixes stripped) mapped to the single class in its class mask, kept only when every
+rank of that name belongs to one class.

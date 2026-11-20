@@ -848,6 +848,21 @@ async def get_procs(request: Request):
     return _PROCS
 
 
+_SPELLCLS = None
+
+
+@app.get('/api/spellclass')
+async def get_spellclass(request: Request):
+    """Spell or ability name -> the one class that can use it, from the class masks in EQLogParser's spells.txt (Apache 2.0)."""
+    global _SPELLCLS
+    u = user(request)
+    if not u or not u['access']:
+        raise HTTPException(403, 'Sign in first')
+    if _SPELLCLS is None:
+        _SPELLCLS = json.load(open(Path(__file__).resolve().parent.parent / 'data' / 'spellclass.json'))
+    return _SPELLCLS
+
+
 @app.get('/api/raid-checks')
 async def raid_checks_ep(request: Request, server: str = ''):
     u = user(request)
