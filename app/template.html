@@ -624,7 +624,7 @@ function linesTable(L,p,adv){if(!L.length)return '';const av=p&&p.tk?p.tk.av||{}
   return `<table style="margin-bottom:10px"><tr><th>Line</th><th class="num">You</th><th class="num">Median</th><th class="num">%</th></tr>${L.map(l=>`<tr><td>${esc(l.label)}${l.note&&adv?`<div class="hint" style="margin:2px 0 0">${esc(l.note)}</div>`:''}</td><td class="num">${esc(l.you)}</td><td class="num" style="color:var(--dim)">${esc(l.med)}</td><td class="num" style="font-weight:600;${l.pct!=null&&l.pct<70?'color:var(--ember2)':''}">${l.pct!=null?l.pct+'%':'—'}</td></tr>`).join('')}</table>
    ${adv&&p&&p.tk&&L.some(l=>l.k==='tank')?`<div class="hint" style="margin:-4px 0 10px">Swings at them: ${fmt(p.tk.sw)} · landed ${fmt(p.tk.hit)} · ripostes ${fmt(av.r||0)} · parries ${fmt(av.p||0)} · dodges ${fmt(av.d||0)} · blocks ${fmt(av.b||0)} · absorbed ${fmt(av.a||0)} · misses ${fmt(av.m||0)}</div>`:''}`}
 // Combine several fights into one: per player totals and abilities summed, timelines joined end to end, deaths shifted onto one clock.
-function joinFights(FS){if(FS.length===1)return FS[0];const P={},cm={},deaths=[],rtl=[],tkw={},hw=[];let off=0,dur=0,len=0,sw=0;
+function joinFights(FS){if(FS.length===1)return FS[0];const P={},cm={},deaths=[],rtl=[],tkw={},hw=[];let off=0,dur=0,len=0,sw=0,J_tt=null;
   FS.forEach(f=>{const n=f.rtl?f.rtl.length:Math.max(0,...Object.values(f.P).map(p=>(p.tl||[]).length),...Object.values(f.cm||{}).map(m=>(m.tl||[]).length));
     for(const[name,p]of Object.entries(f.P)){const q=P[name]||(P[name]={c:p.c,b:p.b,d:0,h:0,o:0,a:0,ab:[],tl:new Array(len).fill(0)});
       q.d+=p.d;q.h+=p.h;q.o+=p.o||0;q.a+=p.a;if(p.sh)q.sh=(q.sh||0)+p.sh;if(p.tk){const t=q.tk??={sw:0,hit:0,dt:0,av:{}};t.sw+=p.tk.sw;t.hit+=p.tk.hit;t.dt+=p.tk.dt;for(const[k2,v]of Object.entries(p.tk.av||{}))t.av[k2]=(t.av[k2]||0)+v}for(const a of p.ab){const b=q.ab.find(x=>x[0]===a[0]);if(b){for(let i=1;i<8;i++)b[i]=(b[i]||0)+(a[i]||0)}else q.ab.push(a.slice())}
@@ -634,12 +634,12 @@ function joinFights(FS){if(FS.length===1)return FS[0];const P={},cm={},deaths=[]
       const t=m.tl||[];for(let i=0;i<n;i++)q.tl.push(t[i]||0);q.vs.push([m.v||0,f.dur]);for(const k2 of['dv','hv','sv'])if(m[k2]!=null)(q[k2+'s']??=[]).push([m[k2],f.dur]);q.n=Math.max(q.n,m.n||0)}
     for(const[k2,m]of Object.entries(f.tkm||{}))(tkw[k2]??=[]).push([m,f.dur]);if(f.hm)hw.push([f.hm,f.dur]);sw+=f.sw||0;
     for(const q of Object.values(cm))while(q.tl.length<len+n)q.tl.push(0);
-    f.deaths.forEach(d=>deaths.push([d[0]+off,d[1],d[2],d[3],fname(f.name)]));if(f.rtl)rtl.push(...f.rtl);len+=n;off+=f.dur;dur+=f.dur});
+    f.deaths.forEach(d=>deaths.push([d[0]+off,d[1],d[2],d[3],fname(f.name)]));(f.tt||[]).forEach(x=>(J_tt??=[]).push([x[0],...x.slice(1),fname(f.name),off]));if(f.rtl)rtl.push(...f.rtl);len+=n;off+=f.dur;dur+=f.dur});
   for(const q of Object.values(P)){const heal=HEAL_CLS.has(q.c);q.v=Math.round((heal?q.h:q.d)/Math.max(1,q.a))}
   const wavg=a=>{const w=a.reduce((s,x)=>s+x[1],0)||1;return a.reduce((s,x)=>s+x[0]*x[1],0)/w};
   for(const q of Object.values(cm)){q.v=Math.round(wavg(q.vs));for(const k2 of['dv','hv','sv'])if(q[k2+'s']){q[k2]=Math.round(wavg(q[k2+'s']));delete q[k2+'s']}}
   const tkm={};for(const[k2,a]of Object.entries(tkw))tkm[k2]={ps:Math.round(wavg(a.map(x=>[x[0].ps,x[1]]))),av:wavg(a.map(x=>[x[0].av,x[1]])),n:Math.max(...a.map(x=>x[0].n))};
-  return {name:'Whole night',dur,P,cm,tkm,hm:hw.length?Math.round(wavg(hw)):0,sw,deaths,rtl:rtl.length?rtl:null,dmg:FS.reduce((s,f)=>s+f.dmg,0)}}
+  return {name:'Whole night',tt:J_tt||[],dur,P,cm,tkm,hm:hw.length?Math.round(wavg(hw)):0,sw,deaths,rtl:rtl.length?rtl:null,dmg:FS.reduce((s,f)=>s+f.dmg,0)}}
 function fightPills(FS,cur,setter){if(!Array.isArray(FS)||!FS.length)return '';const tot=FS.reduce((s,f)=>s+f.dur,0);
   return [[-1,'Whole night · '+mmss(tot)]].concat(FS.map((f,i)=>[i,fname(f.name)+' · '+mmss(f.dur)])).map(([i,l])=>`<button class="more" style="margin:0;border-radius:999px;${i===cur?'background:var(--ember);color:#fff;border-color:var(--ember)':''}" onclick="${setter}=${i};perfOpen=null;render()">${esc(l)}</button>`).join('')}
 // Ability list: Normal = top 5 with casts vs class median; Advanced = everything (hits, damage, share, crit) via abTable
@@ -668,6 +668,10 @@ function nightRows(rows,ctx){// rows: {n,cls,pct,med,metric,deaths,box,tags,tot,
       <td class="num" style="color:var(--ember2)">${r.deaths?r.deaths+(r.deaths>1?' deaths':' death'):''}</td></tr>
       ${open?`<tr><td colspan="${perfAdv?8:6}" style="background:var(--panel);padding:12px 14px 16px">${ctx(r)}</td></tr>`:''}`}).join('')}</table></div>
    <div class="hint" style="margin:10px 0 0">Each person is ranked on the job they did that fight: tanks (anyone who took 5%+ of the swings at the raid) on damage taken per swing, Warriors vs Warriors and Paladins + Shadow Knights together as Knights; Clerics, Druids and Shamans on healing vs their class; everyone else on damage per active second vs their class. Expand a row for their other lines: Paladin healing vs Paladins and vs all healers, Druid and Shaman damage, Shadow Knight self-healing vs Shadow Knights. Active means any damage, heal, cast or ability, with gaps under 12 seconds counted. Boxes and anyone active under 30% of the fight aren't in the medians. Needs a look: under 70% of class (tanks excluded), more deaths than the raid average (never for one death), or active less than half the time. Numbers are what one log saw; the raid leader's unfiltered log gives the fullest picture.</div></div>`}
+function tattleCard(F,FS){const T=(F&&F.tt)||[];if(!F)return '';const by={};T.forEach(x=>(by[x[1]]??=[]).push(x));
+  return `<div class="card" style="border-color:${T.length?'#5a2a20':'var(--line)'}"><h3>Tattle tale · failed mechanics <span class="n">${T.length}</span></h3>
+   <div class="hint">Found automatically from the rules Leadership set for each event (${TATTLE.map(r=>esc(r.event)).join(', ')}). Members see only their own.</div>
+   ${T.length?`<table><tr><th style="white-space:nowrap">Fight · time</th><th style="width:150px">Who</th><th>Mechanic</th><th>What the log shows</th></tr>${T.slice().sort((a,b)=>((a[7]||0)+a[0])-((b[7]||0)+b[0])).map(x=>`<tr class="click" onclick="perfOpen='${esc(x[1])}';render()"><td style="color:var(--dim);white-space:nowrap">${esc(x[6]||fname(F.name))} · ${mmss(x[0])}</td><td><b>${esc(x[1])}</b>${by[x[1]].length>1?` <span class="tag red">×${by[x[1]].length}</span>`:''}</td><td>${esc(x[3])}</td><td style="color:var(--mute)">${esc(x[4])}${x[2]==='hazuri-ve'?` · ${x[5]} others caught in it`:''}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nobody failed a tracked mechanic here.</div>'}</div>`}
 function needsLook(items,pips){return `<div class="card" style="border-color:${items.length?'#5a2a20':'var(--line)'}"><h3>Needs a look <span class="n">${items.length}</span></h3>
    ${items.length?`<table>${items.map(x=>`<tr class="click" onclick="perfOpen='${esc(x.n)}';render()"><td style="width:150px"><b>${esc(x.n)}</b></td><td style="width:110px;color:var(--dim)">${esc(x.cls)}</td><td>${x.tags.map(t=>`<span class="tag red">${esc(t)}</span>`).join(' ')}${x.flags||''}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nobody stands out.</div>'}
    ${pips.length?`<div class="hint" style="margin:10px 0 0">On a Performance Improvement Plan: ${pips.map(([m])=>`<a href="#" style="color:var(--ember2)" onclick="openPip(G,'${esc(m.main)}');return false">${esc(m.main)}</a>`).join(', ')}</div>`:''}</div>`}
@@ -685,7 +689,7 @@ function raidNight(RA,x){const r=RA[raidIdx];const FS=fightsFor(G,r);const have=
       tot:H?p.h:p.d,ps:Math.round((H?p.h:p.d)/Math.max(1,p.a)),act:Math.round(100*p.a/F.dur),p:rp(p.n)}});
     items=rows.filter(q=>!q.box&&!(q.p&&q.p.rl)).map(q=>{const t=[],m=q.L.find(l=>l.k===q.mk);
       if(m&&m.pct!=null&&m.pct<70&&!(q.mk==='dmg'&&TANKS.has(q.cls)))t.push(m.pct+'% '+(q.mk==='tank'?'tanking':q.mk==='dmg'?'of class':'healing'));
-      if(q.deaths>=2&&q.deaths>avgD)t.push(q.deaths+' deaths');if(q.mk==='tank'&&q.deaths)t.push('died while tanking');if(q.act<50)t.push('active '+q.act+'%');return {n:q.n,cls:q.cls,tags:t,pct:q.pct}})
+      if(q.deaths>=2&&q.deaths>avgD)t.push(q.deaths+' deaths');if(q.mk==='tank'&&q.deaths)t.push('died while tanking');{const nf=(F.tt||[]).filter(x=>x[1]===q.n).length;if(nf)t.push(nf+' failed mechanic'+(nf>1?'s':''))}if(q.act<50)t.push('active '+q.act+'%');return {n:q.n,cls:q.cls,tags:t,pct:q.pct}})
       .filter(q=>q.tags.length).sort((a,b)=>b.tags.length-a.tags.length||(a.pct??0)-(b.pct??0))}
   const ctx=row=>{const who=mainOf(row.n)||row.n;const flags=row.p?perfFlags(Object.assign({},row.p,{uptime:1,deathsHigh:false,deaths:0})):'';
     const head=`<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:13px;margin-bottom:8px">${row.act!=null?`<span>Active <b>${row.act}%</b></span>`:''}<span>Deaths <b>${row.deaths}</b></span>${flags}<a href="#" style="color:var(--ember2)" onclick="profile('${esc(who)}');return false">Open ${esc(who)}'s profile</a></div>`;
@@ -693,7 +697,7 @@ function raidNight(RA,x){const r=RA[raidIdx];const FS=fightsFor(G,r);const have=
     const p=F.P[row.n];return playerDetail(F,row.n,p&&F.cm[p.c]?F.cm[p.c].tl:null,p&&F.cm[p.c]?F.cm[p.c].ab:null,head+linesTable(row.L||[],p,perfAdv))};
   const chart=F?`<div class="card"><h3>Raid damage over time <span style="color:var(--dim);font-size:12px;text-transform:none;letter-spacing:0">${esc(nightFight<0?'Whole night ('+FS.length+' fights)':fname(F.name))} · ${kk(F.dmg)} damage · ${F.deaths.length} deaths</span></h3>${fightChart([{v:F.rtl,color:'var(--ember2)',fill:1}],F.dur,F.deaths.map(d=>({t:d[0]})),110)}</div>`:'';
   return `<div class="filters" style="align-items:center">${have?fightPills(FS,nightFight,'nightFight'):FS==='loading'?'<span class="hint" style="margin:0">Loading fights…</span>':''}</div>
-   ${chart}${needsLook(items,pips)}${nightRows(rows,ctx)}`}
+   ${chart}${needsLook(items,pips)}${tattleCard(F,FS)}${nightRows(rows,ctx)}`}
 // Member: one card per character, same Normal / Advanced switch, only their own characters plus class medians
 function memberNightCard(m,gi){const own=new Set(m.chars.map(c=>c.n));const RA=allRaids(gi).filter(r=>r.uploaded&&r.players.some(p=>own.has(p.name)));
   if(!RA.length)return '';if(meFightRaid>=RA.length)meFightRaid=0;const r=RA[meFightRaid];const FS=fightsFor(gi,r);
@@ -712,6 +716,7 @@ function memberNightCard(m,gi){const own=new Set(m.chars.map(c=>c.n));const RA=a
    <div class="facts"><div><b>${mmss(me.a)}</b><span>active of ${mmss(F.dur)}</span></div><div><b>${myD.length}</b><span>deaths</span></div>${perfAdv?`<div><b>${kk(H?me.h:me.d)}</b><span>total ${H?'healing':'damage'}</span></div><div><b>${kk(me.v)}/s</b><span>you · ${esc(me.c)} median ${kk(cm.v||0)}/s</span></div>`:''}</div>
    ${perfAdv?`<div style="margin-top:10px">${fightChart([{v:me.tl,color:'#7fb4e6'}].concat(cm.tl?[{v:cm.tl,color:'#b5aea3',dash:1}]:[]),F.dur,myD.map(d=>({t:d[0],strong:1})),110)}<div class="hint" style="margin:4px 0 0">Blue: you · dashed: ${esc(me.c)} median · red: your deaths</div></div>`:''}
    <h3 style="margin-top:14px">${perfAdv?`All your ${H?'heals':'abilities'}`:`Your top ${H?'heals':'abilities'}`}</h3>${perfAdv?abTable(me,cm.ab,H,true):abShort(me,cm.ab,H)}
+   ${(()=>{const T=(F.tt||[]).filter(x=>x[1]===me.n);return T.length?`<h3 style="margin-top:14px">Mechanics you failed</h3><table>${T.map(x=>`<tr><td style=\"color:var(--dim);white-space:nowrap\">${esc(x[6]||fname(F.name))} · ${mmss(x[0])}</td><td>${esc(x[3])}</td><td style="color:var(--mute)">${esc(x[4])}</td></tr>`).join('')}</table>`:''})()}
    ${myD.length?`<h3 style="margin-top:14px">What killed you</h3>${myD.map(d=>`<div style="background:var(--panel2);border-radius:8px;padding:10px 12px;margin-top:8px">${d[4]?`<div class="hint" style="margin:0 0 2px">${esc(d[4])}</div>`:''}${recapHtml(d)}</div>`).join('')}`:''}</div>`}
 function perf(){
   const x=g();
@@ -856,6 +861,17 @@ function logSettings(){return Object.assign({owner:'Klucifer',ownerRL:true},lsGe
 // Reads any eqlog (one raid or weeks of play): splits combat into raid nights (6 AM cutoff, like the loot sheets), keeps nights
 // where at least RAID_MIN guild characters fought, and collects "Your guildmate X has completed Y achievement." lines.
 const CHAT_RX=/^(You|\S+) (?:tells?|says?|shouts?|auctions?)(?: to)?(?: the| your)?(?: ([a-z]+)(?::\d+)?)?,\s+'(.*)'$/i, GLASK_RX=/\bglask\b/i;
+// ---- Tattle tale: failed mechanics, from rules Leadership describes (one entry per mechanic) ----
+// emote-runaway: an emote names who must run; ability lands hitWin seconds later. If it also hit people who weren't named,
+// any named person whose own actions are seen in nearWin (seconds after the emote) was back with the raid: failed.
+// callout-charge: an emote names who a mob will charge; the charge is cast castWin seconds later. A called non-tank whose
+// charge also hit other non-tanks failed (they didn't get to the tanks).
+const TATTLE=[{id:'hazuri-ve',event:'Brood Architect Hazuri',label:"Venomous Explosion: didn't stay away",kind:'emote-runaway',pre:'The power of the skyguardian',
+  emote:/^The power of the skyguardian enters (.+)\.$/,ability:'Venomous Explosion',hitWin:[25,40],nearWin:[25,31]},
+ {id:'usira-charge',event:'General Usira',label:'Guardian Charge: ran it through the raid',kind:'callout-charge',pre:'a gilded guardian growls',
+  emote:/^a gilded guardian growls, looking away from its target towards (\w+)\.?$/i,cast:/^an? gilded guardian begins casting Guardian Charge\.$/i,ability:'Guardian Charge',castWin:[8,12],hitWin:[0,4]}];
+const TANK_CLS=new Set(['Warrior','Paladin','Shadow Knight']);
+const TT_ABIL=new Set(TATTLE.map(r=>r.ability));
 const RAID_MIN=10, GM_RX=/^Your guildmate (\S+) has completed (.+) achievement\.$/;
 function nightOf(t){const d=new Date((t-6*3600)*1000);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 // Which class each spell or ability belongs to, from EQLogParser's spells.txt class masks (Apache 2.0, data/procs.NOTICE.txt);
@@ -871,7 +887,7 @@ async function parseLogFile(f,gi){const SC=await spellClsLoad();
   const own=a=>{if(/^(you|your)$/i.test(a))return me;const m=a.match(RX.OWNER);if(m)return /^your$/i.test(m[1])?me:m[1];return a};
   const N={};const night=t=>{const k=nightOf(t);return N[k]||(N[k]={P:{},first:null,last:null})};
   const get=(n,t)=>{const nt=night(t);return nt.P[n]||(nt.P[n]={dmg:0,heal:0,over:0,acts:[],deaths:0,sp:{}})};
-  const hit=t=>{const nt=night(t);nt.first??=t;nt.last=t};const norm=s=>s.trim().replace(RX.RANK,'');
+  const hit=t=>{const nt=night(t);nt.first??=t;nt.last=t};const seenAt=(n,t)=>{((night(t).SEEN??={})[n]??=[]).push(t)};const norm=s=>s.trim().replace(RX.RANK,'');
   // ---- fights: combat with guild members, ending after FG seconds with no guild damage ----
   const HEALERS=new Set(['Cleric','Shaman','Druid']);const FG=20,FIGHTS=[];let F=null;const ring={};
   const fEnd=()=>{if(!F)return;const dur=F.last-F.start;const dealers=Object.values(F.P).filter(p=>p.d>0).length;if(dur>=20&&dealers>=RAID_MIN)FIGHTS.push(F);F=null};
@@ -886,24 +902,26 @@ async function parseLogFile(f,gi){const SC=await spellClsLoad();
   // Vanquisher achievements share names with their group missions, so a call-out for one only counts if it was heard during a raid fight the guildmate was in
   const VQ=new Set();(x.vanq||[]).forEach(([,evs])=>evs.forEach(e=>{VQ.add(e.name);(e.subs||[]).forEach(s=>VQ.add(s.name))}));const calls=[];
   const notes=[];   // chat lines that mention Glask (shown to Leadership and Raid Leaders)
+  const TTW=[],TTH=[],TTC=[];   // tattle: emote waves [t, rule, names], hits [t, who, ability], mob casts [t, rule]
   const seen={};let carry='';const reader=f.stream().pipeThrough(new TextDecoderStream('latin1')).getReader();
   while(true){const{value,done}=await reader.read();if(done)break;const lines=(carry+value).split('\n');carry=lines.pop();
     for(const raw of lines){const m=raw.replace(/\r$/,'').match(RX.TS);if(!m)continue;const msg=m[7];
       const t=new Date(+m[6],MONI[m[1]],+m[2],+m[3],+m[4],+m[5]).getTime()/1000;let k;
+      {let hit2=false;for(const ru of TATTLE){if(msg.slice(0,ru.pre.length).toLowerCase()===ru.pre.toLowerCase()){const e=msg.match(ru.emote);if(e){TTW.push([t,ru,e[1].split(/,\s*(?:and\s+)?|\s+and\s+/).map(z=>/^you$/i.test(z.trim())?me:z.trim()).filter(Boolean)]);hit2=true}}if(ru.cast&&ru.cast.test(msg)){TTC.push([t,ru]);hit2=true}}if(hit2)continue}
       if(GLASK_RX.test(msg)&&(k=msg.match(CHAT_RX))){notes.push({t:Math.round(t),who:k[1]==='You'?me:k[1],ch:(k[2]||'say').toLowerCase(),text:k[3]});continue}
       if(msg.startsWith('Your guildmate ')){if((k=msg.match(GM_RX))){const c=k[1].toLowerCase(),d=new Date(t*1000).toISOString().slice(0,10);if(VQ.has(k[2])){calls.push([c,k[2],d,t]);continue}(seen[c]??={});if(!seen[c][k[2]]||d<seen[c][k[2]])seen[c][k[2]]=d}continue}
-      if((k=msg.match(RX.MELEE))){const src=own(k[1]),tgt=own(k[2]);if(isP(src)&&!isP(tgt)&&!RX.OWNER.test(tgt)){const p=get(src,t);p.dmg+=+k[3];p.acts.push(t);if(k[5]&&!RX.OWNER.test(k[1]))p.sp[norm(k[5])]=(p.sp[norm(k[5])]||0)+1;hit(t);
+      if((k=msg.match(RX.MELEE))){const src=own(k[1]),tgt=own(k[2]);if(isP(src)&&!isP(tgt)&&!RX.OWNER.test(tgt)){const p=get(src,t);p.dmg+=+k[3];p.acts.push(t);if(!RX.OWNER.test(k[1]))seenAt(roster[src.toLowerCase()].n,t);if(k[5]&&!RX.OWNER.test(k[1]))p.sp[norm(k[5])]=(p.sp[norm(k[5])]||0)+1;hit(t);
           if(!RX.OWNER.test(k[1]))fDmg(t,roster[src.toLowerCase()].n,tgt,+k[3],k[5]?norm(k[5]):'Melee',/Crit/.test(k[6]||''))}
-        else if(isP(tgt)&&!isP(src)){const n=roster[tgt.toLowerCase()].n;fTaken(t,n,k[1],+k[3],k[5]?norm(k[5]):'Melee');if(live(t)&&!k[5]&&!RX.OWNER.test(k[2])){const q=fP(n);q.sw++;q.hit++;q.dt+=+k[3];F.sw=(F.sw||0)+1}}continue}
+        else if(isP(tgt)&&!isP(src)){const n=roster[tgt.toLowerCase()].n;fTaken(t,n,k[1],+k[3],k[5]?norm(k[5]):'Melee');if(k[5]&&TT_ABIL.has(norm(k[5])))TTH.push([t,n,norm(k[5])]);if(live(t)&&!k[5]&&!RX.OWNER.test(k[2])){const q=fP(n);q.sw++;q.hit++;q.dt+=+k[3];F.sw=(F.sw||0)+1}}continue}
       if((k=msg.match(RX.MISS))){const src=own(k[1]),tgt=own(k[2]);if(isP(tgt)&&!isP(src)&&!RX.OWNER.test(k[1])&&!RX.OWNER.test(k[2])&&live(t)){const q=fP(roster[tgt.toLowerCase()].n),w=k[3];
           const how=/ripost/i.test(w)?'r':/parr/i.test(w)?'p':/dodge/i.test(w)?'d':/block/i.test(w)?'b':/absorb/i.test(w)?'a':'m';q.sw++;q.av[how]=(q.av[how]||0)+1;F.sw=(F.sw||0)+1}continue}
-      if((k=msg.match(RX.YDOT))){if(isP(me))fTaken(t,roster[me.toLowerCase()].n,k[3]||'?',+k[1],norm(k[2]));continue}
+      if((k=msg.match(RX.YDOT))){if(isP(me)){fTaken(t,roster[me.toLowerCase()].n,k[3]||'?',+k[1],norm(k[2]));if(TT_ABIL.has(norm(k[2])))TTH.push([t,roster[me.toLowerCase()].n,norm(k[2])])}continue}
       if((k=msg.match(RX.DOT))){const tgt=k[1];const src=k[3]?me:own(k[5]||'You');if(isP(src)&&!isP(tgt)&&!RX.OWNER.test(tgt)){const p=get(src,t);p.dmg+=+k[2];p.acts.push(t);if(!RX.OWNER.test(k[5]||''))p.sp[norm(k[4])]=(p.sp[norm(k[4])]||0)+1;hit(t);
           if(!RX.OWNER.test(k[5]||''))fDmg(t,roster[src.toLowerCase()].n,tgt,+k[2],norm(k[4]),/Crit/.test(k[6]||''))}
-        else if(isP(tgt)&&k[5]&&!isP(k[5]))fTaken(t,roster[tgt.toLowerCase()].n,k[5],+k[2],norm(k[4]));continue}
-      if((k=msg.match(RX.HEAL))){const src=own(k[1]);if(isP(src)){const p=get(src,t),a=+k[3],tot=+(k[4]||k[3]);p.heal+=a;p.over+=tot-a;p.acts.push(t);if(k[5]&&!RX.OWNER.test(k[1]))p.sp[norm(k[5])]=(p.sp[norm(k[5])]||0)+1;
+        else if(isP(tgt)&&k[5]&&!isP(k[5])){fTaken(t,roster[tgt.toLowerCase()].n,k[5],+k[2],norm(k[4]));if(TT_ABIL.has(norm(k[4])))TTH.push([t,roster[tgt.toLowerCase()].n,norm(k[4])])}continue}
+      if((k=msg.match(RX.HEAL))){const src=own(k[1]);if(isP(src)){if(!RX.OWNER.test(k[1]))seenAt(roster[src.toLowerCase()].n,t);const p=get(src,t),a=+k[3],tot=+(k[4]||k[3]);p.heal+=a;p.over+=tot-a;p.acts.push(t);if(k[5]&&!RX.OWNER.test(k[1]))p.sp[norm(k[5])]=(p.sp[norm(k[5])]||0)+1;
           if(live(t)&&!RX.OWNER.test(k[1])){const n=roster[src.toLowerCase()].n,q=fP(n),ab=fAb(q,k[5]?norm(k[5]):'Heal'),b=fB(t);q.h+=a;q.o+=tot-a;q.acts.add(Math.floor(t));q.htl[b]=(q.htl[b]||0)+a;ab.hn++;ab.hd+=a;ab.o+=tot-a;if(/Crit/.test(k[6]||''))ab.cr++;if(/^(himself|herself|itself|yourself)$/i.test(k[2])||own(k[2])===src)q.sh+=a}}continue}
-      if((k=msg.match(RX.CAST))||((k=msg.match(/^You (?:begin (?:casting|singing)|activate) (.+?)\.$/))&&(k=[k[0],'You',k[1]]))){const who=own(k[1]);if(isP(who)){const rn=roster[who.toLowerCase()].n;if(N[nightOf(t)]?.P[rn])get(rn,t).acts.push(t);const sc=SC[norm(k[2])];if(sc){const cc=(night(t).CC??={})[rn]??={};cc[sc]=(cc[sc]||0)+1}}if(isP(who)&&live(t)){const n=roster[who.toLowerCase()].n,q=fP(n);fAb(q,norm(k[2])).c++;q.acts.add(Math.floor(t))}continue}
+      if((k=msg.match(RX.CAST))||((k=msg.match(/^You (?:begin (?:casting|singing)|activate) (.+?)\.$/))&&(k=[k[0],'You',k[1]]))){const who=own(k[1]);if(isP(who)){const rn=roster[who.toLowerCase()].n;seenAt(rn,t);if(N[nightOf(t)]?.P[rn])get(rn,t).acts.push(t);const sc=SC[norm(k[2])];if(sc){const cc=(night(t).CC??={})[rn]??={};cc[sc]=(cc[sc]||0)+1}}if(isP(who)&&live(t)){const n=roster[who.toLowerCase()].n,q=fP(n);fAb(q,norm(k[2])).c++;q.acts.add(Math.floor(t))}continue}
       if((k=msg.match(RX.SLAIN))){const who=k[1]==='You'?me:k[1];if(isP(who)){get(who,t).deaths++;fDeath(t,roster[who.toLowerCase()].n,k[2])}}}}
   fEnd();
   for(const[c,a,d,t]of calls){const F=FIGHTS.find(F=>t>=F.start-120&&t<=F.last+180&&Object.keys(F.P).some(n=>n.toLowerCase()===c));
@@ -923,6 +941,22 @@ async function parseLogFile(f,gi){const SC=await spellClsLoad();
       return {name:r.n,main:r.main,dump_cls:r.cls,played,box:r.alt,dmg:p.dmg,heal:p.heal,overheal:p.over,active:Math.round(active),uptime:Math.min(1,active/upDen),deaths:p.deaths,sdps:Math.round(p.dmg/Math.max(active,1))}});
     const playedOf={};players.forEach(p=>playedOf[p.name]=p.played);
     const fights=FIGHTS.filter(F=>nightOf(F.start)===date).map(F=>packFight(F,roster,playedOf,HEALERS));
+    // tattle tale: each wave of a rule, judged from that night's hits and everyone's own actions
+    const isTank=n=>TANK_CLS.has(playedOf[n]||(roster[n.toLowerCase()]||{}).cls);
+    for(const[T,ru,names]of TTW.filter(w=>nightOf(w[0])===date&&w[1].kind==='callout-charge')){
+      const n=roster[(names[0]||'').toLowerCase()]?roster[names[0].toLowerCase()].n:null;if(!n||isTank(n))continue;
+      const c=TTC.find(x=>x[1]===ru&&x[0]-T>=ru.castWin[0]&&x[0]-T<=ru.castWin[1]);if(!c)continue;
+      const hit=[...new Set(TTH.filter(h=>h[2]===ru.ability&&h[0]-c[0]>=ru.hitWin[0]&&h[0]-c[0]<=ru.hitWin[1]).map(h=>h[1]))];
+      const others=hit.filter(z=>z!==n&&!isTank(z));if(!others.length)continue;
+      const F=fights.find(F=>T>=F.start-5&&T<=F.start+F.dur+5);if(!F)continue;
+      (F.tt??=[]).push([Math.round(T-F.start),n,ru.id,ru.label,`charge hit ${others.length} non-tank${others.length>1?'s':''}`,others.length])}
+    for(const[T,ru,names]of TTW.filter(w=>nightOf(w[0])===date&&w[1].kind==='emote-runaway')){
+      const hitBy=new Set(TTH.filter(h=>h[2]===ru.ability&&h[0]-T>=ru.hitWin[0]&&h[0]-T<=ru.hitWin[1]).map(h=>h[1]));
+      const named=names.map(z=>roster[z.toLowerCase()]?roster[z.toLowerCase()].n:null).filter(Boolean),others=[...hitBy].filter(z=>!named.includes(z)).length;if(!others)continue;
+      const fi=fights.findIndex(F=>T>=F.start-5&&T<=F.start+F.dur+5);if(fi<0)continue;const F=fights[fi];
+      for(const n of named){const a=((nt.SEEN||{})[n]||[]).map(x=>Math.round(x-T)).filter(x=>x>=-3&&x<=ru.nearWin[1]);
+        if(!a.some(x=>x>=ru.nearWin[0]))continue;const set=new Set(a);let left=null,back=null;for(let x=1;x<=ru.nearWin[1];x++){if(left==null&&[0,1,2,3,4].every(d=>!set.has(x+d)))left=x;else if(left!=null&&set.has(x)){back=x;break}}
+        (F.tt??=[]).push([Math.round(T-F.start),n,ru.id,ru.label,left!=null&&back!=null?`left about +${left}s, back +${back}s (blew up at +${ru.hitWin[0]+5}s)`:'never left',others])}}
     const glask_notes=notes.filter(n=>nightOf(n.t)===date);
     raids.push({id:'Raid night',date,seconds:Math.round(fight),raid_leader:meIsRL?ownerMain:null,players,uploaded:true,source:f.name,log_owner:me,fights,glask_notes})}
   return {raids,seen,skipped}}
