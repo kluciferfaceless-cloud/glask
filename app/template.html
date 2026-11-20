@@ -870,8 +870,19 @@ const TATTLE=[{id:'hazuri-ve',event:'Brood Architect Hazuri',label:"Venomous Exp
   emote:/^The power of the skyguardian enters (.+)\.$/,ability:'Venomous Explosion',hitWin:[25,40],nearWin:[25,31]},
  {id:'usira-charge',event:'General Usira',label:'Guardian Charge: ran it through the raid',kind:'callout-charge',pre:'a gilded guardian growls',
   emote:/^a gilded guardian growls, looking away from its target towards (\w+)\.?$/i,cast:/^an? gilded guardian begins casting Guardian Charge\.$/i,ability:'Guardian Charge',castWin:[8,12],hitWin:[0,4]}];
+// emote-dot-clear: an emote names who gets a DoT they must clear (Dock of the May mites, at the boulder). Still taking it
+// `limit` seconds after the emote = failed; killed by `softKiller` while clearing = a lighter failure.
+// emote-carrier-blast: an emote names carriers who must take an explosion away from the raid. More than `max` people hit:
+// every carrier seen in the blast failed. A carrier who died to `killer` in the window, or anyone hit by 2+ explosions, failed.
+TATTLE.push({id:'dock-mites',event:'Immature Transport',label:"Mites: didn't clear in 60s",softLabel:'Mites: killed by the boulder (lighter)',kind:'emote-dot-clear',pre:'The immature transport sends tiny mites',
+  emote:/^The immature transport sends tiny mites to cling to (.+)\.$/i,ability:'Clinging Mites',start:12,gap:8,limit:60,softKiller:'a crushing ball'},
+ {id:'dock-energy',event:'Immature Transport',label:'Embedded energy: explosion',kind:'emote-carrier-blast',pre:'The Chief Mechanic focuses energy',
+  emote:/^The Chief Mechanic focuses energy on (.+)\.$/i,ability:'Embedded Explosion',hitWin:[12,30],max:4,killer:'Chief Mechanic'});
 const TANK_CLS=new Set(['Warrior','Paladin','Shadow Knight']);
 const TT_ABIL=new Set(TATTLE.map(r=>r.ability));
+// "X has taken N damage from <ability> by <mob>.", "X has taken N damage from <ability> by .", "You have taken N damage from  by <ability>."
+const TT_RX=new RegExp('^(\\S+) ha(?:s|ve) taken \\d+ damage (?:from|by) .*?('+[...TT_ABIL].map(a=>a.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|')+')');
+
 const RAID_MIN=10, GM_RX=/^Your guildmate (\S+) has completed (.+) achievement\.$/;
 function nightOf(t){const d=new Date((t-6*3600)*1000);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 // Which class each spell or ability belongs to, from EQLogParser's spells.txt class masks (Apache 2.0, data/procs.NOTICE.txt);
@@ -902,12 +913,13 @@ async function parseLogFile(f,gi){const SC=await spellClsLoad();
   // Vanquisher achievements share names with their group missions, so a call-out for one only counts if it was heard during a raid fight the guildmate was in
   const VQ=new Set();(x.vanq||[]).forEach(([,evs])=>evs.forEach(e=>{VQ.add(e.name);(e.subs||[]).forEach(s=>VQ.add(s.name))}));const calls=[];
   const notes=[];   // chat lines that mention Glask (shown to Leadership and Raid Leaders)
-  const TTW=[],TTH=[],TTC=[];   // tattle: emote waves [t, rule, names], hits [t, who, ability], mob casts [t, rule]
+  const TTW=[],TTH=[],TTC=[],TTD=[];   // tattle: emote waves [t, rule, names], hits [t, who, ability], mob casts [t, rule]
   const seen={};let carry='';const reader=f.stream().pipeThrough(new TextDecoderStream('latin1')).getReader();
   while(true){const{value,done}=await reader.read();if(done)break;const lines=(carry+value).split('\n');carry=lines.pop();
     for(const raw of lines){const m=raw.replace(/\r$/,'').match(RX.TS);if(!m)continue;const msg=m[7];
       const t=new Date(+m[6],MONI[m[1]],+m[2],+m[3],+m[4],+m[5]).getTime()/1000;let k;
       {let hit2=false;for(const ru of TATTLE){if(msg.slice(0,ru.pre.length).toLowerCase()===ru.pre.toLowerCase()){const e=msg.match(ru.emote);if(e){TTW.push([t,ru,e[1].split(/,\s*(?:and\s+)?|\s+and\s+/).map(z=>/^you$/i.test(z.trim())?me:z.trim()).filter(Boolean)]);hit2=true}}if(ru.cast&&ru.cast.test(msg)){TTC.push([t,ru]);hit2=true}}if(hit2)continue}
+      if(msg.includes(' taken ')&&(k=msg.match(TT_RX))){const w=own(k[1]);if(isP(w)&&!RX.OWNER.test(k[1]))TTH.push([t,roster[w.toLowerCase()].n,k[2]])}
       if(GLASK_RX.test(msg)&&(k=msg.match(CHAT_RX))){notes.push({t:Math.round(t),who:k[1]==='You'?me:k[1],ch:(k[2]||'say').toLowerCase(),text:k[3]});continue}
       if(msg.startsWith('Your guildmate ')){if((k=msg.match(GM_RX))){const c=k[1].toLowerCase(),d=new Date(t*1000).toISOString().slice(0,10);if(VQ.has(k[2])){calls.push([c,k[2],d,t]);continue}(seen[c]??={});if(!seen[c][k[2]]||d<seen[c][k[2]])seen[c][k[2]]=d}continue}
       if((k=msg.match(RX.MELEE))){const src=own(k[1]),tgt=own(k[2]);if(isP(src)&&!isP(tgt)&&!RX.OWNER.test(tgt)){const p=get(src,t);p.dmg+=+k[3];p.acts.push(t);if(!RX.OWNER.test(k[1]))seenAt(roster[src.toLowerCase()].n,t);if(k[5]&&!RX.OWNER.test(k[1]))p.sp[norm(k[5])]=(p.sp[norm(k[5])]||0)+1;hit(t);
@@ -915,14 +927,14 @@ async function parseLogFile(f,gi){const SC=await spellClsLoad();
         else if(isP(tgt)&&!isP(src)){const n=roster[tgt.toLowerCase()].n;fTaken(t,n,k[1],+k[3],k[5]?norm(k[5]):'Melee');if(k[5]&&TT_ABIL.has(norm(k[5])))TTH.push([t,n,norm(k[5])]);if(live(t)&&!k[5]&&!RX.OWNER.test(k[2])){const q=fP(n);q.sw++;q.hit++;q.dt+=+k[3];F.sw=(F.sw||0)+1}}continue}
       if((k=msg.match(RX.MISS))){const src=own(k[1]),tgt=own(k[2]);if(isP(tgt)&&!isP(src)&&!RX.OWNER.test(k[1])&&!RX.OWNER.test(k[2])&&live(t)){const q=fP(roster[tgt.toLowerCase()].n),w=k[3];
           const how=/ripost/i.test(w)?'r':/parr/i.test(w)?'p':/dodge/i.test(w)?'d':/block/i.test(w)?'b':/absorb/i.test(w)?'a':'m';q.sw++;q.av[how]=(q.av[how]||0)+1;F.sw=(F.sw||0)+1}continue}
-      if((k=msg.match(RX.YDOT))){if(isP(me)){fTaken(t,roster[me.toLowerCase()].n,k[3]||'?',+k[1],norm(k[2]));if(TT_ABIL.has(norm(k[2])))TTH.push([t,roster[me.toLowerCase()].n,norm(k[2])])}continue}
+      if((k=msg.match(RX.YDOT))){if(isP(me))fTaken(t,roster[me.toLowerCase()].n,k[3]||'?',+k[1],norm(k[2]));continue}
       if((k=msg.match(RX.DOT))){const tgt=k[1];const src=k[3]?me:own(k[5]||'You');if(isP(src)&&!isP(tgt)&&!RX.OWNER.test(tgt)){const p=get(src,t);p.dmg+=+k[2];p.acts.push(t);if(!RX.OWNER.test(k[5]||''))p.sp[norm(k[4])]=(p.sp[norm(k[4])]||0)+1;hit(t);
           if(!RX.OWNER.test(k[5]||''))fDmg(t,roster[src.toLowerCase()].n,tgt,+k[2],norm(k[4]),/Crit/.test(k[6]||''))}
-        else if(isP(tgt)&&k[5]&&!isP(k[5])){fTaken(t,roster[tgt.toLowerCase()].n,k[5],+k[2],norm(k[4]));if(TT_ABIL.has(norm(k[4])))TTH.push([t,roster[tgt.toLowerCase()].n,norm(k[4])])}continue}
+        else if(isP(tgt)&&k[5]&&!isP(k[5]))fTaken(t,roster[tgt.toLowerCase()].n,k[5],+k[2],norm(k[4]));continue}
       if((k=msg.match(RX.HEAL))){const src=own(k[1]);if(isP(src)){if(!RX.OWNER.test(k[1]))seenAt(roster[src.toLowerCase()].n,t);const p=get(src,t),a=+k[3],tot=+(k[4]||k[3]);p.heal+=a;p.over+=tot-a;p.acts.push(t);if(k[5]&&!RX.OWNER.test(k[1]))p.sp[norm(k[5])]=(p.sp[norm(k[5])]||0)+1;
           if(live(t)&&!RX.OWNER.test(k[1])){const n=roster[src.toLowerCase()].n,q=fP(n),ab=fAb(q,k[5]?norm(k[5]):'Heal'),b=fB(t);q.h+=a;q.o+=tot-a;q.acts.add(Math.floor(t));q.htl[b]=(q.htl[b]||0)+a;ab.hn++;ab.hd+=a;ab.o+=tot-a;if(/Crit/.test(k[6]||''))ab.cr++;if(/^(himself|herself|itself|yourself)$/i.test(k[2])||own(k[2])===src)q.sh+=a}}continue}
       if((k=msg.match(RX.CAST))||((k=msg.match(/^You (?:begin (?:casting|singing)|activate) (.+?)\.$/))&&(k=[k[0],'You',k[1]]))){const who=own(k[1]);if(isP(who)){const rn=roster[who.toLowerCase()].n;seenAt(rn,t);if(N[nightOf(t)]?.P[rn])get(rn,t).acts.push(t);const sc=SC[norm(k[2])];if(sc){const cc=(night(t).CC??={})[rn]??={};cc[sc]=(cc[sc]||0)+1}}if(isP(who)&&live(t)){const n=roster[who.toLowerCase()].n,q=fP(n);fAb(q,norm(k[2])).c++;q.acts.add(Math.floor(t))}continue}
-      if((k=msg.match(RX.SLAIN))){const who=k[1]==='You'?me:k[1];if(isP(who)){get(who,t).deaths++;fDeath(t,roster[who.toLowerCase()].n,k[2])}}}}
+      if((k=msg.match(RX.SLAIN))){const who=k[1]==='You'?me:k[1];if(isP(who)){get(who,t).deaths++;fDeath(t,roster[who.toLowerCase()].n,k[2]);TTD.push([t,roster[who.toLowerCase()].n,k[2]])}}}}
   fEnd();
   for(const[c,a,d,t]of calls){const F=FIGHTS.find(F=>t>=F.start-120&&t<=F.last+180&&Object.keys(F.P).some(n=>n.toLowerCase()===c));
     if(!F)continue;(seen[c]??={});if(!seen[c][a]||d<seen[c][a])seen[c][a]=d}
@@ -950,6 +962,22 @@ async function parseLogFile(f,gi){const SC=await spellClsLoad();
       const others=hit.filter(z=>z!==n&&!isTank(z));if(!others.length)continue;
       const F=fights.find(F=>T>=F.start-5&&T<=F.start+F.dur+5);if(!F)continue;
       (F.tt??=[]).push([Math.round(T-F.start),n,ru.id,ru.label,`charge hit ${others.length} non-tank${others.length>1?'s':''}`,others.length])}
+    const ttAdd=(T,n,id,label,detail,extra)=>{const F=fights.find(F=>T>=F.start-5&&T<=F.start+F.dur+5);if(F)(F.tt??=[]).push([Math.round(T-F.start),n,id,label,detail,extra||0])};
+    const rn=z=>roster[z.toLowerCase()]?roster[z.toLowerCase()].n:null;
+    for(const[T,ru,names]of TTW.filter(w=>nightOf(w[0])===date&&w[1].kind==='emote-dot-clear')){
+      for(const n of names.map(rn).filter(Boolean)){const tk=TTH.filter(h=>h[1]===n&&h[2]===ru.ability&&h[0]>=T).map(h=>h[0]).sort((a,b)=>a-b);
+        if(!tk.length||tk[0]-T>ru.start)continue;let end=tk[0];for(const x of tk.slice(1)){if(x-end<=ru.gap)end=x;else break}
+        const dead=TTD.find(d=>d[1]===n&&d[2]===ru.softKiller&&d[0]>=T&&d[0]<=end+10);
+        if(dead)ttAdd(T,n,ru.id+'-soft',ru.softLabel,`killed by ${ru.softKiller} at +${Math.round(dead[0]-T)}s`);
+        else if(end-T>=ru.limit)ttAdd(T,n,ru.id,ru.label,`still taking ${ru.ability} at +${Math.round(end-T)}s`)}}
+    for(const[T,ru,names]of TTW.filter(w=>nightOf(w[0])===date&&w[1].kind==='emote-carrier-blast')){
+      const car=names.map(rn).filter(Boolean),inWin=x=>x>=T+ru.hitWin[0]&&x<=T+ru.hitWin[1];
+      const hits=TTH.filter(h=>h[2]===ru.ability&&inWin(h[0])),per={};hits.forEach(h=>per[h[1]]=(per[h[1]]||0)+1);const people=Object.keys(per);
+      const deaths=TTD.filter(d=>d[2]===ru.killer&&inWin(d[0]));const blamed=new Set();
+      if(people.length>ru.max)car.filter(c=>per[c]).forEach(c=>{blamed.add(c);ttAdd(T,c,ru.id,ru.label,`blew up in the raid: ${people.length} people hit`,people.length)});
+      deaths.forEach(d=>{if(car.includes(d[1])&&!blamed.has(d[1])){blamed.add(d[1]);ttAdd(T,d[1],ru.id,ru.label,'killed by their own explosion')}
+        else if(!car.includes(d[1]))car.filter(c=>per[c]&&!blamed.has(c)).forEach(c=>{blamed.add(c);ttAdd(T,c,ru.id,ru.label,`their explosion killed ${d[1]}`)})});
+      people.filter(z=>per[z]>1).forEach(z=>ttAdd(T,z,ru.id,ru.label,`hit by ${per[z]} explosions`))}
     for(const[T,ru,names]of TTW.filter(w=>nightOf(w[0])===date&&w[1].kind==='emote-runaway')){
       const hitBy=new Set(TTH.filter(h=>h[2]===ru.ability&&h[0]-T>=ru.hitWin[0]&&h[0]-T<=ru.hitWin[1]).map(h=>h[1]));
       const named=names.map(z=>roster[z.toLowerCase()]?roster[z.toLowerCase()].n:null).filter(Boolean),others=[...hitBy].filter(z=>!named.includes(z)).length;if(!others)continue;
