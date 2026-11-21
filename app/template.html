@@ -69,6 +69,41 @@ details .inner{padding:0 4px 10px 22px;color:var(--mute);font-size:12.5px}
 .app input,.app select,.app textarea,.filters select,.filters input{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:6px 8px;font:13px Inter}
 .drawer{position:fixed;top:0;right:0;height:100%;width:min(860px,100%);background:#141212;border-left:1px solid var(--line);z-index:10;transform:translateX(100%);transition:transform .2s;overflow:auto}
 .drawer.open{transform:none}
+.eqp{background:linear-gradient(160deg,#2a2420,#1a1714 60%,#211c18);border:2px solid #6b5a42;border-radius:4px;box-shadow:inset 0 0 0 2px #1a140f,inset 0 0 0 3px #8a7556;margin-bottom:16px}
+.drawer .eqp{margin:0;border-radius:0;min-height:100%}
+.eqh{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 14px;border-bottom:2px solid #6b5a42;background:linear-gradient(#4a3f33,#2c251f);flex-wrap:wrap}
+.drawer .eqh{position:sticky;top:0;z-index:3}
+.eqh h2{margin:0;font:700 20px Cinzel,serif;letter-spacing:2px;color:#efe3c4;display:inline}
+.eqh .sub{color:#b5aea3;font-size:12.5px;margin-left:10px}
+.eqh .x{width:26px;height:26px;border:1px solid #8a7556;color:#f6d75a;font-weight:700;background:#2a241e;cursor:pointer;border-radius:2px}
+.eqtabs{display:flex;gap:2px;padding:8px 10px 0;border-bottom:2px solid #6b5a42;background:#1c1814;flex-wrap:wrap}
+.drawer .eqtabs{position:sticky;top:44px;z-index:2}
+.eqtabs button{background:linear-gradient(#3a322a,#231e19);border:1px solid #6b5a42;border-bottom:none;color:#b5aea3;padding:6px 12px;font:600 12.5px Inter;cursor:pointer;border-radius:3px 3px 0 0}
+.eqtabs button[aria-selected=true]{background:linear-gradient(#6b5a32,#3a3020);color:#f6d75a;border-color:#a8914f}
+.eqbody{padding:14px}
+.eqp .card{background:#0e0c0a;border:1px solid #5a4b37;border-radius:2px;box-shadow:inset 0 0 0 1px #000}
+.eqp .card h3{color:#f6d75a}
+.eqinv{display:grid;grid-template-columns:170px minmax(0,1fr);gap:14px}
+.eqstats{background:#0e0c0a;border:1px solid #5a4b37;border-radius:2px;box-shadow:inset 0 0 0 1px #000;padding:12px;font-size:12.5px;align-self:start}
+.eqstats div{display:flex;justify-content:space-between;gap:6px;padding:2px 0}.eqstats div span:first-child{color:#9b958c}.eqstats div span:last-child{color:#7ed36f;font-weight:600;text-align:right}
+.eqstats hr{border:0;border-top:1px solid #24211e;margin:6px 0}
+.eqgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-areas:'ear1 head face ear2' 'chest mid mid neck' 'arms mid mid back' 'waist mid mid shoulders' 'wrist1 mid mid wrist2' 'legs hands charm feet' 'finger1 finger2 power .' 'primary secondary range ammo';gap:8px;max-width:560px}
+.eqmid{grid-area:mid;border:2px solid #5a4b37;border-radius:2px;background:radial-gradient(ellipse at center,#2a3340 0%,#0b0d12 80%);box-shadow:inset 0 0 0 1px #000;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:10px}
+.eqmid b{font:600 20px Cinzel,serif;letter-spacing:2px;color:#efe3c4}.eqmid .pc{font-size:28px;font-weight:700;margin-top:12px;color:#e9e3d8}
+.eqs{position:relative;min-height:70px;padding:6px 7px;border:2px solid #3e6b3a;border-radius:2px;background:linear-gradient(#24201b,#14110e);box-shadow:inset 0 0 0 1px #000,inset 0 1px 0 #4a4236;display:flex;flex-direction:column;cursor:default;outline:none}
+.eqs.old{border-color:#6b5a2a}.eqs.emp{border-color:#6b2a2a}.eqs.unk{border-color:#3a342c}
+.eqs:hover,.eqs:focus{box-shadow:inset 0 0 0 1px #000,0 0 0 1px #f6d75a}
+.eqs .sl{font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#8a847b}
+.eqs .nm{font-size:11.5px;line-height:1.2;margin-top:3px;font-weight:600;color:#efe3c4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.eqs.emp .nm{color:#e5797c}.eqs .dots{display:flex;gap:3px;margin-top:auto;padding-top:5px;flex-wrap:wrap}
+.eqs .dots i{width:8px;height:8px;border-radius:50%;background:#9fd28f}.eqs .dots i.o{background:#e0c27a}.eqs .dots i.e{background:#e5797c}
+.eqtip{display:none;position:absolute;top:100%;left:0;margin-top:6px;width:330px;z-index:20;background:#0b0a09;border:1px solid #8a7556;box-shadow:0 10px 30px rgba(0,0,0,.7);padding:10px 12px;font-size:12.5px;cursor:auto}
+.eqs.r .eqtip{left:auto;right:0}.eqs:hover .eqtip,.eqs:focus .eqtip,.eqs:focus-within .eqtip{display:block}
+.eqtip .tn{font-weight:700;font-size:14px;color:#f6d75a}.eqtip .ts{color:#9b958c;margin:2px 0 8px}
+.eqtip .ta{display:flex;gap:8px;padding:3px 0;border-top:1px solid #2a2622;align-items:baseline}.eqtip .ta .t{width:52px;flex:none;color:#8a847b}.eqtip .ta .n{flex:1}
+.eqtip .tf{color:#8a847b;margin-top:8px;font-size:12px}
+.eqleg{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;color:#8a847b;font-size:12px}.eqleg s{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px;text-decoration:none}
+@media(max-width:700px){.eqinv{grid-template-columns:1fr}.eqtip{width:260px}}
 .shade{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9;display:none}
 .shade.open{display:block}
 .dh{padding:20px 22px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#141212}
@@ -501,7 +536,7 @@ function perfMulti(RA,x){const win=perfN?RA.slice(0,perfN):RA;const order=win.sl
 // ---- fight breakdown (Performance → Fights, and members' own card on My character) ----
 const HEAL_CLS=new Set(['Cleric','Shaman','Druid']);let FC={},fightIdx=0,fightPlayer=null,fightDeath=0,meFightRaid=0,meFightIdx=0,meFightChar=null;
 function fightsFor(gi,r){const k=D.guilds[gi].server+'|'+r.id+'|'+r.date;if(!(k in FC)){FC[k]='loading';
-  fetch('/api/fights?'+new URLSearchParams({server:D.guilds[gi].server,id:r.id,date:r.date})).then(x=>x.ok?x.json():{fights:null}).then(j=>{FC[k]=j.fights;render()}).catch(()=>{FC[k]=null;render()})}return FC[k]}
+  fetch('/api/fights?'+new URLSearchParams({server:D.guilds[gi].server,id:r.id,date:r.date})).then(x=>x.ok?x.json():{fights:null}).then(j=>{FC[k]=j.fights;render();drawerRefresh()}).catch(()=>{FC[k]=null;render();drawerRefresh()})}return FC[k]}
 const kk=n=>{n=+n||0;return n>=1e9?(n/1e9).toFixed(1)+'B':n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?Math.round(n/1e3)+'k':String(Math.round(n))};
 const mmss=s=>{s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
 const fname=n=>/^an? /i.test(n)?n.replace(/^an? /i,'').replace(/^./,c=>c.toUpperCase())+' pull':n;
@@ -1233,28 +1268,98 @@ function launch0(){const x=g(),qs=allQ();
 <!--§/C--><!--§N-->  <div class="card"><h3>Active raiders who haven't answered <span class="n">${pending.length}</span></h3><div class="hint">Raiding ranks, online in the last ${D.inactive_days} days, no response matched to any of their characters.</div>${pending.map(m=>`<span class="tag link" style="margin:2px" onclick="profile('${esc(m.main)}')">${esc(m.main)} · ${esc(m.cls)}</span>`).join(' ')}</div>
 <!--§/N-->  ${notG.length?`<div class="card"><h3>Responses Glask couldn't match to the roster <span class="n">${notG.length}</span></h3><div class="hint">Typo, a character not in the guild dump, or someone who has left. Fix the name in the form sheet or check the roster.</div>${notG.map(r=>`<span class="tag" style="margin:2px">${esc(r.raw||'(blank)')} ${qTag(r.status)}</span>`).join(' ')}</div>`:''}`}
 
-function profile(name){if(ME.access[D.guilds[G].server]==='member'){closeP();V='me';render();return}   // members never get the officer panel
-  $('#drawer').dataset.main=name;
+// ---- character panel (EQ style): the officer drawer and the member's own page share it ----
+let charTab='inv';
+const CHAR_TABS=[['inv','Inventory'],['bio','Bio'],['perf','Raid performance'],['ach','Achievements'],['loot','Loot history'],['up','Uploads']];
+function setCharTab(t){charTab=t;const dr=$('#drawer');if(dr.classList.contains('open')&&dr.dataset.main)profile(dr.dataset.main);else render()}
+function drawerRefresh(){const dr=$('#drawer');if(dr.classList.contains('open')&&dr.dataset.main)profile(dr.dataset.main,true)}
+const EQ_AREA={Head:'head',Face:'face',Neck:'neck',Shoulders:'shoulders',Arms:'arms',Back:'back',Range:'range',Hands:'hands',Primary:'primary',Secondary:'secondary',Chest:'chest',Legs:'legs',Feet:'feet',Waist:'waist',Charm:'charm','Power Source':'power',Ammo:'ammo'};
+const EQ_PAIR={Ear:['ear1','ear2'],Wrist:['wrist1','wrist2'],Fingers:['finger1','finger2']};
+const EQ_RIGHT=new Set(['ear2','neck','back','shoulders','wrist2','feet','ammo','range','face','charm','power']);
+const EQ_LABEL={Fingers:'Ring','Power Source':'Power source',Waist:'Belt'};
+const EQ_ALL=['ear1','head','face','ear2','chest','neck','arms','back','waist','shoulders','wrist1','wrist2','legs','hands','charm','feet','finger1','finger2','power','primary','secondary','range','ammo'];
+const EQ_SLOT_OF=a=>Object.keys(EQ_AREA).find(k=>EQ_AREA[k]===a)||Object.keys(EQ_PAIR).find(k=>EQ_PAIR[k].includes(a));
+function eqCells(m,gi){const inv=invOf(m,gi),now=(xpacNow(gi).code||'').toLowerCase(),isCur=v=>!!v&&v.toLowerCase()===now,seen={},out={};
+  const lastBuy=sl=>{const l=m.slot_last[sl];return l?`Last DKP buy for ${EQ_LABEL[sl]||sl}: ${esc(l[1])}, ${esc(l[0])}${l[2]?' ('+esc(l[2])+')':''}`:`No DKP buys on file for ${EQ_LABEL[sl]||sl}.`};
+  if(inv){needAugTypes(inv);
+    inv.forEach(w=>{const pr=EQ_PAIR[w.slot];const a=pr?pr[Math.min((seen[w.slot]=(seen[w.slot]||0)+1)-1,1)]:EQ_AREA[w.slot];if(!a||out[a])return;
+      const empty=!w.item||w.item==='Empty';const got=(m.cur||[]).find(i=>i[1]===w.item);const l=m.slot_last[w.slot];
+      const wx=w.xp||(got&&got[5])||(l&&l[1]===w.item?l[2]:null);const t=augTypes(w)||[];const ax=w.axp||[];
+      const augs=w.augs.map((n,i)=>({n,t:t[i],skip:n==='Empty'&&augSkip(w,i),xp:ax[i]}));
+      const dots=augs.filter(x=>!x.skip).map(x=>`<i class="${x.n==='Empty'?'e':isCur(x.xp)?'':'o'}" title="${esc(x.n)}"></i>`).join('');
+      const cls=empty?'emp':isCur(wx)?'':'old';
+      const tip=empty?`<div class="tn">Empty</div><div class="tf">${lastBuy(w.slot)}</div>`:`<div class="tn">${esc(w.item)}</div>
+        <div class="ts">${wx?`<span class="tag ${isCur(wx)?'ok':'warn'}">${esc(wx)}</span> ${esc(XPNAME[wx]||wx)}`:'<span class="tag warn">pre-EoK</span> older than Empires of Kunark'}${got?` · bought with DKP ${esc(got[0])}`:''}</div>
+        ${augs.map(x=>`<div class="ta"><span class="t">${x.t?'type '+x.t:'aug'}</span><span class="n" style="color:${x.n==='Empty'?(x.skip?'#6d6560':'#e5797c'):'#e9e3d8'}">${x.n==='Empty'?(x.skip?'empty (not needed)':'empty'):esc(x.n)}</span>${x.n==='Empty'?'':`<span class="tag ${isCur(x.xp)?'ok':'warn'}" title="${esc(x.xp?XPNAME[x.xp]||x.xp:'Older than Empires of Kunark')}">${esc(x.xp||'pre-EoK')}</span>`}</div>`).join('')}
+        <div class="tf">${got?'':'Not bought with DKP (crafted, raid currency, quest or vendor). '}${lastBuy(w.slot)}</div>`;
+      out[a]={a,slot:EQ_LABEL[w.slot]||w.slot,name:empty?'Empty':w.item,cls,dots,tip,w,wx,augs,empty}})}
+  EQ_ALL.forEach(a=>{if(out[a])return;const sl=EQ_SLOT_OF(a);out[a]={a,slot:EQ_LABEL[sl]||sl,name:inv?'Empty':'—',cls:inv?'emp':'unk',dots:'',tip:`<div class="tn">${esc(EQ_LABEL[sl]||sl)}</div><div class="ts">${inv?'Nothing worn here.':'Upload an inventory to see what is worn.'}</div><div class="tf">${lastBuy(sl)}</div>`,empty:!!inv,augs:[]}});
+  return out}
+function eqInvTab(m,gi){const x=D.guilds[gi],inv=invOf(m,gi),C=eqCells(m,gi),now=xpacNow(gi).code||'',ax=achOf(m,gi),dup=openDups(m,gi);
+  const worn=Object.values(C).filter(c=>c.w&&!c.empty&&c.a!=='ammo'),curN=worn.filter(c=>c.cls==='').length;
+  const emptyAugs=Object.values(C).flatMap(c=>c.augs.filter(a=>a.n==='Empty'&&!a.skip).map(a=>[c,a]));
+  const older=worn.filter(c=>c.cls==='old');
+  const issues=[...(Object.keys(dup).length&&!isMem(gi)?Object.entries(dup).map(([s,l])=>`<div style="padding:5px 0;border-top:1px solid #24211e"><b class="bang">!</b> <b>${esc(s)}</b> ×${l.length} this expansion, more than the slot holds<div style="color:#8a847b;font-size:12px">${l.map(i=>`${esc(i[1])} ${esc(i[0])}`).join('; ')}</div></div>`):[]),
+    ...emptyAugs.map(([c,a])=>`<div style="padding:5px 0;border-top:1px solid #24211e"><span style="color:#e5797c">Empty aug</span> · ${esc(c.slot)}<div style="color:#8a847b;font-size:12px">${esc(c.name)}${a.t?', type '+a.t+' slot':''}</div></div>`),
+    ...older.map(c=>`<div style="padding:5px 0;border-top:1px solid #24211e"><span style="color:#e0c27a">Older gear</span> · ${esc(c.slot)}<div style="color:#8a847b;font-size:12px">${esc(c.name)} (${esc(c.wx||'pre-EoK')})</div></div>`)];
+  const cell=c=>`<div class="eqs ${c.cls}${EQ_RIGHT.has(c.a)?' r':''}" style="grid-area:${c.a}" tabindex="0"><div class="sl">${esc(c.slot)}</div><div class="nm">${esc(c.name)}</div><div class="dots">${c.dots}</div><div class="eqtip">${c.tip}</div></div>`;
+  return `<div class="eqinv"><div class="eqstats">
+     <div><span>Level</span><span>${esc(m.level||'?')}</span></div><div><span>Class</span><span>${esc(m.cls)}</span></div><div><span>Rank</span><span>${esc(m.rank||'?')}</span></div><hr>
+     <div><span>AA</span><span>${aaText(ax)}</span></div><div><span>Last seen</span><span>${ago(m.days)}</span></div><hr>
+     <div><span>${esc(now||x.stats.xpac)} items</span><span>${m.cur.length}</span></div><div><span>Items, all time</span><span>${fmt(m.loot_n)}</span></div>
+     ${inv?`<hr><div><span>Worn from ${esc(now)}</span><span>${curN}/${worn.length}</span></div><div><span>Empty augs</span><span style="color:${emptyAugs.length?'#e5797c':'#7ed36f'}">${emptyAugs.length}</span></div>`:''}</div>
+   <section aria-label="Equipped gear"><div class="eqgrid"><div class="eqmid"><b>${esc(m.cls)}</b>${(()=>{const mc=m.chars.find(c=>c.n===m.main)||{};const b=baseOf(mc,gi);return b&&b!==m.cls?`<div style="color:#9b958c;margin-top:4px">base ${esc(b)}</div>`:''})()}
+     ${inv?`<div class="pc">${worn.length?Math.round(curN*100/worn.length):0}%</div><div style="color:#9b958c;font-size:12px">of worn gear from ${esc(XPNAME[now]||now)}</div>`:`<div style="color:#9b958c;font-size:12px;margin-top:12px">No inventory on file yet</div>`}</div>
+     ${EQ_ALL.map(a=>cell(C[a])).join('')}</div>
+     <div class="eqleg"><span><s style="background:#3e6b3a"></s> ${esc(now)}</span><span><s style="background:#6b5a2a"></s> older expansion</span><span><s style="background:#6b2a2a"></s> empty</span><span>Hover or tab to a slot for augs and DKP history · aug dots: <span style="color:#9fd28f">${esc(now)}</span> / <span style="color:#e0c27a">older</span> / <span style="color:#e5797c">empty</span></span></div></section></div>
+   <div class="card" style="margin:14px 0 0"><h3>Needs attention <span style="display:flex;gap:8px;align-items:center">${inv?'<span class="tag ok">inventory on file</span>':''}<label class="more" style="margin:0;cursor:pointer">Upload /outputfile inventory<input type="file" accept=".txt" style="display:none" onchange="uploadInv(event,${gi},'${esc(m.main)}')"></label></span></h3>
+    ${inv?(issues.length?issues.join(''):'<div class="hint" style="margin:0">Nothing to fix: every worn item is from this expansion and every aug slot that matters is filled.</div>'):`<div class="hint" style="margin:0">Upload an <code>/outputfile inventory</code> to fill in the slots.${issues.length?'':''}</div>${issues.join('')}`}
+    <div class="hint" style="margin:10px 0 0">Expansion tags come from the eqitems item database, by the date each item was added. Empty type 21 and 22 aug slots aren't counted, since those don't need filling. Each slot's hover shows the last time ${esc(m.main)} bought an item for that slot with DKP; from Veil of Alaris on, raid currency and crafting cover a lot of gear, so a missing DKP buy is normal.</div></div>`}
+function xpLootCard(m,gi){const cur=m.cur,xp=D.guilds[gi].stats.xpac;
+  return `<div class="card"><h3>${esc(xp)} loot, all characters <span class="n">${cur.length}</span></h3>${cur.length?`<table><tr><th>Date</th><th>Item</th><th>On</th><th>Slot</th></tr>${cur.map(i=>`<tr><td>${esc(i[0])}</td><td>${esc(i[1])}${i[5]?` <span class="tag" title="${esc(XPNAME[i[5]]||i[5])}">${esc(i[5])}</span>`:''}</td><td>${esc(i[2])}</td><td>${isOff(gi)?`<select onchange="tagSlot(this.dataset.item,this.value)" data-item="${esc(i[1])}" style="background:var(--panel2);border:1px solid ${i[4]?'var(--line)':'#5a4520'};color:var(--text);border-radius:6px;padding:2px 4px"><option value="">${i[4]?'—':'slot ?'}</option>${[...SLOTS,'Not gear'].map(s=>`<option ${i[4]===s?'selected':''}>${s}</option>`).join('')}</select>`:i[4]?esc(i[4]):'<span style="color:var(--dim)">?</span>'}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nothing awarded this expansion yet.</div>'}</div>`}
+function charsCard(m,gi){const off=isOff(gi),re=V==='me'?'render()':`profile('${esc(m.main)}',true)`,sel='style="background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:3px"';
+  return `<div class="card"><h3>Characters <span class="n">${m.chars.length}</span></h3>${off?`<div class="hint"><b>Class now</b> is the persona in the latest guild dump. <b>Base</b> is the character's real class. <b>Personas seen</b> = every class Glask has seen in dumps or raid logs. <b>Raid class</b> overrides what's used for raid comparisons; leave it on auto unless it's wrong.</div>`:''}
+   <table><tr><th>Name</th><th>Class now</th><th>Base</th><th>Personas seen</th>${off?'<th>Raid class</th>':''}<th class="num">Lvl</th><th>Last on</th>${off?'<th>Note</th>':''}</tr>
+   ${m.chars.map(c=>`<tr><td>${esc(c.n)}${c.a?'':' <span class="tag">main</span>'}</td><td>${esc(c.c)}</td><td>${off?`<select onchange="setBase(${gi},'${esc(c.n)}',this.value);${re}" ${sel}><option value="">—</option>${ALLCLASSES.map(k=>`<option ${baseOf(c,gi)===k?'selected':''}>${k}</option>`).join('')}</select>`:esc(baseOf(c,gi)||'—')}</td><td>${(c.h||[]).length>1||baseOf(c,gi)&&baseOf(c,gi)!==c.c?(c.h||[c.c]).filter(k=>k!==baseOf(c,gi)).map(k=>`<span class="tag warn">${esc(k)}</span>`).join(''):'<span style="color:var(--dim)">—</span>'}</td>${off?`<td><select onchange="setClass(${gi},'${esc(c.n)}',this.value);${re}" ${sel}><option value="">auto</option>${ALLCLASSES.map(k=>`<option ${clsOverrides(gi)[c.n.toLowerCase()]===k?'selected':''}>${k}</option>`).join('')}</select></td>`:''}<td class="num">${c.l}</td><td>${esc(c.s)}</td>${off?`<td style="color:var(--mute);max-width:180px;font-size:12px">${esc(c.note)}</td>`:''}</tr>`).join('')}</table></div>`}
+function appCard(m){const a=m.app;return a?`<div class="card app"><h3>Application · ${esc(a.date.split(' ')[0])}</h3><dl>
+    <dt>Applied as</dt><dd>${esc(a.name)} (${esc(a.cls)}, ${esc(a.level)})</dd><dt>AA</dt><dd>${esc(a.aa)}</dd>
+    ${a.boxes!==undefined?`<dt>Boxes listed</dt><dd>${esc(a.boxes)}</dd>`:''}${a.racing!==undefined?`<dt>Racing on launch</dt><dd>${esc(a.racing)}</dd>`:''}
+    ${a.latest_xpac?`<dt>Latest xpac done</dt><dd>${esc(a.latest_xpac)}</dd>`:''}
+    <dt>Discord</dt><dd>${esc(a.discord)}</dd><dt>Prior chars/guilds</dt><dd>${esc(a.prior)}</dd>${a.notes?`<dt>Notes</dt><dd>${esc(a.notes)}</dd>`:''}</dl></div>`:`<div class="card"><h3>Application</h3><div class="hint" style="margin:0">No application on file under any of these characters.</div></div>`}
+function membershipCard(m,gi){const x=D.guilds[gi];
+  return `<div class="card"><h3>Membership</h3><div class="facts"><div><b>${esc(m.rank||'?')}</b><span>rank</span></div><div><b>${esc(x.guild)}</b><span>${esc(x.server)}</span></div><div><b>${ago(m.days)}</b><span>last seen (any char)</span></div><div><b>${fmt(m.loot_n)}</b><span>items (all time)</span></div></div>
+   ${m.other.length?`<div class="hint" style="margin:10px 0 0">Also in ${esc(otherServer(gi))} as ${m.other.map(esc).join(', ')}.</div>`:''}</div>`}
+// every tracked mechanic this person failed, across the raid nights they were in (newest 12 nights)
+function tattleHistoryCard(m,gi){const own=new Set(m.chars.map(c=>c.n));const RA=allRaids(gi).filter(r=>r.uploaded&&r.players.some(p=>own.has(p.name))).slice(-12);
+  if(!RA.length)return '';let loading=0;const rows=[];
+  RA.forEach(r=>{const fs=fightsFor(gi,r);if(fs==='loading'){loading++;return}(fs||[]).forEach(F=>(F.tt||[]).forEach(t=>{if(own.has(t[1]))rows.push([r,F,t])}))});
+  rows.sort((a,b)=>(b[0].date||'').localeCompare(a[0].date||''));
+  return `<div class="card" style="border-color:${rows.length?'#5a2a20':''}"><h3>Tattle tale · failed mechanics <span class="n">${rows.length}</span></h3>
+   ${rows.length?`<table><tr><th>Night</th><th>Fight · time</th><th>Who</th><th>Mechanic</th><th>What the log shows</th></tr>${rows.map(([r,F,t])=>`<tr><td style="white-space:nowrap">${esc(r.date)}</td><td style="color:var(--dim);white-space:nowrap">${esc(F.name?fname(F.name):'')} · ${mmss(t[0])}</td><td>${esc(t[1])}</td><td>${esc(t[3].replace(/ \(likely\)$/,''))}${/\(likely\)$/.test(t[3])?' <span class="tag warn">likely</span>':''}</td><td style="color:var(--mute)">${esc(t[4])}</td></tr>`).join('')}</table>`:`<div class="hint" style="margin:0">${loading?'Reading raid logs…':`No failed mechanics in the last ${RA.length} raid night${RA.length>1?'s':''} with logs.`}</div>`}</div>`}
+function charPanel(m,gi,drawer){const x=D.guilds[gi],off=isOff(gi),mem=!drawer;if(!CHAR_TABS.some(t=>t[0]===charTab))charTab='inv';
+  const base=(()=>{const mc=m.chars.find(c=>c.n===m.main)||{};const b=baseOf(mc,gi);return b&&b!==m.cls?` · base ${esc(b)}`:''})();
+  let body='';
+  if(charTab==='inv')body=eqInvTab(m,gi);
+  else if(charTab==='bio')body=(mem?signupCard(m,gi):'')+charsCard(m,gi)+membershipCard(m,gi)+(off?appCard(m):'');
+  else if(charTab==='perf')body=mem?perfSummary(m,gi)+memberNightCard(m,gi)+tattleHistoryCard(m,gi):perfCard(m,gi)+tattleHistoryCard(m,gi);
+  else if(charTab==='ach')body=trackedAchCard(m,gi)+flagCard(m,gi)+vqCard(m,gi);
+  else if(charTab==='loot')body=(off?lootHistoryCard(m,gi):'')+xpLootCard(m,gi);
+  else if(charTab==='up')body=mem?memberUploadCard(gi):`<div class="card"><h3>Upload for ${esc(m.main)}</h3><div class="hint">Files ${esc(m.main)} sent you. Raid logs go on the Attendance page so everyone in the raid gets credit.</div>
+     <div style="display:flex;gap:10px;flex-wrap:wrap"><label class="more" style="margin:0;cursor:pointer">Inventory (/outputfile inventory)<input type="file" accept=".txt" style="display:none" onchange="uploadInv(event,${gi},'${esc(m.main)}')"></label>
+     <label class="more" style="margin:0;cursor:pointer">Achievements (/outputfile achievement)<input type="file" accept=".txt" style="display:none" onchange="uploadAch(event,${gi},'${esc(m.main)}')"></label></div></div>`;
+  return `<div class="eqp"><div class="eqh"><div><h2>${esc(m.main)}</h2><span class="sub">${esc(m.level||'?')} ${esc(m.cls)}${base} · ${esc(m.rank||'?')} · ${esc(x.guild)}, ${esc(x.server)}</span>
+     ${off&&violationsOf(gi,m.main)?` <span class="tag red">loot violations: ${violationsOf(gi,m.main)}</span>`:''}${off&&m.other.length?` <span class="tag warn">also in ${esc(otherServer(gi))} as ${m.other.map(esc).join(', ')}</span>`:''}</div>
+     ${drawer?`<span style="display:flex;gap:10px;align-items:center"><span style="color:#c9b88f;font-size:12px">${off?'Officer view':''}</span><button class="x" aria-label="Close" onclick="closeP()">×</button></span>`:''}</div>
+    <div class="eqtabs" role="tablist">${CHAR_TABS.map(([k,l])=>`<button type="button" role="tab" aria-selected="${charTab===k}" onclick="setCharTab('${k}')">${l}</button>`).join('')}</div>
+    <div class="eqbody">${body}</div></div>`}
+function profile(name,keep){if(ME.access[D.guilds[G].server]==='member'){closeP();V='me';render();return}   // members never get the officer panel
+  const dr=$('#drawer'),st=dr.scrollTop;dr.dataset.main=name;
   let mi=-1,gi=G;
   mi=D.guilds[G].members.findIndex(m=>m.main===name);
   if(mi<0){for(let i=0;i<D.guilds.length;i++){const j=D.guilds[i].members.findIndex(m=>m.main===name);if(j>=0){gi=i;mi=j;break}}}
   if(mi<0)return;
-  const x=D.guilds[gi], m=x.members[mi];
-  let shown=40;
-  const a=m.app;
-  const appHtml=a?`<div class="card app"><h3>Application · ${esc(a.date.split(' ')[0])}</h3><dl>
-    <dt>Applied as</dt><dd>${esc(a.name)} (${esc(a.cls)}, ${esc(a.level)})</dd><dt>AA</dt><dd>${esc(a.aa)}</dd>
-    ${a.boxes!==undefined?`<dt>Boxes listed</dt><dd>${esc(a.boxes)}</dd>`:''}${a.racing!==undefined?`<dt>Racing on launch</dt><dd>${esc(a.racing)}</dd>`:''}
-    ${a.latest_xpac?`<dt>Latest xpac done</dt><dd>${esc(a.latest_xpac)}</dd>`:''}
-    <dt>Discord</dt><dd>${esc(a.discord)}</dd><dt>Prior chars/guilds</dt><dd>${esc(a.prior)}</dd>${a.notes?`<dt>Notes</dt><dd>${esc(a.notes)}</dd>`:''}</dl></div>`:`<div class="card"><h3>Application</h3><div class="hint" style="margin:0">No application on file under any of these characters.</div></div>`;
-  $('#drawer').innerHTML=`<div class="dh"><button class="x" onclick="closeP()">Close</button><h2>${esc(m.main)}</h2>
-  <div style="color:var(--mute)">${esc(m.rank)} · ${(()=>{const mc=m.chars.find(c=>c.n===m.main)||{};const b=baseOf(mc,gi);return b&&b!==m.cls?`${esc(b)} <span class="tag">${esc(m.cls)} persona</span>`:esc(m.cls)})()} ${m.level} · ${x.guild} (${x.server}) ${isOff(gi)&&violationsOf(gi,m.main)?`<span class="tag red">loot violations: ${violationsOf(gi,m.main)}</span> `:''}${m.other.length?'<span class="tag warn">also in '+otherServer(gi)+' as '+m.other.map(esc).join(', ')+'</span>':''}</div>
-  <div class="facts"><div><b>${aaText(achOf(m,gi))}</b><span>AA (achievement export)</span></div><div><b>${ago(m.days)}</b><span>last seen (any char)</span></div><div><b>${m.cur.length}</b><span>${esc(x.stats.xpac)} items</span></div><div><b>${fmt(m.loot_n)}</b><span>items (all time)</span></div></div></div>
-  <div class="db"><div class="card"><h3>Characters</h3><div class="hint"><b>Class now</b> is the persona in the latest guild dump. <b>Base</b> is the character's real class. <b>Personas seen</b> = every class Glask has seen in dumps or raid logs. <b>Raid class</b> overrides what's used for raid comparisons; leave it on auto unless it's wrong.</div><table><tr><th>Name</th><th>Class now</th><th>Base</th><th>Personas seen</th><th>Raid class</th><th class="num">Lvl</th><th>Last on</th><th>Note</th></tr>
-  ${m.chars.map(c=>`<tr><td>${esc(c.n)}${c.a?'':' <span class="tag">main</span>'}</td><td>${esc(c.c)}</td><td><select onchange="setBase(${gi},'${esc(c.n)}',this.value);profile('${esc(m.main)}')" style="background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:3px"><option value="">—</option>${ALLCLASSES.map(k=>`<option ${baseOf(c,gi)===k?'selected':''}>${k}</option>`).join('')}</select></td><td>${(c.h||[]).length>1||baseOf(c,gi)&&baseOf(c,gi)!==c.c?(c.h||[c.c]).filter(k=>k!==baseOf(c,gi)).map(k=>`<span class="tag warn">${esc(k)}</span>`).join(''):'<span style="color:var(--dim)">—</span>'}</td><td><select onchange="setClass(${gi},'${esc(c.n)}',this.value);profile('${esc(m.main)}')" style="background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:3px"><option value="">auto</option>${ALLCLASSES.map(k=>`<option ${clsOverrides(gi)[c.n.toLowerCase()]===k?'selected':''}>${k}</option>`).join('')}</select></td><td class="num">${c.l}</td><td>${esc(c.s)}</td><td style="color:var(--mute);max-width:180px;font-size:12px">${esc(c.note)}</td></tr>`).join('')}</table></div>
-  ${appHtml}
-  ${trackedAchCard(m,gi)}${flagCard(m,gi)}${vqCard(m,gi)}${perfCard(m,gi)}${lootHistoryCard(m,gi)}${gearCard(m,gi)}</div>`;
-  $('#drawer').classList.add('open');$('#shade').classList.add('open');$('#drawer').scrollTop=0;
+  dr.innerHTML=charPanel(D.guilds[gi].members[mi],gi,true);
+  dr.classList.add('open');$('#shade').classList.add('open');dr.scrollTop=keep?st:0;
 }
 function closeP(){$('#drawer').classList.remove('open');$('#shade').classList.remove('open')}
 $('#shade').onclick=closeP; document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeP();closeNav()}});
@@ -1275,13 +1380,13 @@ const CHECKLIST=[['welcome','Welcomed in guild chat'],['discord','Discord roles:
 const CLSAB={Warrior:'WAR',Paladin:'PAL','Shadow Knight':'SHD',Monk:'MNK',Rogue:'ROG',Berserker:'BER',Ranger:'RNG',Beastlord:'BST',Wizard:'WIZ',Magician:'MAG',Necromancer:'NEC',Bard:'BRD',Enchanter:'ENC',Cleric:'CLR',Shaman:'SHM',Druid:'DRU'};
 let recFilter='';
 const XPNAME={EoK:'Empires of Kunark',RoS:'Ring of Scale',TBL:'The Burning Lands',ToV:'Torment of Velious',CoV:'Claws of Veeshan',ToL:'Terror of Luclin',NoS:'Night of Shadows',LS:"Laurion's Song",TOB:'The Outer Brood',SoR:'Shattering of Ro',FoF:'Favors of Fortune'};
-async function tagInv(inv){try{const r=await fetch('/api/item-info',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({names:inv.map(w=>w.item),ids:inv.map(w=>w.id)})});if(!r.ok)return inv;const j=await r.json();inv.forEach(w=>{if(j[w.item])w.xp=j[w.item].xp;if(j._aug&&w.id in j._aug)w.augt=j._aug[w.id]||[]});}catch(e){}return inv}
+async function tagInv(inv){try{const r=await fetch('/api/item-info',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({names:[...new Set(inv.flatMap(w=>[w.item,...w.augs.filter(a=>a!=='Empty')]))],ids:inv.map(w=>w.id)})});if(!r.ok)return inv;const j=await r.json();inv.forEach(w=>{if(j[w.item])w.xp=j[w.item].xp;w.axp=w.augs.map(a=>a==='Empty'?null:(j[a]||{}).xp||null);if(j._aug&&w.id in j._aug)w.augt=j._aug[w.id]||[]});}catch(e){}return inv}
 // aug slot types that don't need filling (21 and 22: trivial slots)
 const AUG_SKIP=new Set([21,22]);
 const AUGT={};let augAsk=null;
 function augTypes(w){if(w.augt)return w.augt;if(w.id in AUGT)return AUGT[w.id];return null}
 function needAugTypes(inv){const miss=inv.filter(w=>w.augs.includes('Empty')&&!w.augt&&!(w.id in AUGT)).map(w=>w.id);if(!miss.length||augAsk)return;
-  augAsk=fetch('/api/item-info',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({names:[],ids:miss})}).then(r=>r.ok?r.json():{}).then(j=>{miss.forEach(i=>AUGT[i]=(j._aug||{})[i]||[]);augAsk=null;const dr=$('#drawer');if(dr.classList.contains('open')&&dr.dataset.main)profile(dr.dataset.main);else render()}).catch(()=>{augAsk=null})}
+  augAsk=fetch('/api/item-info',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({names:[],ids:miss})}).then(r=>r.ok?r.json():{}).then(j=>{miss.forEach(i=>AUGT[i]=(j._aug||{})[i]||[]);augAsk=null;const dr=$('#drawer');if(dr.classList.contains('open')&&dr.dataset.main)profile(dr.dataset.main,true);else render()}).catch(()=>{augAsk=null})}
 function augSkip(w,i){const t=augTypes(w);return !!(t&&AUG_SKIP.has(t[i]))}
 function xpacNow(gi){return ((D.aa||{})[D.guilds[gi].server])||{}}
 // AA temperature gauge: red at the class's autogrant for this expansion, green at max AA available
@@ -1433,7 +1538,7 @@ function me0(){const gi=G,x=D.guilds[gi],l=(ME.links||{})[x.server];
     <p style="color:var(--mute);font-size:13px;margin-top:10px">If your Discord username matches the one on your guild application, you're linked right away. Otherwise an officer approves it, usually within a day. You only ever see your own character here.</p></div></div>`;
   if(l.status!=='approved')return `<div class="glask"><div class="who">GLASK</div><div><p>Your link to <b>${esc(l.main)}</b> is waiting for an officer to approve it. Check back soon.</p><p style="color:var(--mute);font-size:13px">Wrong character? <a href="#" onclick="event.preventDefault();ME.links['${esc(x.server)}']=null;render()" style="color:var(--ember2)">Request a different one</a>.</p></div></div>`;
   const m=myMain(gi);if(!m)return `<div class="glask"><div class="who">GLASK</div><div><p><b>${esc(l.main)}</b> isn't in the latest ${esc(x.server)} guild roster. If you've changed mains, ask an officer to update your link.</p></div></div>`;
-  return charHeader(m,gi)+signupCard(m,gi)+gearCard(m,gi)+perfSummary(m,gi)+memberNightCard(m,gi)+trackedAchCard(m,gi)+vqCard(m,gi)+flagCard(m,gi)+memberUploadCard(gi)}
+  return charPanel(m,gi,false)}
 // ---- officers: approve character links; set the launch sign-up ----
 function linksCard(){const x=g(),L=KV['glask-links-'+x.server]||{};const all=Object.entries(L);const pend=all.filter(([,v])=>v.status!=='approved');
   if(!all.length)return '';const when=t=>new Date(t*1000).toLocaleDateString([], {month:'short',day:'numeric'});

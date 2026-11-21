@@ -54,7 +54,17 @@ AA = json.loads((ROOT / 'data' / 'aa.json').read_text())
 
 def tag_inv(inv):
     """Add each worn item's own expansion (from the item database) to an inventory."""
-    return [dict(w, xp=itemdb.xpac(w.get('item'))) for w in inv] if isinstance(inv, list) else inv
+    if not isinstance(inv, list):
+        return inv
+    out = []
+    for w in inv:
+        w = dict(w, xp=itemdb.xpac(w.get('item')))
+        augs = w.get('augs') or []
+        w['axp'] = [None if a == 'Empty' else itemdb.xpac(a) for a in augs]   # each aug's own expansion
+        if augs and not w.get('augt'):
+            w['augt'] = itemdb.augtypes(w.get('id')) or []
+        out.append(w)
+    return out
 
 
 for _g in DATA['guilds']:
@@ -893,7 +903,7 @@ async def item_info(request: Request):
     if not u or not u['access']:
         raise HTTPException(401, 'Sign in again')
     b = await request.json()
-    names = [str(n)[:120] for n in (b.get('names') or [])][:60]
+    names = [str(n)[:120] for n in (b.get('names') or [])][:200]
     out = {n: dict(slot=itemdb.slot(n), xp=itemdb.xpac(n)) for n in names}
     ids = [str(i)[:12] for i in (b.get('ids') or [])][:60]
     if ids:
