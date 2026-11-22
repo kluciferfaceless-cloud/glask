@@ -66,9 +66,14 @@ summary::-webkit-details-marker{display:none}
 summary .c{margin-left:auto;color:var(--mute);font-size:12px}
 details .inner{padding:0 4px 10px 22px;color:var(--mute);font-size:12.5px}
 .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-.app input,.app select,.app textarea,.filters select,.filters input{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:6px 8px;font:13px Inter}
-.drawer{position:fixed;top:0;right:0;height:100%;width:min(860px,100%);background:#141212;border-left:1px solid var(--line);z-index:10;transform:translateX(100%);transition:transform .2s;overflow:auto}
+.app input,.app select,.app textarea,.filters select,.filters input,.pl-box select{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:6px 8px;font:13px Inter}
+.drawer{position:fixed;top:0;right:0;height:100%;width:min(860px,100%);background:#141212;border-left:1px solid var(--line);z-index:17;transform:translateX(100%);transition:transform .2s;overflow:auto}
 .drawer.open{transform:none}
+.pl-wrap{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:15;display:flex;align-items:flex-start;justify-content:center;padding:3vh 2vw;overflow:auto}
+.pl-box{background:#141212;border:1px solid var(--line);border-radius:10px;width:min(1300px,100%);padding:16px}
+.pl-head{display:flex;gap:10px;align-items:center}
+.pl-grid{display:grid;grid-template-columns:260px 1fr;gap:12px}
+@media(max-width:800px){.pl-grid{grid-template-columns:1fr}}
 .eqp{background:linear-gradient(160deg,#2a2420,#1a1714 60%,#211c18);border:2px solid #6b5a42;border-radius:4px;box-shadow:inset 0 0 0 2px #1a140f,inset 0 0 0 3px #8a7556;margin-bottom:16px}
 .drawer .eqp{margin:0;border-radius:0;min-height:100%}
 .eqh{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 14px;border-bottom:2px solid #6b5a42;background:linear-gradient(#4a3f33,#2c251f);flex-wrap:wrap}
@@ -104,7 +109,7 @@ details .inner{padding:0 4px 10px 22px;color:var(--mute);font-size:12.5px}
 .eqtip .tf{color:#8a847b;margin-top:8px;font-size:12px}
 .eqleg{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;color:#8a847b;font-size:12px}.eqleg s{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px;text-decoration:none}
 @media(max-width:700px){.eqinv{grid-template-columns:1fr}.eqtip{width:260px}}
-.shade{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9;display:none}
+.shade{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9;display:none}.pl-wrap~.shade,body:has(.pl-wrap) .shade{z-index:16}
 .shade.open{display:block}
 .dh{padding:20px 22px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#141212}
 .dh h2{margin:0;font:700 22px Cinzel,serif;color:var(--bone);letter-spacing:.05em}
@@ -769,6 +774,56 @@ function flagCard(m,gi){const fr=D.guilds[gi].flag_ref, refs=[...fr.progression]
   return `<div class="card"><h3>${esc(fr.xpac)} progression flags <span style="display:flex;gap:8px;align-items:center"><span class="n">${n}/${refs.length}</span><label class="more" style="margin:0;cursor:pointer">Upload /outputfile achievement<input type="file" accept=".txt" style="display:none" onchange="uploadAch(event,${gi},'${esc(m.main)}')"></label></span></h3>
   <div class="hint">${ax?`From ${esc(m.main)}'s achievement export${ax.uploaded?' (uploaded '+esc(ax.uploaded)+')':''}: this is definitive.`:'Seen in logs so far. “Not seen” isn\'t proof they\'re missing it; upload their achievement export for a definitive check (it also gives their AA count).'}</div>
   <table>${refs.map(a=>`<tr><td>${esc(a.replace('Conqueror of ',''))}</td><td>${achCell(hasAch(m,a,gi),(m.flags||{})[a])}</td></tr>`).join('')}</table></div>`}
+/* ---- raid flag trees (data/flags.json): who can zone into each raid tier, from exports or log call-outs ---- */
+const FT=D.flagtree||{};let flagOnlyMissing=false;
+function nk(s){return String(s).toLowerCase().replace(/[`’]/g,"'").replace(/\s+/g,' ').trim()}
+function dn(n){return Array.isArray(n)?n[0]:n}
+function treeByCode(code){return Object.values(FT).find(z=>z.code===code)||null}
+function treeFor(gi){const x=xpacNow(gi),all=Object.values(FT);const t=all.find(z=>z.code===x.code);if(t)return {t,now:true};const n=x.next&&all.find(z=>z.xpac===x.next.xpac);return n?{t:n,now:false,at:x.next.at}:null}
+const _ci=new WeakMap();
+function ciOf(x){let c=_ci.get(x);if(!c){c={done:new Set((x.done||[]).map(nk)),rn:new Set((x.raidNames||[]).map(nk)),rd:new Set((x.raidDone||[]).map(nk))};_ci.set(x,c)}return c}
+function seenOf(m){const o={};for(const src of [m.flags||{},m.raid_ach||{},m.vq_seen||{}])for(const[a,d]of Object.entries(src)){const k=nk(a);if(!o[k]||d<o[k])o[k]=d}return o}
+function fst(m,gi,name){const al=(Array.isArray(name)?name:[name]).map(nk);const x=achOf(m,gi);
+  if(x){const c=ciOf(x);return al.some(a=>c.rn.has(a)?c.rd.has(a):c.done.has(a))?'yes':'no'}
+  const s=seenOf(m);return al.some(a=>s[a])?'seen':null}
+function fdate(m,name){const s=seenOf(m);for(const a of (Array.isArray(name)?name:[name]).map(nk))if(s[a])return s[a];return ''}
+function reqEval(m,gi,groups){let st='yes';const miss=[],unk=[];
+  for(const g of groups||[]){const names=g.all||g.any||[];const r=names.map(n=>[n,fst(m,gi,n)]);
+    if(g.all){const bad=r.filter(z=>z[1]==='no'),u=r.filter(z=>z[1]==null);miss.push(...bad.map(z=>dn(z[0])));unk.push(...u.map(z=>dn(z[0])));
+      if(bad.length)st='no';else if(u.length){if(st!=='no')st='?'}else if(r.some(z=>z[1]==='seen')&&st==='yes')st='seen'}
+    else{const lab='one of '+names.map(dn).join(' / ');
+      if(r.some(z=>z[1]==='yes'||z[1]==='seen')){if(!r.some(z=>z[1]==='yes')&&st==='yes')st='seen'}
+      else if(r.every(z=>z[1]==='no')){st='no';miss.push(lab)}else{if(st!=='no')st='?';unk.push(lab)}}}
+  return {st,miss,unk}}
+function achMark(s){return s==='yes'||s==='seen'?'<span style="color:var(--ok)">✓</span>':s==='no'?'<span style="color:var(--ember2)">✗</span>':'<span style="color:var(--dim)">?</span>'}
+function enterTag(x,e){if(!x.enter.length)return '<span class="tag ok">open</span>';
+  return e.st==='yes'?'<span class="tag ok">can enter</span>':e.st==='seen'?'<span class="tag ok">can enter (from logs)</span>':e.st==='no'?`<span class="tag red">needs ${esc(e.miss.join(', '))}</span>`:'<span class="tag">unknown</span>'}
+function reqText(m,gi,groups,sep){return groups.map(g=>(g.all?'':'any of ')+(g.all||g.any).map(n=>`${achMark(fst(m,gi,n))} ${esc(dn(n))}`).join(g.all?', ':' / ')).join(sep||'; ')}
+function unlockText(T){return T.now?'':` · unlocks ${new Date(T.at).toLocaleDateString([], {month:'short',day:'numeric'})}`}
+function flagTreeCard(m,gi,code){const T=code?achTreeT(gi,code):treeFor(gi);if(!T)return flagCard(m,gi);const t=T.t,ax=achOf(m,gi),you=isMem(gi);
+  const up=`<label class="more" style="margin:0;cursor:pointer">Upload /outputfile achievement<input type="file" accept=".txt" style="display:none" onchange="uploadAch(event,${gi},'${esc(m.main)}')"></label>`;
+  const gated=t.tiers.filter(x=>x.enter.length),ready=gated.filter(x=>['yes','seen'].includes(reqEval(m,gi,x.enter).st)).length;
+  const done=(l,f)=>l.filter(z=>['yes','seen'].includes(fst(m,gi,f(z)))).length;
+  return `<div class="card"><h3>${esc(t.xpac)} raid flags<span style="font-weight:400;color:var(--mute);text-transform:none;letter-spacing:0">${esc(unlockText(T))}</span> <span style="display:flex;gap:8px;align-items:center"><span class="n">${ready}/${gated.length} tiers</span>${up}</span></h3>
+  <div class="hint">${ax?`From ${you?'your':esc(m.main)+"'s"} achievement export${ax.uploaded?' (uploaded '+esc(ax.uploaded)+')':''}: definitive.`:`Seen in logs so far. Upload ${you?'your':'their'} <code>/outputfile achievement</code> export for a definitive check.`} The tag on each tier is the zone-in flag. Open a tier for each raid's Conqueror and what the requester needs.</div>
+  ${t.tiers.map(x=>{const e=reqEval(m,gi,x.enter);
+   return `<details><summary><b>${esc(x.label)}</b> ${enterTag(x,e)}<span class="c">${x.raids.map(r=>`${achMark(fst(m,gi,r.ach))} ${esc(r.raid.split(' (')[0])}`).join(' · ')}</span></summary><div class="inner">
+   ${x.enter.length?`<div><b>Zone in:</b> ${reqText(m,gi,x.enter)}</div>`:''}
+   ${x.raids.map(r=>`<div style="margin-top:8px"><b style="color:var(--text)">${esc(r.zone)}: ${esc(r.raid)}</b><br>${achCell(fst(m,gi,r.ach),fdate(m,r.ach))} ${esc(r.ach)}<br><span style="color:var(--mute)">To request: ${r.request.ach.map(n=>`${achMark(fst(m,gi,n))} ${esc(dn(n))}`).join(', ')}, the <i>${esc(r.request.mission)}</i> mission${x.request_raids?', and '+reqText(m,gi,x.request_raids,', '):''}</span></div>`).join('')}
+   ${x.note?`<div class="hint" style="margin:8px 0 0">${esc(x.note)}</div>`:''}</div></details>`}).join('')}
+  <details><summary><b>Missions (Hero achievements)</b><span class="c">${done(t.heroes,h=>h[1])} / ${t.heroes.length}</span></summary><div class="inner">${t.heroes.map(h=>`${achCell(fst(m,gi,h[1]),fdate(m,h[1]))} ${esc(h[1])}`).join('<br>')}</div></details>
+  <details><summary><b>Progression achievements</b><span class="c">${done(t.progression,p=>p.name)} / ${t.progression.length}</span></summary><div class="inner">${t.progression.map(p=>`${achCell(fst(m,gi,p.name),fdate(m,p.name))} <b style="color:var(--text)">${esc(dn(p.name))}</b> · ${esc(p.what)}`).join('<br>')}${t.progression_note?`<div class="hint" style="margin:8px 0 0">${esc(t.progression_note)}</div>`:''}</div></details></div>`}
+function flagTreeGuildCard(code){const x=g(),gi=G,T=code?achTreeT(gi,code):treeFor(gi);if(!T)return '';const t=T.t,tiers=t.tiers.filter(z=>z.enter.length);
+  const pop=x.members.filter(m=>!NONRAID.test(m.rank)&&m.days!=null&&m.days<=D.inactive_days).sort((a,b)=>a.main.localeCompare(b.main));
+  const ok=s=>s==='yes'||s==='seen';const ev=pop.map(m=>[m,tiers.map(z=>reqEval(m,gi,z.enter))]);
+  const cols=tiers.map((z,i)=>{const n=ev.filter(r=>ok(r[1][i].st)).length;return {n,pct:pop.length?Math.round(100*n/pop.length):0}});
+  const rows=flagOnlyMissing?ev.filter(r=>r[1].some(e=>!ok(e.st))):ev;const unk=pop.filter(m=>!achOf(m,gi)).length;
+  const cell=e=>ok(e.st)?'<span class="tag ok">✓</span>':e.st==='no'?`<span class="tag red" title="Needs ${esc(e.miss.join(', '))}">✗</span>`:`<span style="color:var(--dim)" title="Unknown: ${esc(e.unk.join(', '))}">?</span>`;
+  return `<div class="card"><h3>${esc(t.xpac)} raid flags${esc(unlockText(T))} <span class="n">${pop.length} active raiders</span></h3>
+   <div class="hint">Who can zone into each raid tier (Tier 1 is open to everyone). ✓ flagged · ✗ missing (hover for what) · ? no achievement export and not seen in a log (${unk} without an export). ${esc(t.eighty_five||'')} Click a name for their flags.</div>
+   <label style="font-size:13px;color:var(--mute);display:inline-flex;gap:6px;align-items:center;margin-bottom:8px"><input type="checkbox" ${flagOnlyMissing?'checked':''} onchange="flagOnlyMissing=this.checked;render()"> Only people missing a flag</label>
+   <div style="overflow-x:auto"><table><tr><th>Main</th><th>Class</th>${tiers.map((z,i)=>`<th class="num" title="${esc(z.raids.map(r=>r.raid.split(' (')[0]).join(', '))}">${esc(z.label)}<div style="font-weight:400;color:${cols[i].pct>=85?'var(--ok)':'var(--dim)'}">${cols[i].n}/${pop.length} · ${cols[i].pct}%</div></th>`).join('')}</tr>
+   ${rows.map(([m,es])=>`<tr class="click" onclick="charTab='ach';profile('${esc(m.main)}')"><td>${esc(m.main)}</td><td>${esc(m.cls)}</td>${es.map(e=>`<td class="num">${cell(e)}</td>`).join('')}</tr>`).join('')}</table></div></div>`}
 function attCard(m,gi){const rec=D.guilds[gi].recruits.find(r=>r.main===m.main);const dates=attendedSince(m.main,rec?rec.start:null,gi);
   return `<div class="card"><h3>Raid attendance${rec?' · application window':''} <span style="display:flex;gap:8px;align-items:center">${rec?`<span class="n">${dates.length} / 6</span>`:`<span class="n">${dates.length}</span>`}<label class="more" style="margin:0;cursor:pointer">Upload raid log<input type="file" accept=".txt" style="display:none" onchange="uploadRaidLog(event,${gi}).then(()=>profile('${esc(m.main)}'))"></label></span></h3>
   <div class="hint">Counted from raid logs uploaded to Glask: a raid counts if any of ${esc(m.main)}'s characters shows up in it${rec?`, since their recruit date (${esc(rec.start||'?')})`:''}. One log updates attendance for everyone in it.</div>
@@ -783,8 +838,8 @@ function vqCard(m,gi){const V2=D.guilds[gi].vanq||[];if(!V2.length)return '';con
      return `<details><summary>${full?'<span class="tag ok">✓</span>':''}<span style="color:var(--text)">${esc(e.event)}</span><span class="c">${k} / ${e.subs.length}</span></summary><div class="inner">${e.subs.map(s=>`${achCell(vqStatus(m,s.name,gi),(m.vq_seen||{})[s.name])} <b style="color:var(--text)">${esc(s.name)}</b> · ${esc(s.desc)}`).join('<br>')}</div></details>`}).join('')}
    </div></details>`}).join('')}</div>`}
 let achX=null;
-function flagGuildCard(){const x=g(),gi=G,{code,names}=trackedList(gi),xn=xpacNow(gi).xpac||code;
-  const edit=isOff(gi)?`<button class="more" onclick="editTracked(${gi})">Edit list</button>`:'';
+function flagGuildCard(c0){const x=g(),gi=G,{code,names}=trackedList(gi,c0),xn=xpName(gi,code);
+  const edit=isOff(gi)?`<button class="more" onclick="editTracked(${gi},'${code}')">Edit list</button>`:'';
   if(!names.length)return `<div class="card"><h3>Flagging · important ${esc(xn)} achievements ${edit}</h3><div class="hint" style="margin:0">No tracked achievements set for ${esc(xn)} yet.</div></div>`;
   const pop=x.members.filter(m=>!NONRAID.test(m.rank)&&m.days!=null&&m.days<=D.inactive_days).sort((a,b)=>a.main.localeCompare(b.main));
   const st=(m,a)=>{const ax=achOf(m,gi);return ax?(achDone(ax,a)?'yes':'no'):((m.flags||{})[a]||(m.raid_ach||{})[a]?'seen':null)};
@@ -795,8 +850,72 @@ function flagGuildCard(){const x=g(),gi=G,{code,names}=trackedList(gi),xn=xpacNo
    <div class="hint">${full} of ${pop.length} active raiders have all ${names.length}. ✓ done · ✗ missing (from their achievement export) · ? no export yet (${unk}). Click a name for their profile.</div>
    <div style="overflow-x:auto"><table><tr><th>Main</th><th>Class</th>${names.map((a,i)=>`<th class="num" title="${esc(a)}">${esc(a.replace(/ The Outer Brood /,' ').replace(/^Underfoot /,''))}<div style="font-weight:400;color:var(--dim)">${tot[i]}/${pop.length}</div></th>`).join('')}</tr>
    ${pop.map(m=>`<tr class="click" onclick="profile('${esc(m.main)}')"><td>${esc(m.main)}</td><td>${esc(m.cls)}</td>${names.map(a=>`<td class="num">${cell(st(m,a))}</td>`).join('')}</tr>`).join('')}</table></div></div>`}
-function ach(){const xn=esc(xpacNow(G).xpac||'');
-  return fold('ach-flag','Flagging · important '+xn+' achievements',flagGuildCard())+fold('ach-vanq','Vanquisher planner',ach0())}
+/* expansions offered on the Achievements tab: the server's current one, plus the next one when Glask has its flag tree */
+function achOptions(gi){const x=xpacNow(gi),o=[];if(x.code)o.push({code:x.code,xpac:x.xpac,now:true});if(x.next&&x.next.code&&treeByCode(x.next.code))o.push({code:x.next.code,xpac:x.next.xpac,now:false,at:x.next.at});return o}
+function xpName(gi,code){const o=achOptions(gi).find(z=>z.code===code);return o?o.xpac:((treeByCode(code)||{}).xpac||code)}
+const ACHX={};
+function achSel(gi){const o=achOptions(gi),k=D.guilds[gi].server;return (o.find(z=>z.code===ACHX[k])||o[0]||{}).code}
+function achTreeT(gi,code){const t=treeByCode(code);if(!t)return null;const o=achOptions(gi).find(z=>z.code===code);return {t,now:!o||o.now,at:o&&o.at}}
+/* expansion picker on the character panel's Achievements tab; shares the pick with the Achievements tab */
+/* only expansions with Vanquisher raid sub-achievements get the Vanquisher planner / card (House of Thule has none) */
+function hasVanq(gi,code){const n=xpName(gi,code);return (D.guilds[gi].vanq||[]).some(v=>v[0]===n&&(v[1]||[]).length)}
+function charAchBar(gi){const opts=achOptions(gi),code=achSel(gi);if(opts.length<2)return '';
+  return `<div class="filters" style="align-items:center;margin:0 0 12px"><label style="color:var(--mute);font-size:13px">Expansion</label><select onchange="ACHX['${D.guilds[gi].server}']=this.value;if(V==='ach'&&$('#drawer').classList.contains('open'))render();setCharTab('ach')">${opts.map(o=>`<option value="${o.code}" ${o.code===code?'selected':''}>${esc(o.xpac)}${o.now?' (current)':' · unlocks '+new Date(o.at).toLocaleDateString([], {month:'short',day:'numeric'})}</option>`).join('')}</select></div>`}
+function ach(){const gi=G,code=achSel(gi),opts=achOptions(gi),xn=esc(xpName(gi,code)),T=achTreeT(gi,code);
+  const bar=`<div class="filters" style="align-items:center"><label style="color:var(--mute);font-size:13px">Expansion</label><select onchange="ACHX[g().server]=this.value;render()">${opts.map(o=>`<option value="${o.code}" ${o.code===code?'selected':''}>${esc(o.xpac)}${o.now?' (current)':' · unlocks '+new Date(o.at).toLocaleDateString([], {month:'short',day:'numeric'})}</option>`).join('')}</select>
+   <button class="more" style="margin:0" onclick="openPlanner(${gi},'${code}')">Launch raid planner</button></div>`;
+  return bar+(T?fold('ach-tree',T.t.xpac+' raid flags',flagTreeGuildCard(code)):'')+fold('ach-flag','Flagging · important '+xn+' achievements',flagGuildCard(code))+(hasVanq(gi,code)?fold('ach-vanq','Vanquisher planner',ach0()):'')}
+/* ---- launch raid planner: pick who's in the launch raid, see their achievements and tier flags ---- */
+let PLAN=null;
+function planKey(gi,code){return 'glask-launchraid-'+D.guilds[gi].server+'-'+code}
+function planGet(gi,code){return kvGet(planKey(gi,code))||{mains:[]}}
+function planSave(gi,code,mains){kvSet(planKey(gi,code),{mains,by:ME.name,at:new Date().toISOString().slice(0,10)});planRender()}
+function planCols(gi,code){const t=treeByCode(code),out=[],seen=new Set();
+  const add=(name,label,what)=>{const k=nk(dn(name));if(seen.has(k))return;seen.add(k);out.push({name,label:label||dn(name),what:what||''})};
+  if(t)(t.progression||[]).forEach(p=>add(p.name,p.short,p.what));
+  trackedList(gi,code).names.forEach(n=>add(n));return out}
+function planPool(gi){return D.guilds[gi].members.filter(m=>!NONRAID.test(m.rank)&&m.days!=null&&m.days<=D.inactive_days).sort((a,b)=>a.main.localeCompare(b.main))}
+function planSignup(gi){const qs=allQ(gi);if(!qs.length)return {title:null,st:{}};const st={};analyzeQ(qs[0],gi).forEach(r=>{if(r.m)st[r.m.main]=r.status});return {title:qs[0].title,st}}
+function openPlanner(gi,code){PLAN={gi,code,view:'ach'};planRender()}
+function closePlanner(){PLAN=null;const e=$('#planner');if(e)e.remove()}
+function planToggle(main,on){const {gi,code}=PLAN;const s=new Set(planGet(gi,code).mains);on?s.add(main):s.delete(main);planSave(gi,code,[...s])}
+function planBulk(kind){const {gi,code}=PLAN;const cur=new Set(planGet(gi,code).mains);
+  if(kind==='clear'){if(!confirm('Take everyone out of the launch raid?'))return;planSave(gi,code,[]);return}
+  const add=kind==='avail'?Object.entries(planSignup(gi).st).filter(([,v])=>v==='Available').map(([k])=>k):planPool(gi).map(m=>m.main);
+  add.forEach(n=>cur.add(n));planSave(gi,code,[...cur])}
+function planFilter(q){q=q.toLowerCase();document.querySelectorAll('#planner .pl-pick label').forEach(l=>{l.style.display=l.dataset.n.includes(q)?'flex':'none'})}
+function planMissingText(){const {gi,code}=PLAN,t=treeByCode(code),x=D.guilds[gi];const mains=planGet(gi,code).mains;const ms=x.members.filter(m=>mains.includes(m.main));const lines=[`${x.server} ${xpName(gi,code)} launch raid: ${ms.length} raiders`];
+  planCols(gi,code).forEach(c=>{const miss=ms.filter(m=>fst(m,gi,c.name)==='no').map(m=>m.main),unk=ms.filter(m=>fst(m,gi,c.name)==null).map(m=>m.main);if(miss.length||unk.length)lines.push(`${c.label}: missing ${miss.join(', ')||'nobody'}${unk.length?` | no export: ${unk.join(', ')}`:''}`)});
+  if(t)t.tiers.filter(z=>z.enter.length).forEach(z=>{const miss=ms.filter(m=>reqEval(m,gi,z.enter).st==='no').map(m=>m.main);if(miss.length)lines.push(`${z.label} zone-in: missing ${miss.join(', ')}`)});return lines.join('\n')}
+function planCopy(){const t=planMissingText();(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>alertBox("Copied who's missing what"),()=>{prompt('Copy this:',t)})}
+function planRender(){if(!PLAN)return;const {gi,code,view}=PLAN,x=D.guilds[gi],off=isOff(gi),t=treeByCode(code),plan=planGet(gi,code);
+  const pool=planPool(gi),inRaid=new Set(plan.mains),ms=x.members.filter(m=>inRaid.has(m.main)).sort((a,b)=>a.main.localeCompare(b.main));
+  const su=planSignup(gi),cols=planCols(gi,code),tiers=t?t.tiers.filter(z=>z.enter.length):[];const v=view==='tiers'&&tiers.length?'tiers':'ach';
+  const ok=s=>s==='yes'||s==='seen';const cell=s=>ok(s)?'<span class="tag ok">✓</span>':s==='no'?'<span class="tag red">✗</span>':'<span style="color:var(--dim)">?</span>';
+  const roleOf=cl=>(ROLES.find(r=>r[1].includes(cl))||['Other'])[0];const rc={};ms.forEach(m=>{const k=roleOf(classOf(m.main,m.cls,gi));rc[k]=(rc[k]||0)+1});
+  const sTag=st=>st==='Available'?'<span class="tag ok">Available</span>':st==='Unavailable'?'<span class="tag red">Unavailable</span>':'<span style="color:var(--dim);white-space:nowrap">no answer</span>';
+  const pct=n=>ms.length?Math.round(100*n/ms.length):0;
+  const head=v==='ach'?cols.map(c=>`<th class="num" title="${esc(dn(c.name))}${c.what?': '+esc(c.what):''}">${esc(c.label)}</th>`).join(''):tiers.map(z=>`<th class="num" title="${esc(z.raids.map(r=>r.raid.split(' (')[0]).join(', '))}">${esc(z.label)}</th>`).join('');
+  const rowCells=m=>v==='ach'?cols.map(c=>`<td class="num">${cell(fst(m,gi,c.name))}</td>`).join(''):tiers.map(z=>{const e=reqEval(m,gi,z.enter);return `<td class="num" title="${e.st==='no'?'Needs '+esc(e.miss.join(', ')):e.st==='?'?'Unknown: '+esc(e.unk.join(', ')):''}">${cell(e.st)}</td>`}).join('');
+  const have=v==='ach'?cols.map(c=>ms.filter(m=>ok(fst(m,gi,c.name))).length):tiers.map(z=>ms.filter(m=>ok(reqEval(m,gi,z.enter).st)).length);
+  const foot=have.map(n=>`<td class="num" style="color:${pct(n)>=85?'var(--ok)':'var(--mute)'}">${n}/${ms.length}<div style="font-size:11px">${pct(n)}%</div></td>`).join('');
+  const html=`<div class="pl-box"><div class="pl-head"><b style="font:600 15px Inter;letter-spacing:.06em;text-transform:uppercase;color:var(--bone)">Launch raid planner</b>
+     <select onchange="PLAN.code=this.value;planRender()">${achOptions(gi).map(o=>`<option value="${o.code}" ${o.code===code?'selected':''}>${esc(o.xpac)}</option>`).join('')}</select>
+     <span style="color:var(--mute);font-size:13px">${esc(x.server)}</span><span style="flex:1"></span><button class="more" style="margin:0" onclick="closePlanner()">✕ Close</button></div>
+   <div class="glask" style="margin:12px 0"><div class="who">GLASK</div><div><p><em>“Who will stand at the gates when they open?”</em> <b>${ms.length}</b> in the ${esc(xpName(gi,code))} launch raid${plan.by?` <span style="color:var(--dim);font-size:12px">(last changed by ${esc(plan.by)}${plan.at?', '+esc(plan.at):''})</span>`:''}. ${ROLES.map(([n,,col])=>rc[n]?`<span style="color:${col}">${rc[n]} ${n}</span>`:'').filter(Boolean).join(' · ')}</p>
+    <p style="color:var(--mute);font-size:13px">✓ done (from their achievement export, or seen in a log) · ✗ missing (export) · ? no export yet (${ms.filter(m=>!achOf(m,gi)).length} of ${ms.length}). Bottom row: how many have it, green at 85%+.${t&&t.eighty_five?' '+esc(t.eighty_five):''}</p></div></div>
+   <div class="pl-grid"><div class="pl-pick card" style="margin:0"><h3>Roster <span class="n">${pool.length}</span></h3>
+     ${off?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${su.title?`<button class="more" style="margin:0" title="${esc(su.title)}" onclick="planBulk('avail')">+ Available on sign-up</button>`:''}<button class="more" style="margin:0" onclick="planBulk('all')">+ All active raiders</button><button class="more" style="margin:0" onclick="planBulk('clear')">Clear</button></div>`:'<div class="hint">Officers pick the launch raid.</div>'}
+     <input placeholder="Find a raider" oninput="planFilter(this.value)" style="width:100%;margin-bottom:6px;background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:6px 8px;border-radius:6px">
+     <div style="max-height:52vh;overflow:auto">${pool.map(m=>`<label data-n="${esc(m.main.toLowerCase())}" style="display:flex;gap:6px;align-items:center;padding:2px 0;font-size:13px;color:${inRaid.has(m.main)?'var(--text)':'var(--mute)'}"><input type="checkbox" ${inRaid.has(m.main)?'checked':''} ${off?'':'disabled'} onchange="planToggle('${esc(m.main)}',this.checked)"> ${esc(m.main)} <span style="color:var(--dim)">${esc(classOf(m.main,m.cls,gi))}</span>${su.st[m.main]==='Available'?' <span style="color:var(--ok);font-size:11px">●</span>':su.st[m.main]==='Unavailable'?' <span style="color:var(--ember2);font-size:11px">●</span>':''}</label>`).join('')}</div>
+     ${su.title?`<div class="hint" style="margin:6px 0 0"><span style="color:var(--ok)">●</span> available / <span style="color:var(--ember2)">●</span> unavailable on “${esc(su.title)}”.</div>`:''}</div>
+    <div class="card" style="margin:0;min-width:0"><h3>${v==='ach'?'Achievements':'Zone-in flags by tier'} <span style="display:flex;gap:6px">${tiers.length?['ach','tiers'].map(k=>`<button class="more" style="margin:0;${v===k?'border-color:var(--ember);color:var(--text)':''}" onclick="PLAN.view='${k}';planRender()">${k==='ach'?'Achievements':'Raid tiers'}</button>`).join(''):''}<button class="more" style="margin:0" onclick="planCopy()">Copy who's missing</button></span></h3>
+     ${ms.length?`<div style="overflow-x:auto"><table><tr><th>Main</th><th>Class</th><th>Sign-up</th>${head}${off?'<th></th>':''}</tr>
+      ${ms.map(m=>`<tr><td class="link" onclick="charTab='ach';profile('${esc(m.main)}')">${esc(m.main)}</td><td>${esc(classOf(m.main,m.cls,gi))}</td><td>${sTag(su.st[m.main])}</td>${rowCells(m)}${off?`<td><button class="more" style="margin:0;padding:0 6px" title="Take out of the launch raid" onclick="planToggle('${esc(m.main)}',false)">✕</button></td>`:''}</tr>`).join('')}
+      <tr style="border-top:2px solid var(--line)"><td colspan="3" style="color:var(--mute)">Have it</td>${foot}${off?'<td></td>':''}</tr></table></div>`:`<div class="hint" style="margin:0">Nobody in the launch raid yet. Tick raiders on the left${su.title?', or add everyone Available on the sign-up':''}.</div>`}
+     ${v==='ach'&&t&&t.progression_note?`<div class="hint" style="margin:8px 0 0">${esc(t.progression_note)}</div>`:''}</div></div></div>`;
+  let el=$('#planner');if(!el){el=document.createElement('div');el.id='planner';el.className='pl-wrap';el.onclick=e=>{if(e.target===el)closePlanner()};document.body.appendChild(el)}
+  const sc=el.querySelector('.pl-box div[style*="max-height"]'),top=sc?sc.scrollTop:0;el.innerHTML=html;const sc2=el.querySelector('.pl-box div[style*="max-height"]');if(sc2)sc2.scrollTop=top}
 function ach0(){const x=g();const V2=x.vanq||[];if(!V2.length)return '<div class="card">No raid achievement reference loaded.</div>';
   if(!achX||!V2.find(v=>v[0]===achX))achX=V2[V2.length-1][0];const evs=V2.find(v=>v[0]===achX)[1];
   const pop=x.members.filter(m=>!NONRAID.test(m.rank)&&m.days!=null&&m.days<=D.inactive_days);const withX=pop.filter(m=>achOf(m)).length;
@@ -809,16 +928,16 @@ function ach0(){const x=g();const V2=x.vanq||[];if(!V2.length)return '<div class
      <table style="margin-bottom:12px"><tr><th>Sub-achievement</th><th>What it takes</th><th class="num">Have</th><th class="num">Need</th><th class="num">Unknown</th></tr>
      ${rows.map(r=>`<tr><td><b>${esc(r.s.name)}</b></td><td style="color:var(--mute)">${esc(r.s.desc)}</td><td class="num">${r.have.length}</td><td class="num">${r.need.length?`<details style="border:0;display:inline-block"><summary style="padding:0;color:var(--ember2)">${r.need.length}</summary><div style="text-align:left;font-size:12px">${r.need.map(z=>esc(z[0].main)).join(', ')}</div></details>`:'0'}</td><td class="num" style="color:var(--dim)">${r.unk.length}</td></tr>`).join('')}</table></details></div>`}).join('')}`}
 
-function trackedList(gi){const c=xpacNow(gi).code;return {code:c,names:((KV['glask-trackach-all']||{})[c])||[]}}
-function trackedAchCard(m,gi){const {code,names}=trackedList(gi);const ax=achOf(m,gi);const xn=xpacNow(gi).xpac||code;
-  const edit=isOff(gi)?`<button class="more" onclick="editTracked(${gi})">Edit list</button>`:'';
+function trackedList(gi,code){const c=code||xpacNow(gi).code;return {code:c,names:((KV['glask-trackach-all']||{})[c])||[]}}
+function trackedAchCard(m,gi,c0){const {code,names}=trackedList(gi,c0);const ax=achOf(m,gi);const xn=xpName(gi,code);
+  const edit=isOff(gi)?`<button class="more" onclick="editTracked(${gi},'${code}')">Edit list</button>`:'';
   if(!names.length)return `<div class="card"><h3>Important ${esc(xn)} achievements ${edit}</h3><div class="hint" style="margin:0">Leadership hasn't picked the achievements to track for ${esc(xn)} yet.</div></div>`;
   const st=a=>ax?(achDone(ax,a)?'yes':'no'):((m.flags||{})[a]||(m.raid_ach||{})[a]?'seen':null);
   const n=names.filter(a=>['yes','seen'].includes(st(a))).length;
   return `<div class="card"><h3>Important ${esc(xn)} achievements <span style="display:flex;gap:8px;align-items:center"><span class="n">${n}/${names.length}</span>${edit}</span></h3>
    <div class="hint">${ax?`From ${isMem(gi)?'your':esc(m.main)+"'s"} achievement export${ax.uploaded?' (uploaded '+esc(ax.uploaded)+')':''}.`:`Upload ${isMem(gi)?'your':'their'} <code>/outputfile achievement</code> export to check these.`}</div>
    <table>${names.map(a=>`<tr><td>${esc(a)}</td><td>${achCell(st(a))}</td></tr>`).join('')}</table></div>`}
-async function editTracked(gi){const {code,names}=trackedList(gi);const v=prompt(`Achievements to track for ${xpacNow(gi).xpac||code}, separated by commas (exact names from the achievement window):`,names.join(', '));if(v===null)return;
+async function editTracked(gi,c0){const {code,names}=trackedList(gi,c0);const v=prompt(`Achievements to track for ${xpName(gi,code)}, separated by commas (exact names from the achievement window):`,names.join(', '));if(v===null)return;
   const r=await fetch('/api/trackach',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,names:v.split(',').map(s=>s.trim()).filter(Boolean)})});
   if(!r.ok){let d='';try{d=(await r.json()).detail}catch(e){}alertBox('Not saved: '+(d||r.status));return}KV['glask-trackach-all']=await r.json();alertBox('Tracked achievements saved');const o=$('#drawer').dataset.main;if($('#drawer').classList.contains('open')&&o)profile(o);else render()}
 function raidAchCard(m,gi){const rr=D.guilds[gi].raid_ref;if(!rr||!rr.length)return '';const got=m.raid_ach||{};
@@ -1342,7 +1461,7 @@ function charPanel(m,gi,drawer){const x=D.guilds[gi],off=isOff(gi),mem=!drawer;i
   if(charTab==='inv')body=eqInvTab(m,gi);
   else if(charTab==='bio')body=(mem?signupCard(m,gi):'')+charsCard(m,gi)+membershipCard(m,gi)+(off?appCard(m):'');
   else if(charTab==='perf')body=mem?perfSummary(m,gi)+memberNightCard(m,gi)+tattleHistoryCard(m,gi):perfCard(m,gi)+tattleHistoryCard(m,gi);
-  else if(charTab==='ach')body=trackedAchCard(m,gi)+flagCard(m,gi)+vqCard(m,gi);
+  else if(charTab==='ach')body=charAchBar(gi)+trackedAchCard(m,gi,achSel(gi))+(treeByCode(achSel(gi))?flagTreeCard(m,gi,achSel(gi)):flagCard(m,gi))+(hasVanq(gi,achSel(gi))?vqCard(m,gi):'');
   else if(charTab==='loot')body=(off?lootHistoryCard(m,gi):'')+xpLootCard(m,gi);
   else if(charTab==='up')body=mem?memberUploadCard(gi):`<div class="card"><h3>Upload for ${esc(m.main)}</h3><div class="hint">Files ${esc(m.main)} sent you. Raid logs go on the Attendance page so everyone in the raid gets credit.</div>
      <div style="display:flex;gap:10px;flex-wrap:wrap"><label class="more" style="margin:0;cursor:pointer">Inventory (/outputfile inventory)<input type="file" accept=".txt" style="display:none" onchange="uploadInv(event,${gi},'${esc(m.main)}')"></label>
@@ -1362,7 +1481,7 @@ function profile(name,keep){if(ME.access[D.guilds[G].server]==='member'){closeP(
   dr.classList.add('open');$('#shade').classList.add('open');dr.scrollTop=keep?st:0;
 }
 function closeP(){$('#drawer').classList.remove('open');$('#shade').classList.remove('open')}
-$('#shade').onclick=closeP; document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeP();closeNav()}});
+$('#shade').onclick=closeP; document.addEventListener('keydown',e=>{if(e.key==='Escape'){if($('#drawer').classList.contains('open')||!PLAN){closeP();closeNav()}else closePlanner()}});
 
 // global search across both guilds, any character
 const IDX=[];D.guilds.forEach((x,gi)=>x.members.forEach(m=>m.chars.forEach(c=>IDX.push([c.n.toLowerCase(),c.n,m.main,gi,c.a]))));

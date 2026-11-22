@@ -1,0 +1,410 @@
+{
+  "_about": "Raid flag trees per expansion. Each name is an achievement as it appears in /outputfile achievement (matching ignores case, backticks vs apostrophes, and extra spaces). A name given as a list means any of those spellings counts. 'enter' is what a raider needs to zone in (participate); 'request' is what the person requesting the raid needs. Requirements are groups: {all:[...]} or {any:[...]}, and every group must pass.",
+  "HoT": {
+    "code": "HoT",
+    "xpac": "House of Thule",
+    "sources": [
+      "Allakhazam: Raiding in House of Thule (participation vs request flags per tier)",
+      "Allakhazam: Progression Through House of Thule (required mission per zone)",
+      "Allakhazam quest entries for each Conqueror / Hero / Partisan / key achievement",
+      "bonzz.com House of Thule achievement list (Progression category)",
+      "Rasper's Realm: House of Thule raid progression (key drops)"
+    ],
+    "tiers": [
+      {
+        "id": "T1",
+        "label": "Tier 1",
+        "raids": [
+          {
+            "zone": "Feerrott, the Dream",
+            "raid": "Ritual of Terror",
+            "ach": "Conqueror of The Feerrott",
+            "request": {
+              "ach": [
+                "Partisan of The Feerrott"
+              ],
+              "mission": "Fall of the Tae Ew"
+            }
+          },
+          {
+            "zone": "House of Thule, Lower Floors",
+            "raid": "Tick Tock",
+            "ach": "Conqueror of the House of Thule",
+            "request": {
+              "ach": [
+                "Partisan of the House of Thule"
+              ],
+              "mission": "Welcome to My Nightmare"
+            }
+          }
+        ],
+        "enter": [],
+        "note": "Open from the start. Tick Tock's zone-in NPC has been reported to let in only people with Hero of the House of Thule (the Welcome to My Nightmare mission)."
+      },
+      {
+        "id": "T2",
+        "label": "Tier 2",
+        "raids": [
+          {
+            "zone": "The Grounds",
+            "raid": "The Roots of Evil",
+            "ach": "Conqueror of The Grounds",
+            "request": {
+              "ach": [
+                "Partisan of The Grounds"
+              ],
+              "mission": "The Gardener"
+            }
+          },
+          {
+            "zone": "The Well",
+            "raid": "Terror in the Dark",
+            "ach": "Conqueror of The Well",
+            "request": {
+              "ach": [
+                "Partisan of The Well"
+              ],
+              "mission": "No Freedom in Death"
+            }
+          },
+          {
+            "zone": "The Library",
+            "raid": "The Librarian's Nightmare",
+            "ach": "Conqueror of The Library",
+            "request": {
+              "ach": [
+                "Partisan of The Library"
+              ],
+              "mission": "The Stuff of Dreams"
+            }
+          },
+          {
+            "zone": "Erudin Burning",
+            "raid": "The Torches of Truth",
+            "ach": "Conqueror of Erudin Burning",
+            "request": {
+              "ach": [
+                "Partisan of Erudin Burning"
+              ],
+              "mission": "The Illuminating Truth"
+            }
+          }
+        ],
+        "enter": [
+          {
+            "any": [
+              "Conqueror of The Feerrott",
+              "Conqueror of the House of Thule"
+            ]
+          }
+        ],
+        "request_raids": [
+          {
+            "all": [
+              "Conqueror of The Feerrott",
+              "Conqueror of the House of Thule"
+            ]
+          }
+        ],
+        "note": "Allakhazam: either Tier 1 raid lets you zone in; the requester needs both. Each Tier 2 raid drops Rusty Gate Keys (3, or 5 from Erudin Burning)."
+      },
+      {
+        "id": "T3a",
+        "label": "Tier 3a",
+        "raids": [
+          {
+            "zone": "House of Thule, Upper Floors",
+            "raid": "Guardian of the House",
+            "ach": "Conqueror of the House of Thule, Upper Floors",
+            "request": {
+              "ach": [
+                [
+                  "Partisan of the House of Thule, Upper Floors",
+                  "Partisan of House of Thule, Upper Floors"
+                ]
+              ],
+              "mission": "Redemption"
+            }
+          },
+          {
+            "zone": "Al'Kabor's Nightmare",
+            "raid": "At World's End",
+            "ach": "Conqueror of Al'Kabor's Nightmare",
+            "request": {
+              "ach": [
+                "Partisan of Al'Kabor's Nightmare"
+              ],
+              "mission": "Catastrophic Power"
+            }
+          },
+          {
+            "zone": "Miragul's Nightmare",
+            "raid": "The Force of Eternity",
+            "ach": "Conqueror of Miragul's Nightmare",
+            "request": {
+              "ach": [
+                "Partisan of Miragul's Nightmare"
+              ],
+              "mission": "Miragul's Vendetta"
+            }
+          }
+        ],
+        "enter": [
+          {
+            "all": [
+              "Rusty Gate Key"
+            ]
+          }
+        ],
+        "request_raids": [
+          {
+            "all": [
+              "Conqueror of The Grounds",
+              "Conqueror of The Well",
+              "Conqueror of The Library",
+              "Conqueror of Erudin Burning",
+              "Rusty Gate Key"
+            ]
+          }
+        ],
+        "note": "Zoning in needs a looted and clicked Rusty Gate Key. These raids drop Tremulous Keys."
+      },
+      {
+        "id": "T3b",
+        "label": "Tier 3b",
+        "raids": [
+          {
+            "zone": "Fear Itself",
+            "raid": "Cazic's Final Stand",
+            "ach": "Conqueror of Fear Itself",
+            "request": {
+              "ach": [
+                "Partisan of Fear Itself"
+              ],
+              "mission": "An Offering to Thule"
+            }
+          }
+        ],
+        "enter": [
+          {
+            "all": [
+              "Tremulous Key"
+            ]
+          }
+        ],
+        "request_raids": [
+          {
+            "all": [
+              "Tremulous Key"
+            ]
+          }
+        ],
+        "note": "Zoning in needs a looted and clicked Tremulous Key from any Tier 3a raid. Cazic drops Sanctum Keys."
+      },
+      {
+        "id": "T3c",
+        "label": "Tier 3c",
+        "raids": [
+          {
+            "zone": "Morell's Castle",
+            "raid": "The Awakening",
+            "ach": "Conqueror of Morell's Castle",
+            "request": {
+              "ach": [
+                "Partisan of Morell's Castle"
+              ],
+              "mission": "Hippity Hoppity Kill"
+            }
+          }
+        ],
+        "enter": [
+          {
+            "all": [
+              "Conqueror of the House of Thule, Upper Floors",
+              "Conqueror of Al'Kabor's Nightmare",
+              "Conqueror of Miragul's Nightmare",
+              "Conqueror of Fear Itself"
+            ]
+          }
+        ],
+        "request_raids": [
+          {
+            "all": [
+              "Conqueror of the House of Thule, Upper Floors",
+              "Conqueror of Al'Kabor's Nightmare",
+              "Conqueror of Miragul's Nightmare",
+              "Conqueror of Fear Itself"
+            ]
+          }
+        ],
+        "note": "No key: Allakhazam says all three Tier 3a raids plus Cazic. Rasper's Realm says killing Cazic flags the whole raid. The Progression achievement for Morell's raid access is earned from these same 4 kills. The Awakening drops Sanctum Keys."
+      },
+      {
+        "id": "T4",
+        "label": "Tier 4",
+        "raids": [
+          {
+            "zone": "Sanctum Somnium",
+            "raid": "Sanctum Somnium (7 events: Taking the Tower, The Essence of Dreams, Under the Sea, Isles of Sand, Elements of a Dream, The Cages of Testing, Morell Ascendant)",
+            "ach": "Conqueror of Sanctum Somnium",
+            "request": {
+              "ach": [
+                "Partisan of Sanctum Somnium"
+              ],
+              "mission": "Morell's Challenge and Morell Ascendant"
+            }
+          }
+        ],
+        "enter": [
+          {
+            "all": [
+              "Sanctum Key",
+              "Conqueror of Morell's Castle"
+            ]
+          }
+        ],
+        "request_raids": [
+          {
+            "all": [
+              "Sanctum Key",
+              "Conqueror of Morell's Castle"
+            ]
+          }
+        ],
+        "note": "Zoning in needs a looted and clicked Sanctum Key (from Cazic or The Awakening) plus all Tier 3 raids. Conqueror of Sanctum Somnium needs all 7 events."
+      }
+    ],
+    "heroes": [
+      [
+        "Feerrott, the Dream",
+        "Hero of The Feerrott"
+      ],
+      [
+        "House of Thule, Lower Floors",
+        "Hero of the House of Thule"
+      ],
+      [
+        "The Grounds",
+        "Hero of The Grounds"
+      ],
+      [
+        "The Well",
+        "Hero of The Well"
+      ],
+      [
+        "The Library",
+        "Hero of The Library"
+      ],
+      [
+        "Erudin Burning",
+        "Hero of Erudin Burning"
+      ],
+      [
+        "House of Thule, Upper Floors",
+        "Hero of the House of Thule, Upper Floors"
+      ],
+      [
+        "Al'Kabor's Nightmare",
+        "Hero of Al'Kabor's Nightmare"
+      ],
+      [
+        "Miragul's Nightmare",
+        "Hero of Miragul's Nightmare"
+      ],
+      [
+        "Fear Itself",
+        "Hero of Fear Itself"
+      ],
+      [
+        "Morell's Castle",
+        "Hero of Morell's Castle"
+      ],
+      [
+        "Sanctum Somnium",
+        "Hero of Sanctum Somnium"
+      ]
+    ],
+    "progression": [
+      {
+        "name": [
+          "It's Dangerous to Go Alone (Group)",
+          "It's Dangerous to Go Alone"
+        ],
+        "short": "Dangerous (Group)",
+        "what": "Complete 6 group missions. Opens House of Thule, Upper Floors."
+      },
+      {
+        "name": [
+          "It's Dangerous to Go Alone (Raid)"
+        ],
+        "short": "Dangerous (Raid)",
+        "what": "Defeat 6 raid targets (the Tier 1 and Tier 2 raids). Raid access to House of Thule, Upper Floors."
+      },
+      {
+        "name": [
+          "Have Fun Storming the Castle (Group)",
+          "Have Fun Storming the Castel (Group)",
+          "Have Fun Storming the Castel"
+        ],
+        "short": "Castle (Group)",
+        "what": "Complete 4 group missions. Opens Morell's Castle."
+      },
+      {
+        "name": [
+          "Have Fun Storming the Castle (Raid)"
+        ],
+        "short": "Castle (Raid)",
+        "what": "Defeat 4 raid targets (the Tier 3a raids and Cazic). Raid access to Morell's Castle."
+      },
+      {
+        "name": [
+          "Knocking on Sanctum's Door (Raid)",
+          "Knocking on Sanctum's Door"
+        ],
+        "short": "Sanctum Door (Raid)",
+        "what": "Defeat the listed raid target. Raid access to Sanctum Somnium."
+      },
+      {
+        "name": "Rusty Gate Key",
+        "short": "Rusty Gate Key",
+        "what": "Loot and click. Flags you for Guardian of the House, At World's End and The Force of Eternity."
+      },
+      {
+        "name": "Tremulous Key",
+        "short": "Tremulous Key",
+        "what": "Loot and click. Flags you for Cazic's Final Stand."
+      },
+      {
+        "name": "Sanctum Key",
+        "short": "Sanctum Key",
+        "what": "Loot and click. Flags you for Sanctum Somnium."
+      }
+    ],
+    "progression_note": "Names follow the in-game style for split achievements (\"(Group)\" / \"(Raid)\"). The bare name and the reference list's \"Castel\" spelling also count. Check them against a fully flagged export.",
+    "eighty_five": "Anyone missing the zone-in flag can still be brought in when at least 85% of the force has it.",
+    "planner": [
+      [
+        "It's Dangerous to Go Alone (Group)",
+        "It's Dangerous to Go Alone"
+      ],
+      [
+        "It's Dangerous to Go Alone (Raid)"
+      ],
+      [
+        "Have Fun Storming the Castle (Group)",
+        "Have Fun Storming the Castel (Group)",
+        "Have Fun Storming the Castel"
+      ],
+      [
+        "Have Fun Storming the Castle (Raid)"
+      ],
+      [
+        "Knocking on Sanctum's Door (Raid)",
+        "Knocking on Sanctum's Door"
+      ],
+      "Rusty Gate Key",
+      "Tremulous Key",
+      "Sanctum Key"
+    ]
+  }
+}

@@ -50,6 +50,7 @@ TEMPLATE = (ROOT / 'app' / 'template.html').read_text()
 MASK = (ROOT / 'app' / 'mask.b64').read_text().strip()
 DATA = json.loads((ROOT / 'data' / 'glask.json').read_text())
 AA = json.loads((ROOT / 'data' / 'aa.json').read_text())
+FLAGS = {k: v for k, v in json.loads((ROOT / 'data' / 'flags.json').read_text()).items() if not k.startswith('_')}
 
 
 def tag_inv(inv):
@@ -92,7 +93,7 @@ def current_xpac(server, now=None):
     zero = {k: 0 for k in AA['cumulative'][order[0]]}
     return dict(code=code, xpac=AA['names'][code], since=since,
                 ag_through=AA['names'].get(ag_code, 'nothing yet'), ag=AA['eligible'][ag_code] if ag_code else zero,
-                max=AA['cumulative'][code], next=dict(xpac=AA['names'][nxt[0]], at=nxt[1]) if nxt else None)
+                max=AA['cumulative'][code], next=dict(code=nxt[0], xpac=AA['names'][nxt[0]], at=nxt[1]) if nxt else None)
 
 
 def user(request):
@@ -267,6 +268,7 @@ def index(request: Request):
     data['qsheets'] = {g['server']: [dict(s, status=live_loot.QSTATUS.get(s['id'])) for s in live_loot.qsheets(store, g['server'])]
                        for g in allowed if u['access'][g['server']] == 'officer'}
     data['review_from'] = REVIEW_FROM
+    data['flagtree'] = FLAGS
     data['aa'] = dict(buffer=AA['buffer'], **{g['server']: current_xpac(g['server']) for g in allowed})
     for k in [k for k in kv if k.startswith('glask-inv-')]:
         kv[k] = tag_inv(kv[k])
@@ -919,6 +921,7 @@ REVIEW_FROM = {'Teek': os.environ.get('TEEK_REVIEW_FROM', '2026-11-16'), 'Mischi
 TRACK_DEFAULT = {
     'UF': ['Underfoot Adept', 'Underfoot Veteran', 'Coin of Brell', 'Emblem of Brell'],
     'TOB': ['Novice The Outer Brood Hunter', 'Adept The Outer Brood Hunter', 'Veteran The Outer Brood Hunter'],
+    'HoT': ['Rusty Gate Key', 'Tremulous Key', 'Sanctum Key'],
 }
 
 
