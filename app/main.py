@@ -64,6 +64,7 @@ def _strings(o):
             yield from _strings(v)
 
 
+ACH_AMBIG = json.loads((ROOT / 'data' / 'ach_ambig.json').read_text())['names']
 FLAG_NAMES = {code: {n.lower() for n in _strings(t)} for code, t in FLAGS.items()}
 
 
@@ -305,6 +306,7 @@ def index(request: Request):
                        for g in allowed if u['access'][g['server']] == 'officer'}
     data['review_from'] = REVIEW_FROM
     data['flagtree'] = FLAGS
+    data['ach_ambig'] = ACH_AMBIG
     data['aa'] = dict(buffer=AA['buffer'], **{g['server']: current_xpac(g['server']) for g in allowed})
     for k in [k for k in kv if k.startswith('glask-inv-')]:
         kv[k] = tag_inv(kv[k])
@@ -1307,10 +1309,35 @@ def clear_test_hot_teek():
         print('HoT clean-up failed:', e)
 
 
+def clear_unverified_twins():
+    """Once: drop raid/mission twin achievements that were taken from log lines without checking for a raid fight.
+    Vanquisher ones were already checked (they're kept); everything else on ACH_AMBIG comes back from exports or new officer logs."""
+    try:
+        if store.get('glask-fix-ach-twins'):
+            return
+        who, amb = 'glask (raid/mission twins from logs)', {a.lower() for a in ACH_AMBIG}
+        for g in DATA['guilds']:
+            vq = {n.lower() for _, evs in (g.get('vanq') or []) for e in evs for n in [e['name']] + [x['name'] for x in e.get('subs') or []]}
+            k = 'glask-seen-' + g['server']
+            seen = store.get(k) or {}
+            n = 0
+            for ch, achs in seen.items():
+                for a in [a for a in achs if a.lower() in amb and a.lower() not in vq]:
+                    achs.pop(a); n += 1
+            if n:
+                store.put(k, {c: a for c, a in seen.items() if a}, who)
+                store.audit(who, 'clear', k, f'{n} unverified raid/mission twin achievements removed')
+            print(g['server'], 'removed', n, 'unverified twin achievements')
+        store.put('glask-fix-ach-twins', True, who)
+    except Exception as e:
+        print('twin clean-up failed:', e)
+
+
 @app.on_event('startup')
 def _start_live_loot():
     seed_hot_launch()
     clear_test_hot_teek()
+    clear_unverified_twins()
     live_loot.start(DATA, AA, store)
     threading.Thread(target=migrate_active_time, daemon=True).start()
 

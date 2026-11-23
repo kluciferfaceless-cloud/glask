@@ -942,7 +942,7 @@ async function editTracked(gi,c0){const {code,names}=trackedList(gi,c0);const v=
   if(!r.ok){let d='';try{d=(await r.json()).detail}catch(e){}alertBox('Not saved: '+(d||r.status));return}KV['glask-trackach-all']=await r.json();alertBox('Tracked achievements saved');const o=$('#drawer').dataset.main;if($('#drawer').classList.contains('open')&&o)profile(o);else render()}
 function raidAchCard(m,gi){const rr=D.guilds[gi].raid_ref;if(!rr||!rr.length)return '';const got=m.raid_ach||{};
   return `<div class="card"><h3>Raid achievements · Rain of Fear onward</h3><div class="hint">“Conqueror” achievements per expansion, from Klucifer's export as the full list. Seen = Glask has a “Your guildmate … has completed” line for one of ${esc(m.main)}'s characters.</div>
-  ${[...rr].reverse().map(([xp,list])=>{const n=list.filter(a=>['yes','seen'].includes(hasAch(m,a,gi))).length;return `<details><summary><b>${esc(xp)}</b><span class="c">${n} / ${list.length} ${achOf(m,gi)?'done':'seen'}</span></summary><div class="inner">${list.map(a=>`${achCell(hasAch(m,a,gi),got[a])} ${esc(a)}`).join('<br>')}</div></details>`}).join('')}</div>`}
+  ${[...rr].reverse().map(([xp,list])=>{const n=list.filter(a=>['yes','seen'].includes(hasAch(m,a,gi,xp))).length;return `<details><summary><b>${esc(xp)}</b><span class="c">${n} / ${list.length} ${achOf(m,gi)?'done':'seen'}</span></summary><div class="inner">${list.map(a=>`${achCell(hasAch(m,a,gi,xp),got[a])} ${esc(a)}`).join('<br>')}</div></details>`}).join('')}</div>`}
 function perfCard(m,gi){let h=perfCard0(m,gi);if(!isOff(gi))h=h.replace(/<div class="card"><h3>Performance Improvement Plan[\s\S]*?<\/button><\/div>/,'');return h}
 function perfCard0(m,gi){
   const x=D.guilds[gi]; const names=new Set(m.chars.map(c=>c.n));
@@ -986,17 +986,18 @@ function lsSet(k,v){if(k==='glask-logsettings')k+='-'+ME.id;kvSet(k,v)}
 function achOf(m,gi=G){return lsGet('glask-ach-'+D.guilds[gi].server+'-'+m.main)||m.achx}   // an uploaded export always beats the starting data
 // EverQuest reuses names: a raid achievement and its group mission twin ("The Outer Brood: Missions" vs "...: Raids") share a name.
 // So each completion keeps its category, and for any name that exists in a Raids category, the Raids entry decides.
-function parseAchExport(text,wanted){const W=new Set(wanted),done=[],tiers=[],raidNames=new Set(),raidDone=new Set();let cat='';
+function parseAchExport(text,wanted){const W=new Set(wanted),done=[],tiers=[],raidNames=new Set(),raidDone=new Set(),rx={};let cat='';
   for(const raw of text.split(/\r?\n/)){if(!raw.trim())continue;if(!/^[CI]\t/.test(raw)){cat=raw.trim();continue}if(/^[CI]\t\t/.test(raw))continue;const ok=raw[0]==='C',name=raw.slice(2);
-    if(/:\s*Raids$/i.test(cat)){raidNames.add(name);if(ok)raidDone.add(name)}
+    if(/:\s*Raids$/i.test(cat)){raidNames.add(name);if(ok)raidDone.add(name);(rx[name]??={})[cat.replace(/:\s*Raids$/i,'').trim()]=ok?1:0}
     const mm=name.match(/^([\d,]+) Alternate Advancement Points$/);if(mm)tiers.push([+mm[1].replace(/,/g,''),ok]);if(ok)done.push(name)}
   if(!tiers.length&&!done.length)return null;const got=tiers.filter(t=>t[1]).map(t=>t[0]),nxt=tiers.filter(t=>!t[1]).map(t=>t[0]);
-  return {raidNames:[...raidNames],raidDone:[...raidDone],aa_floor:got.length?Math.max(...got):0,aa_next:nxt.length?Math.min(...nxt):null,done,source:'export',uploaded:new Date().toLocaleDateString('en-CA')}}
+  const raidX=Object.fromEntries(Object.entries(rx).filter(([,v])=>Object.keys(v).length>1));   // same raid name in two expansions (e.g. Conqueror of Chardok: RoK and EoK)
+  return {raidNames:[...raidNames],raidDone:[...raidDone],raidX,aa_floor:got.length?Math.max(...got):0,aa_next:nxt.length?Math.min(...nxt):null,done,source:'export',uploaded:new Date().toLocaleDateString('en-CA')}}
 function aaText(a){if(!a)return '—';return a.aa_next?`${fmt(a.aa_floor)}–${fmt(a.aa_next-1)}`:`${fmt(a.aa_floor)}+`}
 function uploadAch(ev,gi,main){const f=ev.target.files[0];if(!f)return;f.text().then(t=>{const a=parseAchExport(t,D.guilds[gi]._wanted);if(!a){alertBox("That file doesn't look like an /outputfile achievement export.");return}
   lsSet('glask-ach-'+D.guilds[gi].server+'-'+main,a);alertBox('Achievements loaded for '+main+' · AA '+aaText(a));(V==='me'||isMem(gi)?render():profile(main))})}
-function achDone(x,a){return x.raidNames&&x.raidNames.includes(a)?x.raidDone.includes(a):x.done.includes(a)}
-function hasAch(m,a,gi=G){const x=achOf(m,gi);if(x)return achDone(x,a)?'yes':'no';return (m.flags&&m.flags[a])||(m.raid_ach&&m.raid_ach[a])?'seen':null}
+function achDone(x,a,xp){const rx=x.raidX&&x.raidX[a];if(rx&&xp&&xp in rx)return !!rx[xp];return x.raidNames&&x.raidNames.includes(a)?x.raidDone.includes(a):x.done.includes(a)}
+function hasAch(m,a,gi=G,xp){const x=achOf(m,gi);if(x)return achDone(x,a,xp)?'yes':'no';return (m.flags&&m.flags[a])||(m.raid_ach&&m.raid_ach[a])?'seen':null}
 function attendance(gi=G){const x0=D.guilds[gi],hid=hiddenRaids(gi);const base={...(x0.attendance||{})};
   (x0.raids||[]).filter(r=>hid.has(r.id+'|'+r.date)).forEach(r=>{const rest=(x0.raids||[]).filter(q=>q.date===r.date&&!hid.has(q.id+'|'+q.date));
     if(rest.length)base[r.date]=[...new Set(rest.flatMap(q=>q.players.map(p=>p.main)))];else delete base[r.date]});
@@ -1069,8 +1070,9 @@ async function parseLogFile(f,gi){const SC=await spellClsLoad();
   const live=t=>F&&t-F.last<=FG;
   const fTaken=(t,who,src,amt,ab)=>{const r=ring[who]||(ring[who]=[]);r.push([t,src,ab,amt]);while(r.length&&t-r[0][0]>15)r.shift()};
   const fDeath=(t,who,by)=>{if(!live(t))return;F.deaths.push([Math.round(t-F.start),who,by,(ring[who]||[]).filter(e=>t-e[0]<=15).slice(-12).map(e=>[Math.round(e[0]-t),e[1],e[2],e[3]])])};
-  // Vanquisher achievements share names with their group missions, so a call-out for one only counts if it was heard during a raid fight the guildmate was in
-  const VQ=new Set();(x.vanq||[]).forEach(([,evs])=>evs.forEach(e=>{VQ.add(e.name);(e.subs||[]).forEach(s=>VQ.add(s.name))}));const calls=[];
+  // Vanquisher achievements and every other raid achievement that shares its name with a group mission or conquest (data/ach_ambig.json):
+  // a call-out for one only counts if it was heard during a raid fight (10+ fighting) the guildmate was in
+  const VQ=new Set((D.ach_ambig||[]).map(a=>a.toLowerCase()));(x.vanq||[]).forEach(([,evs])=>evs.forEach(e=>{VQ.add(e.name.toLowerCase());(e.subs||[]).forEach(s=>VQ.add(s.name.toLowerCase()))}));const calls=[];
   const notes=[];   // chat lines that mention Glask (shown to Leadership and Raid Leaders)
   const TTW=[],TTH=[],TTC=[],TTD=[];   // tattle: emote waves [t, rule, names], hits [t, who, ability], mob casts [t, rule]
   const seen={};let carry='';const reader=f.stream().pipeThrough(new TextDecoderStream('latin1')).getReader();
@@ -1080,7 +1082,7 @@ async function parseLogFile(f,gi){const SC=await spellClsLoad();
       {let hit2=false;for(const ru of TATTLE){if(msg.slice(0,ru.pre.length).toLowerCase()===ru.pre.toLowerCase()){const e=msg.match(ru.emote);if(e){TTW.push([t,ru,e[1].split(/,\s*(?:and\s+)?|\s+and\s+/).map(z=>/^you$/i.test(z.trim())?me:z.trim()).filter(Boolean)]);hit2=true}}if(ru.cast&&ru.cast.test(msg)){TTC.push([t,ru]);hit2=true}}if(hit2)continue}
       if(msg.includes(' taken ')&&(k=msg.match(TT_RX))){const w=own(k[1]);if(isP(w)&&!RX.OWNER.test(k[1]))TTH.push([t,roster[w.toLowerCase()].n,k[2]])}
       if(GLASK_RX.test(msg)&&(k=msg.match(CHAT_RX))){notes.push({t:Math.round(t),who:k[1]==='You'?me:k[1],ch:(k[2]||'say').toLowerCase(),text:k[3]});continue}
-      if(msg.startsWith('Your guildmate ')){if((k=msg.match(GM_RX))){const c=k[1].toLowerCase(),d=new Date(t*1000).toISOString().slice(0,10);if(VQ.has(k[2])){calls.push([c,k[2],d,t]);continue}(seen[c]??={});if(!seen[c][k[2]]||d<seen[c][k[2]])seen[c][k[2]]=d}continue}
+      if(msg.startsWith('Your guildmate ')){if((k=msg.match(GM_RX))){const c=k[1].toLowerCase(),d=new Date(t*1000).toISOString().slice(0,10);if(VQ.has(k[2].toLowerCase())){calls.push([c,k[2],d,t]);continue}(seen[c]??={});if(!seen[c][k[2]]||d<seen[c][k[2]])seen[c][k[2]]=d}continue}
       if((k=msg.match(RX.MELEE))){const src=own(k[1]),tgt=own(k[2]);if(isP(src)&&!isP(tgt)&&!RX.OWNER.test(tgt)){const p=get(src,t);p.dmg+=+k[3];p.acts.push(t);if(!RX.OWNER.test(k[1]))seenAt(roster[src.toLowerCase()].n,t);if(k[5]&&!RX.OWNER.test(k[1]))p.sp[norm(k[5])]=(p.sp[norm(k[5])]||0)+1;hit(t);
           if(!RX.OWNER.test(k[1]))fDmg(t,roster[src.toLowerCase()].n,tgt,+k[3],k[5]?norm(k[5]):'Melee',/Crit/.test(k[6]||''))}
         else if(isP(tgt)&&!isP(src)){const n=roster[tgt.toLowerCase()].n;fTaken(t,n,k[1],+k[3],k[5]?norm(k[5]):'Melee');if(k[5]&&TT_ABIL.has(norm(k[5])))TTH.push([t,n,norm(k[5])]);if(live(t)&&!k[5]&&!RX.OWNER.test(k[2])){const q=fP(n);q.sw++;q.hit++;q.dt+=+k[3];F.sw=(F.sw||0)+1}}continue}
