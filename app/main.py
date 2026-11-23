@@ -1232,8 +1232,23 @@ def migrate_active_time():
         print('active time recount failed:', e)
 
 
+def seed_hot_launch():
+    """Once: read Teek's House of Thule sign-up sheet live and point Teek members' sign-up button at the HoT form."""
+    try:
+        if store.get('glask-seed-hot-teek'):
+            return
+        lst = store.get('glask-qsheets-Teek')
+        if lst is not None and not any(s.get('id') == '1NXixLaxe1TotL5oEJiY9P03_f4y4Erjvf2KgrrQ0R8k' for s in lst):
+            store.put('glask-qsheets-Teek', lst + [dict(id='1NXixLaxe1TotL5oEJiY9P03_f4y4Erjvf2KgrrQ0R8k', title='House of Thule Launch', date='2026-11-21')], 'glask (HoT launch)')
+        store.put('glask-signup-Teek', dict(title='House of Thule Launch', url='https://forms.gle/PkSfvsFK8DooPPtSA', due='', by='glask', at=time.time()), 'glask (HoT launch)')
+        store.put('glask-seed-hot-teek', True, 'glask (HoT launch)')
+    except Exception as e:
+        print('HoT launch seed failed:', e)
+
+
 @app.on_event('startup')
 def _start_live_loot():
+    seed_hot_launch()
     live_loot.start(DATA, AA, store)
     threading.Thread(target=migrate_active_time, daemon=True).start()
 

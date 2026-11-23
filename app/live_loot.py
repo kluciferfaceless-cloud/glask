@@ -18,7 +18,8 @@ TOKEN_RE = re.compile(r'(?i)^Obscured (?:[A-Za-z\' ]+? )?(Head|Arms|Wrist|Hands|
 STATUS = {}          # server -> dict(ok, at, msg, entries, nights)
 QSTATUS = {}         # sheet id -> dict(ok, at, msg, rows)
 # launch sign-up sheets read live (officers add more on Launch planning); first tab = form responses
-QSHEETS_DEFAULT = {'Teek': [dict(id='17gFCNHKS4nWrKoEsFKG0AfzyxALYNVifWKTwnB_hG6g', title='Underfoot Launch', date='2026-09-15')]}
+QSHEETS_DEFAULT = {'Teek': [dict(id='17gFCNHKS4nWrKoEsFKG0AfzyxALYNVifWKTwnB_hG6g', title='Underfoot Launch', date='2026-09-15'),
+                            dict(id='1NXixLaxe1TotL5oEJiY9P03_f4y4Erjvf2KgrrQ0R8k', title='House of Thule Launch', date='2026-11-21')]}
 
 
 def qsheets(store, server):
