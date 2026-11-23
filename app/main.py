@@ -53,6 +53,42 @@ AA = json.loads((ROOT / 'data' / 'aa.json').read_text())
 FLAGS = {k: v for k, v in json.loads((ROOT / 'data' / 'flags.json').read_text()).items() if not k.startswith('_')}
 
 
+def _strings(o):
+    if isinstance(o, str):
+        yield o
+    elif isinstance(o, dict):
+        for v in o.values():
+            yield from _strings(v)
+    elif isinstance(o, list):
+        for v in o:
+            yield from _strings(v)
+
+
+FLAG_NAMES = {code: {n.lower() for n in _strings(t)} for code, t in FLAGS.items()}
+
+
+def future_ach(server):
+    """Achievement names from expansions the server hasn't unlocked yet (only a test-server log or export can have these)."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    out = set()
+    for code, at in AA['schedule'].get(server, []):
+        if at > now:
+            out |= FLAG_NAMES.get(code, set())
+    return out
+
+
+def strip_ach_export(v, drop):
+    """An achievement export with the given (lowercased) achievement names taken out."""
+    if not isinstance(v, dict) or not drop:
+        return v
+    v = dict(v)
+    for f in ('done', 'raidDone', 'raidNames'):
+        if isinstance(v.get(f), list):
+            v[f] = [a for a in v[f] if str(a).lower() not in drop]
+    return v
+
+
 def tag_inv(inv):
     """Add each worn item's own expansion (from the item database) to an inventory."""
     if not isinstance(inv, list):
@@ -450,6 +486,9 @@ async def put_kv(request: Request):
         raise HTTPException(403, "You don't have permission to change that")
     if len(json.dumps(value)) > 8_000_000:
         raise HTTPException(413, 'Too large')
+    kind, scope = key_parts(key)
+    if kind == 'ach':
+        value = strip_ach_export(value, future_ach(scope))
     store.put(key, value, f"{u['name']} ({u['id']})")
     return {'ok': True}
 
@@ -950,12 +989,11 @@ async def ach_seen(request: Request):
     b = await request.json()
     server, seen = b.get('server', ''), b.get('seen') or {}
     lvl = (u or {}).get('access', {}).get(server)
-    if not u or not lvl:
-        raise HTTPException(403, "You don't have access to that guild")
-    if lvl == 'member' and not my_main(u, server):
-        raise HTTPException(403, 'Link your character first')
+    if not u or lvl != 'officer':
+        raise HTTPException(403, 'Only officer uploads count achievements heard in logs')
     g = next((x for x in DATA['guilds'] if x['server'] == server), None)
     known = {c['n'].lower() for m in g['members'] for c in m['chars']} if g else set()
+    future = future_ach(server)
     with REC_LOCK:
         k = 'glask-seen-' + server
         cur = store.get(k) or {}
@@ -967,14 +1005,11 @@ async def ach_seen(request: Request):
             row = cur.setdefault(ch, {})
             for a, d in list(achs.items())[:500]:
                 a, d = str(a)[:120], str(d)[:10]
+                if a.lower() in future:
+                    continue
                 if a not in row or d < row[a]:
                     row[a] = d; n += 1
         store.put(k, cur, f"{u['name']} ({u['id']})")
-    if lvl == 'member':
-        main = my_main(u, server)
-        m = next((x for x in g['members'] if x['main'] == main), None)
-        own = {c['n'].lower() for c in m['chars']} if m else set()
-        return {c: a for c, a in cur.items() if c in own}
     return cur
 
 
@@ -1246,9 +1281,36 @@ def seed_hot_launch():
         print('HoT launch seed failed:', e)
 
 
+def clear_test_hot_teek():
+    """Once: remove House of Thule achievements from Teek's log-heard record and achievement exports (they came from test-server uploads)."""
+    try:
+        if store.get('glask-fix-hot-teek'):
+            return
+        drop, who = FLAG_NAMES.get('HoT', set()), 'glask (clear test-server HoT achievements)'
+        seen = store.get('glask-seen-Teek') or {}
+        n = 0
+        for ch, achs in seen.items():
+            for a in [a for a in achs if a.lower() in drop]:
+                achs.pop(a); n += 1
+        seen = {c: a for c, a in seen.items() if a}
+        store.put('glask-seen-Teek', seen, who)
+        for k, v in store.all().items():
+            if k.startswith('glask-ach-Teek-') and isinstance(v, dict):
+                nv = strip_ach_export(v, drop)
+                if nv != v:
+                    n += sum(len(v.get(f) or []) - len(nv.get(f) or []) for f in ('done', 'raidDone'))
+                    store.put(k, nv, who)
+        store.audit(who, 'clear', 'glask-seen-Teek', f'{n} House of Thule achievements removed')
+        store.put('glask-fix-hot-teek', True, who)
+        print('cleared', n, 'Teek HoT achievements')
+    except Exception as e:
+        print('HoT clean-up failed:', e)
+
+
 @app.on_event('startup')
 def _start_live_loot():
     seed_hot_launch()
+    clear_test_hot_teek()
     live_loot.start(DATA, AA, store)
     threading.Thread(target=migrate_active_time, daemon=True).start()
 
