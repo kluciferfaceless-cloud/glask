@@ -501,7 +501,7 @@ function gearCard(m,gi){
    <div class="card"><h3>${esc(xp)} loot, all characters <span class="n">${cur.length}</span></h3>${cur.length?`<table><tr><th>Date</th><th>Item</th><th>On</th><th>Slot</th></tr>${cur.map(i=>`<tr><td>${esc(i[0])}</td><td>${esc(i[1])}</td><td>${esc(i[2])}</td><td>${isOff(gi)?`<select onchange="tagSlot(this.dataset.item,this.value)" data-item="${esc(i[1])}" style="background:var(--panel2);border:1px solid ${i[4]?'var(--line)':'#5a4520'};color:var(--text);border-radius:6px;padding:2px 4px"><option value="">${i[4]?'—':'slot ?'}</option>${[...SLOTS,'Not gear'].map(s=>`<option ${i[4]===s?'selected':''}>${s}</option>`).join('')}</select>`:i[4]?esc(i[4]):'<span style="color:var(--dim)">?</span>'}</td></tr>`).join('')}</table>`:'<div class="hint" style="margin:0">Nothing awarded this expansion yet.</div>'}</div>`;
 }
 function uploadInv(ev,gi,main){const f=ev.target.files[0];if(!f)return;f.text().then(t=>{const inv=parseInv(t);if(!inv.length){alertBox('That file doesn\'t look like an /outputfile inventory.');return}
-  const m=D.guilds[gi].members.find(x=>x.main===main);m.inv=inv;kvSet(invKey(gi,m),inv);learnSlots(inv);tagInv(inv).then(()=>(V==='me'||isMem(gi))?render():profile(main))})}
+  const m=D.guilds[gi].members.find(x=>x.main===main);m.inv=inv;kvSet(invKey(gi,m),inv);learnSlots(inv);tagInv(inv,gi).then(()=>(V==='me'||isMem(gi))?render():profile(main))})}
 function alertBox(msg){const d=document.createElement('div');d.textContent=msg;d.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#3a1d17;border:1px solid var(--ember);padding:10px 16px;border-radius:8px;z-index:20';document.body.appendChild(d);setTimeout(()=>d.remove(),3500)}
 
 
@@ -1290,7 +1290,7 @@ async function delRaid(gi,id,date){if(!confirm(`Delete the raid log "${id}" from
 function stTag(s){return s==='saving'?'<span class="tag">Saving…</span>':s==='saved'?'<span class="tag ok">✓ Saved</span>':s==='failed'?'<span class="tag red">Not saved</span>':'<span class="tag warn">Skipped</span>'}
 async function handleFiles(files){let nOk=0,nBad=0;for(const f of files){let kind='unknown',msg='',ok=false;SAVES=[];const ent={f:f.name,kind:'Reading…',msg:'',ok:true,st:'saving'};upLog.unshift(ent);render();try{
    if(/-Inventory\.txt$/i.test(f.name)){kind='Inventory';const ch=f.name.split('_')[0];const t=await f.text();const inv=parseInv(t);const gi=guildFor(f.name,'');const m=memberForChar(gi,ch);
-     if(!inv.length)msg="Couldn't read any worn slots.";else if(!m)msg=`${ch} isn't on the ${D.guilds[gi].server} roster.`;else{m.inv=inv;lsSet(invKey(gi,m),inv);learnSlots(inv);tagInv(inv).then(()=>render());ok=true;msg=`${ch} → ${m.main} (${D.guilds[gi].server}): ${inv.length} slots`}}
+     if(!inv.length)msg="Couldn't read any worn slots.";else if(!m)msg=`${ch} isn't on the ${D.guilds[gi].server} roster.`;else{m.inv=inv;lsSet(invKey(gi,m),inv);learnSlots(inv);tagInv(inv,gi).then(()=>render());ok=true;msg=`${ch} → ${m.main} (${D.guilds[gi].server}): ${inv.length} slots`}}
    else if(/-Achievements\.txt$/i.test(f.name)){kind='Achievements';const ch=f.name.split('_')[0];const t=await f.text();const gi=guildFor(f.name,'');const m=memberForChar(gi,ch);const a=parseAchExport(t,D.guilds[gi]._wanted);
      if(!a)msg="Didn't look like an achievement export.";else if(!m)msg=`${ch} isn't on the ${D.guilds[gi].server} roster.`;else{lsSet('glask-ach-'+D.guilds[gi].server+'-'+m.main,a);ok=true;msg=`${ch} → ${m.main}: AA ${aaText(a)}, ${a.done.length} tracked achievements done`}}
    else if(/\.csv$/i.test(f.name)){kind='Questionnaire';const t=await f.text();const rows=parseCSV(t);if(rows.length<2){msg='No responses in it.'}else{const q0={id:f.name,title:f.name.replace(/\.csv$/i,'').replace(/\s*-\s*Form Responses.*$/i,''),date:new Date().toISOString().slice(0,10),header:rows[0],rows:rows.slice(1)};
@@ -1405,6 +1405,7 @@ const EQ_LABEL={Fingers:'Ring','Power Source':'Power source',Waist:'Belt'};
 const EQ_ALL=['ear1','head','face','ear2','chest','neck','arms','back','waist','shoulders','wrist1','wrist2','legs','hands','charm','feet','finger1','finger2','power','primary','secondary','range','ammo'];
 const EQ_SLOT_OF=a=>Object.keys(EQ_AREA).find(k=>EQ_AREA[k]===a)||Object.keys(EQ_PAIR).find(k=>EQ_PAIR[k].includes(a));
 function eqCells(m,gi){const inv=invOf(m,gi),now=(xpacNow(gi).code||'').toLowerCase(),isCur=v=>!!v&&v.toLowerCase()===now,seen={},out={};
+  const preEoK=!Object.keys(XPNAME).some(k=>k.toLowerCase()===now),OLD=preEoK?'older':'pre-EoK',OLDT=preEoK?'From an earlier expansion':'Older than Empires of Kunark';   /* a server still before EoK: undated items are just older */
   const lastBuy=sl=>{const l=m.slot_last[sl];return l?`Last DKP buy for ${EQ_LABEL[sl]||sl}: ${esc(l[1])}, ${esc(l[0])}${l[2]?' ('+esc(l[2])+')':''}`:`No DKP buys on file for ${EQ_LABEL[sl]||sl}.`};
   if(inv){needAugTypes(inv);
     inv.forEach(w=>{const pr=EQ_PAIR[w.slot];const a=pr?pr[Math.min((seen[w.slot]=(seen[w.slot]||0)+1)-1,1)]:EQ_AREA[w.slot];if(!a||out[a])return;
@@ -1414,8 +1415,8 @@ function eqCells(m,gi){const inv=invOf(m,gi),now=(xpacNow(gi).code||'').toLowerC
       const dots=augs.filter(x=>!x.skip).map(x=>`<i class="${x.n==='Empty'?'e':isCur(x.xp)?'':'o'}" title="${esc(x.n)}"></i>`).join('');
       const cls=empty?'emp':isCur(wx)?'':'old';
       const tip=empty?`<div class="tn">Empty</div><div class="tf">${lastBuy(w.slot)}</div>`:`<div class="tn">${esc(w.item)}</div>
-        <div class="ts">${wx?`<span class="tag ${isCur(wx)?'ok':'warn'}">${esc(wx)}</span> ${esc(XPNAME[wx]||wx)}`:'<span class="tag warn">pre-EoK</span> older than Empires of Kunark'}${got?` · bought with DKP ${esc(got[0])}`:''}</div>
-        ${augs.map(x=>`<div class="ta"><span class="t">${x.t?'type '+x.t:'aug'}</span><span class="n" style="color:${x.n==='Empty'?(x.skip?'#6d6560':'#e5797c'):'#e9e3d8'}">${x.n==='Empty'?(x.skip?'empty (not needed)':'empty'):esc(x.n)}</span>${x.n==='Empty'?'':`<span class="tag ${isCur(x.xp)?'ok':'warn'}" title="${esc(x.xp?XPNAME[x.xp]||x.xp:'Older than Empires of Kunark')}">${esc(x.xp||'pre-EoK')}</span>`}</div>`).join('')}
+        <div class="ts">${wx?`<span class="tag ${isCur(wx)?'ok':'warn'}">${esc(wx)}</span> ${esc(XPNAME[wx]||(isCur(wx)&&xpacNow(gi).xpac)||wx)}`:`<span class="tag warn">${OLD}</span> ${OLDT.toLowerCase()}`}${got?` · bought with DKP ${esc(got[0])}`:''}</div>
+        ${augs.map(x=>`<div class="ta"><span class="t">${x.t?'type '+x.t:'aug'}</span><span class="n" style="color:${x.n==='Empty'?(x.skip?'#6d6560':'#e5797c'):'#e9e3d8'}">${x.n==='Empty'?(x.skip?'empty (not needed)':'empty'):esc(x.n)}</span>${x.n==='Empty'?'':`<span class="tag ${isCur(x.xp)?'ok':'warn'}" title="${esc(x.xp?XPNAME[x.xp]||x.xp:OLDT)}">${esc(x.xp||OLD)}</span>`}</div>`).join('')}
         <div class="tf">${got?'':'Not bought with DKP (crafted, raid currency, quest or vendor). '}${lastBuy(w.slot)}</div>`;
       out[a]={a,slot:EQ_LABEL[w.slot]||w.slot,name:empty?'Empty':w.item,cls,dots,tip,w,wx,augs,empty}})}
   EQ_ALL.forEach(a=>{if(out[a])return;const sl=EQ_SLOT_OF(a);out[a]={a,slot:EQ_LABEL[sl]||sl,name:inv?'Empty':'—',cls:inv?'emp':'unk',dots:'',tip:`<div class="tn">${esc(EQ_LABEL[sl]||sl)}</div><div class="ts">${inv?'Nothing worn here.':'Upload an inventory to see what is worn.'}</div><div class="tf">${lastBuy(sl)}</div>`,empty:!!inv,augs:[]}});
@@ -1426,7 +1427,7 @@ function eqInvTab(m,gi){const x=D.guilds[gi],inv=invOf(m,gi),C=eqCells(m,gi),now
   const older=worn.filter(c=>c.cls==='old');
   const issues=[...(Object.keys(dup).length&&!isMem(gi)?Object.entries(dup).map(([s,l])=>`<div style="padding:5px 0;border-top:1px solid #24211e"><b class="bang">!</b> <b>${esc(s)}</b> ×${l.length} this expansion, more than the slot holds<div style="color:#8a847b;font-size:12px">${l.map(i=>`${esc(i[1])} ${esc(i[0])}`).join('; ')}</div></div>`):[]),
     ...emptyAugs.map(([c,a])=>`<div style="padding:5px 0;border-top:1px solid #24211e"><span style="color:#e5797c">Empty aug</span> · ${esc(c.slot)}<div style="color:#8a847b;font-size:12px">${esc(c.name)}${a.t?', type '+a.t+' slot':''}</div></div>`),
-    ...older.map(c=>`<div style="padding:5px 0;border-top:1px solid #24211e"><span style="color:#e0c27a">Older gear</span> · ${esc(c.slot)}<div style="color:#8a847b;font-size:12px">${esc(c.name)} (${esc(c.wx||'pre-EoK')})</div></div>`)];
+    ...older.map(c=>`<div style="padding:5px 0;border-top:1px solid #24211e"><span style="color:#e0c27a">Older gear</span> · ${esc(c.slot)}<div style="color:#8a847b;font-size:12px">${esc(c.name)} (${esc(c.wx||(Object.keys(XPNAME).some(k=>k.toLowerCase()===(now||'').toLowerCase())?'pre-EoK':'older'))})</div></div>`)];
   const cell=c=>`<div class="eqs ${c.cls}${EQ_RIGHT.has(c.a)?' r':''}" style="grid-area:${c.a}" tabindex="0"><div class="sl">${esc(c.slot)}</div><div class="nm">${esc(c.name)}</div><div class="dots">${c.dots}</div><div class="eqtip">${c.tip}</div></div>`;
   return `<div class="eqinv"><div class="eqstats">
      <div><span>Level</span><span>${esc(m.level||'?')}</span></div><div><span>Class</span><span>${esc(m.cls)}</span></div><div><span>Rank</span><span>${esc(m.rank||'?')}</span></div><hr>
@@ -1505,7 +1506,7 @@ const CHECKLIST=[['welcome','Welcomed in guild chat'],['discord','Discord roles:
 const CLSAB={Warrior:'WAR',Paladin:'PAL','Shadow Knight':'SHD',Monk:'MNK',Rogue:'ROG',Berserker:'BER',Ranger:'RNG',Beastlord:'BST',Wizard:'WIZ',Magician:'MAG',Necromancer:'NEC',Bard:'BRD',Enchanter:'ENC',Cleric:'CLR',Shaman:'SHM',Druid:'DRU'};
 let recFilter='';
 const XPNAME={EoK:'Empires of Kunark',RoS:'Ring of Scale',TBL:'The Burning Lands',ToV:'Torment of Velious',CoV:'Claws of Veeshan',ToL:'Terror of Luclin',NoS:'Night of Shadows',LS:"Laurion's Song",TOB:'The Outer Brood',SoR:'Shattering of Ro',FoF:'Favors of Fortune'};
-async function tagInv(inv){try{const r=await fetch('/api/item-info',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({names:[...new Set(inv.flatMap(w=>[w.item,...w.augs.filter(a=>a!=='Empty')]))],ids:inv.map(w=>w.id)})});if(!r.ok)return inv;const j=await r.json();inv.forEach(w=>{if(j[w.item])w.xp=j[w.item].xp;w.axp=w.augs.map(a=>a==='Empty'?null:(j[a]||{}).xp||null);if(j._aug&&w.id in j._aug)w.augt=j._aug[w.id]||[]});}catch(e){}return inv}
+async function tagInv(inv,gi=G){try{const r=await fetch('/api/item-info',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({server:D.guilds[gi].server,names:[...new Set(inv.flatMap(w=>[w.item,...w.augs.filter(a=>a!=='Empty')]))],ids:inv.map(w=>w.id)})});if(!r.ok)return inv;const j=await r.json();inv.forEach(w=>{if(j[w.item])w.xp=j[w.item].xp;w.axp=w.augs.map(a=>a==='Empty'?null:(j[a]||{}).xp||null);if(j._aug&&w.id in j._aug)w.augt=j._aug[w.id]||[]});}catch(e){}return inv}
 // aug slot types that don't need filling (21 and 22: trivial slots)
 const AUG_SKIP=new Set([21,22]);
 const AUGT={};let augAsk=null;

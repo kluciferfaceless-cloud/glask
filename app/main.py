@@ -90,25 +90,38 @@ def strip_ach_export(v, drop):
     return v
 
 
-def tag_inv(inv):
+def set_item_bands():
+    """For a server still on a pre-EoK expansion: the id band of the items its guild has looted this expansion."""
+    dated = {c for c, _ in itemdb.LAUNCHES}   # these have item dates
+    for g in DATA['guilds']:
+        cx = current_xpac(g['server']) or {}
+        code = cx.get('code')
+        if not code or code in dated:
+            itemdb.BANDS.pop(g['server'], None)
+            continue
+        names = {i[1] for m in g['members'] for i in m.get('cur') or [] if len(i) > 5 and i[5] == code}
+        b = itemdb.band_of([itemdb.item_id(n) for n in names])
+        if b:
+            itemdb.BANDS[g['server']] = (code, b[0], b[1])
+        else:
+            itemdb.BANDS.pop(g['server'], None)
+
+
+def tag_inv(inv, server=None):
     """Add each worn item's own expansion (from the item database) to an inventory."""
     if not isinstance(inv, list):
         return inv
     out = []
     for w in inv:
-        w = dict(w, xp=itemdb.xpac(w.get('item')))
+        w = dict(w, xp=itemdb.xpac(w.get('item'), server, w.get('id')))
         augs = w.get('augs') or []
-        w['axp'] = [None if a == 'Empty' else itemdb.xpac(a) for a in augs]   # each aug's own expansion
+        w['axp'] = [None if a == 'Empty' else itemdb.xpac(a, server) for a in augs]   # each aug's own expansion
         if augs and not w.get('augt'):
             w['augt'] = itemdb.augtypes(w.get('id')) or []
         out.append(w)
     return out
 
 
-for _g in DATA['guilds']:
-    for _m in _g['members']:
-        if _m.get('inv'):
-            _m['inv'] = tag_inv(_m['inv'])
 
 
 def current_xpac(server, now=None):
@@ -131,6 +144,13 @@ def current_xpac(server, now=None):
     return dict(code=code, xpac=AA['names'][code], since=since,
                 ag_through=AA['names'].get(ag_code, 'nothing yet'), ag=AA['eligible'][ag_code] if ag_code else zero,
                 max=AA['cumulative'][code], next=dict(code=nxt[0], xpac=AA['names'][nxt[0]], at=nxt[1]) if nxt else None)
+
+
+set_item_bands()
+for _g in DATA['guilds']:
+    for _m in _g['members']:
+        if _m.get('inv'):
+            _m['inv'] = tag_inv(_m['inv'], _g['server'])
 
 
 def user(request):
@@ -308,8 +328,9 @@ def index(request: Request):
     data['flagtree'] = FLAGS
     data['ach_ambig'] = ACH_AMBIG
     data['aa'] = dict(buffer=AA['buffer'], **{g['server']: current_xpac(g['server']) for g in allowed})
+    set_item_bands()
     for k in [k for k in kv if k.startswith('glask-inv-')]:
-        kv[k] = tag_inv(kv[k])
+        kv[k] = tag_inv(kv[k], k.split('-')[2])
     for k in [k for k in kv if k.startswith('glask-uploads-')]:
         kv[k] = uploads_for(u, k.split('-', 2)[2], kv[k])
     me = dict(id=u['id'], name=u['name'], avatar=u.get('avatar'), access=u['access'], lead=u.get('lead', []), rl=u.get('rl', []), links=mylinks)
@@ -947,7 +968,8 @@ async def item_info(request: Request):
         raise HTTPException(401, 'Sign in again')
     b = await request.json()
     names = [str(n)[:120] for n in (b.get('names') or [])][:200]
-    out = {n: dict(slot=itemdb.slot(n), xp=itemdb.xpac(n)) for n in names}
+    server = str(b.get('server', ''))[:20]
+    out = {n: dict(slot=itemdb.slot(n), xp=itemdb.xpac(n, server)) for n in names}
     ids = [str(i)[:12] for i in (b.get('ids') or [])][:60]
     if ids:
         out['_aug'] = {i: itemdb.augtypes(i) for i in ids}
