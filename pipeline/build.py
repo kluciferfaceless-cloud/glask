@@ -104,8 +104,21 @@ def load_apps_teek(path):
     return out
 
 
+NONRAID = re.compile(r'(?i)^(FnF|Alt|Box/Alt|Decorate|Applicant)$')
+
+
+def promote_flagged_mains(chars):
+    """A character with the in-game alt flag ticked, a raiding rank, a note that names no main, and other characters'
+    notes naming it as their main (e.g. Gengis: Raider, "Formerly Hoplite", Beaa "Alt - Gengis") is treated as a main."""
+    named = {m.group(1).lower() for c in chars if c['alt'] for m in [LINK.match(c['note'])] if m}
+    for c in chars:
+        if c['alt'] and not LINK.match(c['note']) and not NONRAID.match(c['rank']) and c['name'].lower() in named:
+            c['alt'] = False
+
+
 def build(guild, server, dump, loot_path, apps):
     chars = load_dump(dump)
+    promote_flagged_mains(chars)
     by = {c['name'].lower(): c for c in chars}
     mains = {c['name'].lower(): c for c in chars if not c['alt']}
     members = {k: dict(main=v['name'], chars=[v['name']]) for k, v in mains.items()}

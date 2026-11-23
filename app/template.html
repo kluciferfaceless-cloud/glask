@@ -1222,6 +1222,9 @@ function applyDump(gi,text,label){
   const x=D.guilds[gi],today=new Date(D.generated);const chars=[];
   for(const l of text.split(/\r?\n/)){const r=l.split('\t');if(r.length<14||!r[0])continue;chars.push({name:r[0],level:/^\d+$/.test(r[1])?+r[1]:r[1],cls:r[2],rank:r[3],alt:r[4]==='A',last:r[5],zone:r[6],note:r[7]})}
   if(!chars.length)return null;
+  {/* alt flag ticked by mistake on a main: raiding rank, note names no main, and other characters' notes name it as their main (e.g. Gengis) */
+   const named=new Set(chars.filter(c=>c.alt).map(c=>(c.note.match(LINK)||[])[1]).filter(Boolean).map(n=>n.toLowerCase()));
+   chars.forEach(c=>{if(c.alt&&!LINK.test(c.note)&&!NONRAID.test(c.rank)&&named.has(c.name.toLowerCase()))c.alt=false})}
   const by={},mains={};chars.forEach(c=>{by[c.name.toLowerCase()]=c;if(!c.alt)mains[c.name.toLowerCase()]=c});
   const old={};x.members.forEach(m=>{old[m.main.toLowerCase()]=m;m.chars.forEach(c=>{old['#'+c.n.toLowerCase()]=c})});
   const mem={};Object.values(mains).forEach(c=>mem[c.name.toLowerCase()]=[c.name]);
