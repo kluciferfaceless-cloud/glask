@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 
 import httpx
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from .store import Store
@@ -1381,6 +1381,12 @@ def audit(request: Request):
     if not u or not u.get('lead'):
         raise HTTPException(403)
     return JSONResponse(store.recent_audit())
+
+
+@app.get('/baja.webp')
+def baja_crest():
+    # Fupa's crest for Baja mode (the "baja" easter egg). Public, like the favicon.
+    return FileResponse(ROOT / 'app' / 'baja.webp', media_type='image/webp', headers={'Cache-Control': 'public, max-age=86400'})
 
 
 @app.get('/healthz')
