@@ -49,5 +49,20 @@
 "When One Door Closes: Hiding In Plain Sight",
 "Zlandicar Reborn: For the Music",
 "Zlandicar Reborn: Zero Growth"
-]
+],
+"multi_raid": [
+"A Little Help From My Friends",
+"Conqueror of Chardok",
+"Conqueror of Kael Drakkel",
+"Conqueror of Skyshrine",
+"Conqueror of The Great Divide",
+"Conqueror of The Skyfire Mountains",
+"Conqueror of The Temple of Veeshan",
+"Conqueror of The Western Wastes",
+"Conqueror of Veeshan's Peak",
+"Conqueror of Velketor's Labyrinth",
+"Conqueror of Vex Thal",
+"Crowd Control"
+],
+"_about_multi_raid": "Raid achievement names that appear under more than one expansion's Raids heading (e.g. A Little Help From My Friends: Underfoot, Rain of Fear, Torment of Velious). An export without raidX can't say which expansion's one is done."
 }

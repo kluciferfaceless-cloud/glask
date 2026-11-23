@@ -784,8 +784,9 @@ const _ci=new WeakMap();
 function ciOf(x){let c=_ci.get(x);if(!c){c={done:new Set((x.done||[]).map(nk)),rn:new Set((x.raidNames||[]).map(nk)),rd:new Set((x.raidDone||[]).map(nk))};_ci.set(x,c)}return c}
 function seenOf(m){const o={};for(const src of [m.flags||{},m.raid_ach||{},m.vq_seen||{}])for(const[a,d]of Object.entries(src)){const k=nk(a);if(!o[k]||d<o[k])o[k]=d}return o}
 function fst(m,gi,name){const al=(Array.isArray(name)?name:[name]).map(nk);const x=achOf(m,gi);
-  if(x){const c=ciOf(x);return al.some(a=>c.rn.has(a)?c.rd.has(a):c.done.has(a))?'yes':'no'}
-  const s=seenOf(m);return al.some(a=>s[a])?'seen':null}
+  const s=seenOf(m);
+  if(x){const c=ciOf(x);if(al.some(a=>c.rn.has(a)?c.rd.has(a):c.done.has(a)))return 'yes';return al.some(a=>s[a]&&(!x.uploaded||s[a]>=x.uploaded))?'seen':'no'}
+  return al.some(a=>s[a])?'seen':null}
 function fdate(m,name){const s=seenOf(m);for(const a of (Array.isArray(name)?name:[name]).map(nk))if(s[a])return s[a];return ''}
 function reqEval(m,gi,groups){let st='yes';const miss=[],unk=[];
   for(const g of groups||[]){const names=g.all||g.any||[];const r=names.map(n=>[n,fst(m,gi,n)]);
@@ -829,20 +830,20 @@ function attCard(m,gi){const rec=D.guilds[gi].recruits.find(r=>r.main===m.main);
   <div class="hint">Counted from raid logs uploaded to Glask: a raid counts if any of ${esc(m.main)}'s characters shows up in it${rec?`, since their recruit date (${esc(rec.start||'?')})`:''}. One log updates attendance for everyone in it.</div>
   ${dates.length?dates.map(d=>`<span class="tag ok">${esc(d)}</span>`).join(' '):'<span style="color:var(--dim)">No uploaded raid logs include them yet.</span>'}</div>`}
 
-function vqStatus(m,a,gi=G){const x=achOf(m,gi);if(x)return achDone(x,a)?'yes':'no';return m.vq_seen&&m.vq_seen[a]?'seen':null}
+function vqStatus(m,a,gi=G,xp){return achState(m,a,gi,xp)}
 function vqCard(m,gi){const V2=D.guilds[gi].vanq||[];if(!V2.length)return '';const ax=achOf(m,gi);
   return `<div class="card"><h3>Raid achievements · Vanquisher</h3><div class="hint">${ax?'From their achievement export: definitive.':'From log lines so far; upload their achievement export for a definitive view.'} Click an expansion, then a raid, to see each sub-achievement.</div>
-  ${[...V2].reverse().map(([xp,evs],i)=>{const subs=evs.flatMap(e=>e.subs);const n=subs.filter(s=>['yes','seen'].includes(vqStatus(m,s.name,gi))).length;
+  ${[...V2].reverse().map(([xp,evs],i)=>{const subs=evs.flatMap(e=>e.subs);const n=subs.filter(s=>['yes','seen'].includes(vqStatus(m,s.name,gi,xp))).length;
    return `<details ${i===0?'open':''}><summary><b>${esc(xp)}</b><span class="c">${n} / ${subs.length} sub-achievements</span></summary><div class="inner" style="padding-left:12px">
-   ${evs.map(e=>{const k=e.subs.filter(s=>['yes','seen'].includes(vqStatus(m,s.name,gi))).length;const full=vqStatus(m,e.name,gi)==='yes'||k===e.subs.length;
-     return `<details><summary>${full?'<span class="tag ok">✓</span>':''}<span style="color:var(--text)">${esc(e.event)}</span><span class="c">${k} / ${e.subs.length}</span></summary><div class="inner">${e.subs.map(s=>`${achCell(vqStatus(m,s.name,gi),(m.vq_seen||{})[s.name])} <b style="color:var(--text)">${esc(s.name)}</b> · ${esc(s.desc)}`).join('<br>')}</div></details>`}).join('')}
+   ${evs.map(e=>{const k=e.subs.filter(s=>['yes','seen'].includes(vqStatus(m,s.name,gi,xp))).length;const full=vqStatus(m,e.name,gi,xp)==='yes'||k===e.subs.length;
+     return `<details><summary>${full?'<span class="tag ok">✓</span>':''}<span style="color:var(--text)">${esc(e.event)}</span><span class="c">${k} / ${e.subs.length}</span></summary><div class="inner">${e.subs.map(s=>`${achCell(vqStatus(m,s.name,gi,xp),(m.vq_seen||{})[s.name])} <b style="color:var(--text)">${esc(s.name)}</b> · ${esc(s.desc)}`).join('<br>')}</div></details>`}).join('')}
    </div></details>`}).join('')}</div>`}
 let achX=null;
 function flagGuildCard(c0){const x=g(),gi=G,{code,names}=trackedList(gi,c0),xn=xpName(gi,code);
   const edit=isOff(gi)?`<button class="more" onclick="editTracked(${gi},'${code}')">Edit list</button>`:'';
   if(!names.length)return `<div class="card"><h3>Flagging · important ${esc(xn)} achievements ${edit}</h3><div class="hint" style="margin:0">No tracked achievements set for ${esc(xn)} yet.</div></div>`;
   const pop=x.members.filter(m=>!NONRAID.test(m.rank)&&m.days!=null&&m.days<=D.inactive_days).sort((a,b)=>a.main.localeCompare(b.main));
-  const st=(m,a)=>{const ax=achOf(m,gi);return ax?(achDone(ax,a)?'yes':'no'):((m.flags||{})[a]||(m.raid_ach||{})[a]?'seen':null)};
+  const st=(m,a)=>achState(m,a,gi,xn);
   const tot=names.map(a=>pop.filter(m=>['yes','seen'].includes(st(m,a))).length);const full=pop.filter(m=>names.every(a=>['yes','seen'].includes(st(m,a)))).length;
   const unk=pop.filter(m=>!achOf(m,gi)).length;
   const cell=s=>s==='yes'||s==='seen'?'<span class="tag ok">✓</span>':s==='no'?'<span class="tag red">✗</span>':'<span style="color:var(--dim)">?</span>';
@@ -922,7 +923,7 @@ function ach0(){const x=g();const V2=x.vanq||[];if(!V2.length)return '<div class
   return `<div class="glask"><div class="who">GLASK</div><div><p><em>“Choose which trials the Faceless will face.”</em> Vanquisher sub-achievements for <b>${esc(achX)}</b>, checked against the <b>${pop.length}</b> active raiders.</p>
    <p style="color:var(--mute);font-size:13px">Have = done (achievement export) or seen completing it in a log. Need = their export shows it missing. Unknown = no export and not seen yet. ${withX} of ${pop.length} active raiders have an achievement export loaded; the more exports, the fewer unknowns.</p></div></div>
   <div class="filters"><select onchange="achX=this.value;render()">${[...V2].reverse().map(([xp])=>`<option ${xp===achX?'selected':''}>${esc(xp)}</option>`).join('')}</select></div>
-  ${evs.map(e=>{const rows=e.subs.map(s=>{const st=pop.map(m=>[m,vqStatus(m,s.name)]);return {s,have:st.filter(z=>['yes','seen'].includes(z[1])),need:st.filter(z=>z[1]==='no'),unk:st.filter(z=>z[1]==null)}});
+  ${evs.map(e=>{const rows=e.subs.map(s=>{const st=pop.map(m=>[m,vqStatus(m,s.name,G,achX)]);return {s,have:st.filter(z=>['yes','seen'].includes(z[1])),need:st.filter(z=>z[1]==='no'),unk:st.filter(z=>z[1]==null)}});
     const needAny=rows.reduce((a,r)=>a+r.need.length,0);
     return `<div class="card" style="padding:0 16px"><details><summary style="padding:14px 4px"><b style="font-size:15px">${esc(e.event)}</b><span class="c">${rows.map(r=>`<span class="tag ${r.need.length?'red':r.unk.length?'':'ok'}" title="${esc(r.s.name)}">${esc(r.s.name.split(': ').pop())}: ${r.have.length} have${r.need.length?' · '+r.need.length+' need':''}</span>`).join('')}</span></summary>
      <table style="margin-bottom:12px"><tr><th>Sub-achievement</th><th>What it takes</th><th class="num">Have</th><th class="num">Need</th><th class="num">Unknown</th></tr>
@@ -932,7 +933,7 @@ function trackedList(gi,code){const c=code||xpacNow(gi).code;return {code:c,name
 function trackedAchCard(m,gi,c0){const {code,names}=trackedList(gi,c0);const ax=achOf(m,gi);const xn=xpName(gi,code);
   const edit=isOff(gi)?`<button class="more" onclick="editTracked(${gi},'${code}')">Edit list</button>`:'';
   if(!names.length)return `<div class="card"><h3>Important ${esc(xn)} achievements ${edit}</h3><div class="hint" style="margin:0">Leadership hasn't picked the achievements to track for ${esc(xn)} yet.</div></div>`;
-  const st=a=>ax?(achDone(ax,a)?'yes':'no'):((m.flags||{})[a]||(m.raid_ach||{})[a]?'seen':null);
+  const st=a=>achState(m,a,gi,xn);
   const n=names.filter(a=>['yes','seen'].includes(st(a))).length;
   return `<div class="card"><h3>Important ${esc(xn)} achievements <span style="display:flex;gap:8px;align-items:center"><span class="n">${n}/${names.length}</span>${edit}</span></h3>
    <div class="hint">${ax?`From ${isMem(gi)?'your':esc(m.main)+"'s"} achievement export${ax.uploaded?' (uploaded '+esc(ax.uploaded)+')':''}.`:`Upload ${isMem(gi)?'your':'their'} <code>/outputfile achievement</code> export to check these.`}</div>
@@ -996,8 +997,15 @@ function parseAchExport(text,wanted){const W=new Set(wanted),done=[],tiers=[],ra
 function aaText(a){if(!a)return '—';return a.aa_next?`${fmt(a.aa_floor)}–${fmt(a.aa_next-1)}`:`${fmt(a.aa_floor)}+`}
 function uploadAch(ev,gi,main){const f=ev.target.files[0];if(!f)return;f.text().then(t=>{const a=parseAchExport(t,D.guilds[gi]._wanted);if(!a){alertBox("That file doesn't look like an /outputfile achievement export.");return}
   lsSet('glask-ach-'+D.guilds[gi].server+'-'+main,a);alertBox('Achievements loaded for '+main+' · AA '+aaText(a));(V==='me'||isMem(gi)?render():profile(main))})}
-function achDone(x,a,xp){const rx=x.raidX&&x.raidX[a];if(rx&&xp&&xp in rx)return !!rx[xp];return x.raidNames&&x.raidNames.includes(a)?x.raidDone.includes(a):x.done.includes(a)}
-function hasAch(m,a,gi=G,xp){const x=achOf(m,gi);if(x)return achDone(x,a,xp)?'yes':'no';return (m.flags&&m.flags[a])||(m.raid_ach&&m.raid_ach[a])?'seen':null}
+function achDone(x,a,xp){const rx=x.raidX&&x.raidX[a];if(rx&&xp){return xp in rx?!!rx[xp]:false}
+  if(xp&&!x.raidX&&(D.ach_multi||[]).includes(a)&&(x.raidDone||[]).includes(a))return null;   /* older export: done in some expansion, can't tell which */
+  return x.raidNames&&x.raidNames.includes(a)?x.raidDone.includes(a):x.done.includes(a)}
+function seenDate(m,a){let d='';for(const src of [m.flags,m.raid_ach,m.vq_seen]){const v=src&&src[a];if(v&&(!d||v<d))d=v}return d}
+function achState(m,a,gi=G,xp){const x=achOf(m,gi),sd=seenDate(m,a);
+  if(!x)return sd?'seen':null;const r=achDone(x,a,xp);if(r)return 'yes';
+  if(sd&&(r==null||!x.uploaded||sd>=x.uploaded))return 'seen';   /* heard in an officer's log after their export was made */
+  return r==null?null:'no'}
+function hasAch(m,a,gi=G,xp){return achState(m,a,gi,xp)}
 function attendance(gi=G){const x0=D.guilds[gi],hid=hiddenRaids(gi);const base={...(x0.attendance||{})};
   (x0.raids||[]).filter(r=>hid.has(r.id+'|'+r.date)).forEach(r=>{const rest=(x0.raids||[]).filter(q=>q.date===r.date&&!hid.has(q.id+'|'+q.date));
     if(rest.length)base[r.date]=[...new Set(rest.flatMap(q=>q.players.map(p=>p.main)))];else delete base[r.date]});
@@ -1082,7 +1090,7 @@ async function parseLogFile(f,gi){const SC=await spellClsLoad();
       {let hit2=false;for(const ru of TATTLE){if(msg.slice(0,ru.pre.length).toLowerCase()===ru.pre.toLowerCase()){const e=msg.match(ru.emote);if(e){TTW.push([t,ru,e[1].split(/,\s*(?:and\s+)?|\s+and\s+/).map(z=>/^you$/i.test(z.trim())?me:z.trim()).filter(Boolean)]);hit2=true}}if(ru.cast&&ru.cast.test(msg)){TTC.push([t,ru]);hit2=true}}if(hit2)continue}
       if(msg.includes(' taken ')&&(k=msg.match(TT_RX))){const w=own(k[1]);if(isP(w)&&!RX.OWNER.test(k[1]))TTH.push([t,roster[w.toLowerCase()].n,k[2]])}
       if(GLASK_RX.test(msg)&&(k=msg.match(CHAT_RX))){notes.push({t:Math.round(t),who:k[1]==='You'?me:k[1],ch:(k[2]||'say').toLowerCase(),text:k[3]});continue}
-      if(msg.startsWith('Your guildmate ')){if((k=msg.match(GM_RX))){const c=k[1].toLowerCase(),d=new Date(t*1000).toISOString().slice(0,10);if(VQ.has(k[2].toLowerCase())){calls.push([c,k[2],d,t]);continue}(seen[c]??={});if(!seen[c][k[2]]||d<seen[c][k[2]])seen[c][k[2]]=d}continue}
+      if(msg.startsWith('Your guildmate ')){if((k=msg.match(GM_RX))){const c=k[1].toLowerCase(),d=`${m[6]}-${String(MONI[m[1]]+1).padStart(2,'0')}-${String(+m[2]).padStart(2,'0')}`;if(VQ.has(k[2].toLowerCase())){calls.push([c,k[2],d,t]);continue}(seen[c]??={});if(!seen[c][k[2]]||d<seen[c][k[2]])seen[c][k[2]]=d}continue}
       if((k=msg.match(RX.MELEE))){const src=own(k[1]),tgt=own(k[2]);if(isP(src)&&!isP(tgt)&&!RX.OWNER.test(tgt)){const p=get(src,t);p.dmg+=+k[3];p.acts.push(t);if(!RX.OWNER.test(k[1]))seenAt(roster[src.toLowerCase()].n,t);if(k[5]&&!RX.OWNER.test(k[1]))p.sp[norm(k[5])]=(p.sp[norm(k[5])]||0)+1;hit(t);
           if(!RX.OWNER.test(k[1]))fDmg(t,roster[src.toLowerCase()].n,tgt,+k[3],k[5]?norm(k[5]):'Melee',/Crit/.test(k[6]||''))}
         else if(isP(tgt)&&!isP(src)){const n=roster[tgt.toLowerCase()].n;fTaken(t,n,k[1],+k[3],k[5]?norm(k[5]):'Melee');if(k[5]&&TT_ABIL.has(norm(k[5])))TTH.push([t,n,norm(k[5])]);if(live(t)&&!k[5]&&!RX.OWNER.test(k[2])){const q=fP(n);q.sw++;q.hit++;q.dt+=+k[3];F.sw=(F.sw||0)+1}}continue}

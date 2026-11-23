@@ -64,7 +64,8 @@ def _strings(o):
             yield from _strings(v)
 
 
-ACH_AMBIG = json.loads((ROOT / 'data' / 'ach_ambig.json').read_text())['names']
+_AMB = json.loads((ROOT / 'data' / 'ach_ambig.json').read_text())
+ACH_AMBIG, ACH_MULTI = _AMB['names'], _AMB.get('multi_raid', [])
 FLAG_NAMES = {code: {n.lower() for n in _strings(t)} for code, t in FLAGS.items()}
 
 
@@ -327,6 +328,7 @@ def index(request: Request):
     data['review_from'] = REVIEW_FROM
     data['flagtree'] = FLAGS
     data['ach_ambig'] = ACH_AMBIG
+    data['ach_multi'] = ACH_MULTI
     data['aa'] = dict(buffer=AA['buffer'], **{g['server']: current_xpac(g['server']) for g in allowed})
     set_item_bands()
     for k in [k for k in kv if k.startswith('glask-inv-')]:
