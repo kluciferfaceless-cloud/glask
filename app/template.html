@@ -1148,7 +1148,7 @@ async function parseLogFile(f,gi){const SC=await spellClsLoad(),AD=await adpsLoa
         else if(isP(tgt)&&k[5]&&!isP(k[5]))fTaken(t,roster[tgt.toLowerCase()].n,k[5],+k[2],norm(k[4]));continue}
       if((k=msg.match(RX.HEAL))){const src=own(k[1]);if(isP(src)){if(!RX.OWNER.test(k[1])&&!/^(himself|herself|itself|yourself)$|over time/i.test(k[2]))seenAt(roster[src.toLowerCase()].n,t);const p=get(src,t),a=+k[3],tot=+(k[4]||k[3]);p.heal+=a;p.over+=tot-a;p.acts.push(t);if(k[5]&&!RX.OWNER.test(k[1]))p.sp[norm(k[5])]=(p.sp[norm(k[5])]||0)+1;
           if(live(t)&&!RX.OWNER.test(k[1])){const n=roster[src.toLowerCase()].n,q=fP(n),ab=fAb(q,k[5]?norm(k[5]):'Heal'),b=fB(t);q.h+=a;q.o+=tot-a;q.acts.add(Math.floor(t));q.htl[b]=(q.htl[b]||0)+a;ab.hn++;ab.hd+=a;ab.o+=tot-a;if(/Crit/.test(k[6]||''))ab.cr++;if(/^(himself|herself|itself|yourself)$/i.test(k[2])||own(k[2])===src)q.sh+=a}}continue}
-      if((k=msg.match(RX.CAST))||((k=msg.match(/^You (?:begin (?:casting|singing)|activate) (.+?)\.$/))&&(k=[k[0],'You',k[1]]))){const who=own(k[1]);if(isP(who)){const rn=roster[who.toLowerCase()].n;seenAt(rn,t);{const sp=norm(k[2]);if(AD[sp])(ADC[rn]??=[]).push([t,sp])}if(N[nightOf(t)]?.P[rn])get(rn,t).acts.push(t);const sc=SC[norm(k[2])];if(sc){const cc=(night(t).CC??={})[rn]??={};cc[sc]=(cc[sc]||0)+1}}if(isP(who)&&live(t)){const n=roster[who.toLowerCase()].n,q=fP(n);fAb(q,norm(k[2])).c++;q.acts.add(Math.floor(t))}continue}
+      if((k=msg.match(RX.CAST))||((k=msg.match(/^You (?:begin (?:casting|singing)|activate) (.+?)\.$/))&&(k=[k[0],'You',k[1]]))){const who=own(k[1]);if(isP(who)){const rn=roster[who.toLowerCase()].n;seenAt(rn,t);{const sp=norm(k[2]);if(AD[sp])(ADC[rn]??=[]).push([t,sp,/ begins? singing /.test(msg)?1:0])}if(N[nightOf(t)]?.P[rn])get(rn,t).acts.push(t);const sc=SC[norm(k[2])];if(sc){const cc=(night(t).CC??={})[rn]??={};cc[sc]=(cc[sc]||0)+1}}if(isP(who)&&live(t)){const n=roster[who.toLowerCase()].n,q=fP(n);fAb(q,norm(k[2])).c++;q.acts.add(Math.floor(t))}continue}
       if((k=msg.match(RX.SLAIN))){const who=k[1]==='You'?me:k[1];if(isP(who)){get(who,t).deaths++;fDeath(t,roster[who.toLowerCase()].n,k[2]);TTD.push([t,roster[who.toLowerCase()].n,k[2]])}}}}
   fEnd();
   for(const[c,a,d,t]of calls){const F=FIGHTS.find(F=>t>=F.start-120&&t<=F.last+180&&Object.keys(F.P).some(n=>n.toLowerCase()===c));
@@ -1221,14 +1221,14 @@ function bardAdps(F,P,ctx,fill){const {AD,ADC,GSN}=ctx||{};if(!AD)return null;co
   const D=a=>Math.max(6,a[1]*6);
   for(const[b,q]of Object.entries(P)){if(q.c!=='Bard')continue;
     const g=snap&&snap.g[b]?snap.g[b]:null,mem=g?Object.keys(P).filter(n=>n!==b&&snap.g[n]===g):[];
-    const by={};for(const[t,sp]of ADC[b]||[]){if(t<ws-120||t>we)continue;(by[sp]??=[]).push(t)}
+    const by={};for(const[t,sp,sung]of ADC[b]||[]){if(sung||t<ws-120||t>we)continue;(by[sp]??=[]).push(t)}   /* abilities only: songs ("begins singing") are left out */
     const songs=[];for(const[sp,ts]of Object.entries(by)){const a=AD[sp];if(![3,40,41].includes(a[2]))continue;const iv=[];ts.sort((x,y)=>x-y);
       ts.forEach((t,i)=>{const e=Math.min(t+D(a),i+1<ts.length?ts[i+1]:Infinity),s0=Math.max(t,ws),e0=Math.min(e,we);if(e0<=s0)return;const L=iv[iv.length-1],rs=Math.round(s0-ws),re=Math.round(e0-ws);if(L&&rs<=L[1]+1)L[1]=Math.max(L[1],re);else iv.push([rs,re])});
       if(iv.length)songs.push([sp,a[0],iv])}
     songs.sort((x,y)=>y[2].reduce((s,v)=>s+v[1]-v[0],0)-x[2].reduce((s,v)=>s+v[1]-v[0],0));
     /* burns: short (2 minutes or less) caster or melee ADPS that isn't a song; long buffs, potions and runes are left out */
-    const isBurn=a=>D(a)<=120&&(a[0]&3)&&!a[4];
-    const burns=[b,...mem].map(n=>[n,(ADC[n]||[]).filter(([t,sp])=>t>=ws-30&&t<=we&&isBurn(AD[sp])&&(n!==b||AD[sp][2]===6)).slice(0,40).map(([t,sp])=>{const a=AD[sp],s0=Math.max(t,ws);return [Math.round(s0-ws),sp,Math.max(1,Math.round(Math.min(t+D(a),we)-s0)),a[0]]})]).filter(z=>z[1].length);
+    const isBurn=(a,sung,bard)=>D(a)<=120&&(a[0]&3)&&!sung&&(bard||!a[4]);
+    const burns=[b,...mem].map(n=>[n,(ADC[n]||[]).filter(([t,sp,sung])=>t>=ws-30&&t<=we&&isBurn(AD[sp],sung,n===b)&&(n!==b||AD[sp][2]===6)).slice(0,40).map(([t,sp])=>{const a=AD[sp],s0=Math.max(t,ws);return [Math.round(s0-ws),sp,Math.max(1,Math.round(Math.min(t+D(a),we)-s0)),a[0]]})]).filter(z=>z[1].length);
     const gt=[];[b,...mem].forEach(n=>((F.P[n]||{}).tl||[]).forEach((v,i)=>gt[i]=(gt[i]||0)+(v||0)));
     out[b]={g,mem:mem.map(n=>[n,P[n].c]),songs,burns,gtl:fill(gt)}}
   return Object.keys(out).length?out:null}
@@ -1473,10 +1473,10 @@ function launch0(){const x=g(),qs=allQ();
 function ivLen(iv){return iv.reduce((s,v)=>s+Math.max(0,v[1]-v[0]),0)}
 function ivUnion(list){const a=list.slice().sort((x,y)=>x[0]-y[0]),o=[];for(const v of a){const L=o[o.length-1];if(L&&v[0]<=L[1])L[1]=Math.max(L[1],v[1]);else o.push([v[0],v[1]])}return o}
 function ivOverlap(a,b){let n=0;for(const x of a)for(const y of b){const s=Math.max(x[0],y[0]),e=Math.min(x[1],y[1]);if(e>s)n+=e-s}return n}
-function adpsStats(v,dur){const key=v.songs.filter(z=>ivLen(z[2])>=0.15*dur);
+function adpsStats(v,dur){const key=v.songs;const au=ivUnion(key.flatMap(z=>z[2]));
   const bw=ivUnion(v.burns.filter(([n])=>n!==v.me).flatMap(([,L])=>L.map(z=>[z[0],z[0]+z[2]])));const bl=ivLen(bw);
-  const up=key.length?Math.round(100*key.reduce((s,z)=>s+ivLen(z[2]),0)/(key.length*dur)):null;
-  const upB=key.length&&bl?Math.round(100*key.reduce((s,z)=>s+ivOverlap(z[2],bw),0)/(key.length*bl)):null;
+  const up=key.length?Math.round(100*ivLen(au)/dur):null;
+  const upB=key.length&&bl?Math.round(100*ivOverlap(au,bw)/bl):null;
   let bi=[],oi=[];(v.gtl||[]).forEach((d,i)=>{const o=ivOverlap([[i*10,i*10+10]],bw);(o>=5?bi:oi).push(d)});const avg=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:0;
   return {key,bw,bl,up,upB,dB:avg(bi),dO:avg(oi),nb:bi.length}}
 function adpsChart(v,dur,st){const L=250,W=1000,PW=W-L-10,X=t=>L+Math.max(0,Math.min(dur,t))*PW/Math.max(1,dur),RH=22;
@@ -1485,7 +1485,7 @@ function adpsChart(v,dur,st){const L=250,W=1000,PW=W-L-10,X=t=>L+Math.max(0,Math
   const top=78,H=top+rows.length*RH+26,mx=Math.max(1,...(v.gtl||[0]));const nb=(v.gtl||[]).length;
   const pts=(v.gtl||[]).map((d,i)=>`${(L+(nb<2?PW/2:i*PW/(nb-1))).toFixed(1)},${(top-8-(d/mx)*60).toFixed(1)}`).join(' ');
   const ticks=[0,0.25,0.5,0.75,1].map(f=>Math.round(f*dur));
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block" role="img" aria-label="Bard songs, group burns and group damage over the fight">
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block" role="img" aria-label="Bard ADPS abilities, group burns and group damage over the fight">
    ${st.bw.map(q=>`<rect x="${X(q[0])}" y="6" width="${Math.max(1,X(q[1])-X(q[0]))}" height="${H-30}" fill="#e8774f" opacity="0.10"/>`).join('')}
    <text x="0" y="40" fill="#b5aea3" font-size="12">Group damage / s</text><text x="0" y="56" fill="#8a847b" font-size="11">peak ${kk(mx)}</text>
    ${pts?`<polyline points="${pts}" fill="none" stroke="#d9cbb4" stroke-width="2"/>`:''}
@@ -1493,15 +1493,15 @@ function adpsChart(v,dur,st){const L=250,W=1000,PW=W-L-10,X=t=>L+Math.max(0,Math
      ${r.bars.map(b=>`<rect x="${X(b[0])}" y="${y+3}" width="${Math.max(2,X(b[1])-X(b[0]))}" height="${RH-7}" rx="2" fill="${r.col}"><title>${esc(b[2])} · ${mmss(b[0])}–${mmss(b[1])}</title></rect>`).join('')}`}).join('')}
    ${ticks.map((t,i)=>`<text x="${X(t)}" y="${H-6}" fill="#8a847b" font-size="12" text-anchor="${i===0?'start':i===4?'end':'middle'}">${mmss(t)}</text>`).join('')}</svg>`}
 function bardAdpsView(FS,bard,idx,off){const have=FS.map((f,i)=>[f,i,(f.bd||{})[bard]]).filter(z=>z[2]);
-  const note=`<div class="hint" style="margin:0 0 10px"><b>ADPS</b>: your songs that land on your group (purple, each counted from the cast until it runs out or you sing it again), your group's own burns (orange: short caster or melee ADPS, 2 minutes or less, not songs), and your group's damage per second (line). Shaded = while groupmates had burns up. Groups come from the raid list in the log; songs and burns from "begins singing", "begins casting" and "activates" lines, using EQLogParser's ADPS spell list.</div>`;
+  const note=`<div class="hint" style="margin:0 0 10px"><b>ADPS</b>: your ADPS abilities that land on your group (purple: Fierce Eye, Quick Time, Spire, your epic and the like, each counted from the cast for its duration or until you use it again; regular songs are left out), your group's own burns (orange: caster or melee ADPS of 2 minutes or less), and your group's damage per second (line). Shaded = while groupmates had burns up. Groups come from the raid list in the log; abilities and burns from "begins casting" and "activates" lines, using EQLogParser's ADPS spell list.</div>`;
   if(!have.length)return note+'<div class="hint" style="margin:0">No ADPS recorded for you on this night. It\'s recorded for raid logs uploaded from now on.</div>';
   const pre=(f,v)=>Object.assign({me:bard,memc:Object.fromEntries((v.mem||[]).map(([n,c])=>[n,c]))},v);
   if(idx<0){const rows=have.map(([f,i,v])=>{const w=pre(f,v),st=adpsStats(w,f.dur);return {f,i,w,st}});
-    return note+`<table><tr><th>Fight</th><th>Group</th><th class="num">Songs kept up</th><th class="num">Up during group burns</th><th class="num">Group DPS in burns / outside</th></tr>${rows.map(({f,i,w,st})=>`<tr class="click" onclick="meNightFight=${i};render()"><td>${esc(fname(f.name))} · ${mmss(f.dur)}</td><td>${w.g?`Group ${w.g} · ${w.mem.length} others`:'<span style="color:var(--dim)">not in the log</span>'}</td><td class="num">${st.up!=null?st.up+'%':'—'}</td><td class="num">${st.upB!=null?st.upB+'%':'—'}</td><td class="num">${st.nb?`${kk(st.dB)} / ${kk(st.dO)}`:'—'}</td></tr>`).join('')}</table><div class="hint" style="margin:8px 0 0">Pick a fight above for the timeline. "Songs kept up" averages the songs you had going for at least 15% of the fight.</div>`}
+    return note+`<table><tr><th>Fight</th><th>Group</th><th class="num">Your ADPS up</th><th class="num">Up during group burns</th><th class="num">Group DPS in burns / outside</th></tr>${rows.map(({f,i,w,st})=>`<tr class="click" onclick="meNightFight=${i};render()"><td>${esc(fname(f.name))} · ${mmss(f.dur)}</td><td>${w.g?`Group ${w.g} · ${w.mem.length} others`:'<span style="color:var(--dim)">not in the log</span>'}</td><td class="num">${st.up!=null?st.up+'%':'—'}</td><td class="num">${st.upB!=null?st.upB+'%':'—'}</td><td class="num">${st.nb?`${kk(st.dB)} / ${kk(st.dO)}`:'—'}</td></tr>`).join('')}</table><div class="hint" style="margin:8px 0 0">Pick a fight above for the timeline. "Your ADPS up" is the share of the fight at least one of your ADPS abilities was running on your group; "up during group burns" is the same, for the time your groupmates had burns going.</div>`}
   const f=FS[idx],v=(f.bd||{})[bard];if(!v)return note+'<div class="hint" style="margin:0">No ADPS recorded for you in this fight.</div>';
   const w=pre(f,v),st=adpsStats(w,f.dur);
-  return note+`<div class="facts"><div><b>${st.up!=null?st.up+'%':'—'}</b><span>songs kept up (${st.key.length} song${st.key.length===1?'':'s'})</span></div><div><b>${st.upB!=null?st.upB+'%':'—'}</b><span>up during group burns (${mmss(st.bl)})</span></div><div><b>${st.nb?kk(st.dB)+'/s':'—'}</b><span>group DPS during burns</span></div><div><b>${kk(st.dO)}/s</b><span>group DPS the rest of the fight</span></div></div>
-   <div style="margin:8px 0 4px;color:var(--mute);font-size:13px">${w.g?`Group ${w.g}: ${[bard,...w.mem.map(([n,c])=>n===c||!off?n:`${n} (${c})`)].map(esc).join(', ')}`:'No raid group list in this log before this fight, so only your own songs and burns are shown.'}</div>
+  return note+`<div class="facts"><div><b>${st.up!=null?st.up+'%':'—'}</b><span>your ADPS up (${st.key.length} abilit${st.key.length===1?'y':'ies'})</span></div><div><b>${st.upB!=null?st.upB+'%':'—'}</b><span>your ADPS up during group burns (${mmss(st.bl)})</span></div><div><b>${st.nb?kk(st.dB)+'/s':'—'}</b><span>group DPS during burns</span></div><div><b>${kk(st.dO)}/s</b><span>group DPS the rest of the fight</span></div></div>
+   <div style="margin:8px 0 4px;color:var(--mute);font-size:13px">${w.g?`Group ${w.g}: ${[bard,...w.mem.map(([n,c])=>n===c||!off?n:`${n} (${c})`)].map(esc).join(', ')}`:'No raid group list in this log before this fight, so only your own abilities and burns are shown.'}</div>
    ${adpsChart(w,f.dur,st)}`}
 // ---- character panel (EQ style): the officer drawer and the member's own page share it ----
 let charTab='inv';
