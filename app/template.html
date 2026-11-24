@@ -1095,7 +1095,9 @@ const RAID_MIN=10, GM_RX=/^Your guildmate (\S+) has completed (.+) achievement\.
 function nightOf(t){const d=new Date((t-6*3600)*1000);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 // Which class each spell or ability belongs to, from EQLogParser's spells.txt class masks (Apache 2.0, data/procs.NOTICE.txt);
 // a log shows what class someone actually played that night (personas), whatever the guild dump says.
-let ADPS=null;async function adpsLoad(){if(ADPS)return ADPS;try{const r=await fetch('/api/adps');ADPS=r.ok?await r.json():{}}catch(e){ADPS={}}return ADPS}
+let ADPS=null;async function adpsLoad(){if(ADPS)return ADPS;let raw={};try{const r=await fetch('/api/adps');raw=r.ok?await r.json():{}}catch(e){}
+  /* key by the parser's ability name (ranks and roman numerals dropped), so "Fierce Eye VII", "Quick Time X" and "Spire of the Minstrels XII" match; ranks merge */
+  ADPS={};for(const[k,v]of Object.entries(raw)){const n=k.trim().replace(RX.RANK,'');const o=ADPS[n];if(!o)ADPS[n]=v.slice();else{o[0]|=v[0];o[1]=Math.max(o[1],v[1]);o[3]|=v[3];if(v[2]!==6&&o[2]===6)o[2]=v[2]}}return ADPS}
 // raid window listing in the log ("[125 Lyricist (Bard)] Mewzik (Group: 1)"): who was grouped with whom
 const GRP_RX=/^\[\d+ [^\]]*\] (\w+) \((?:Group: (\d+)|[^)]*)\)$/;
 let SPELLCLS=null;async function spellClsLoad(){if(SPELLCLS)return SPELLCLS;try{const r=await fetch('/api/spellclass');SPELLCLS=r.ok?await r.json():{}}catch(e){SPELLCLS={}}return SPELLCLS}
