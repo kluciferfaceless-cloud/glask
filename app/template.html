@@ -662,8 +662,10 @@ function glaskNotesCard(r){if(!canNotes()||!r)return '';const N=(KV['glask-raidn
      :'<div class="hint" style="margin:0">Nothing mentioned Glask that night. Say “Glask, …” in raid or guild chat during a raid to leave a note here.</div>'}</div>`}
 // ---- Performance: raid night page (Normal / Advanced) ----
 let perfAdv=(()=>{try{return localStorage.getItem('glask-perfadv')==='1'}catch(e){return false}})(),perfOpen=null,nightFight=-1,perfLow=true,perfRowCls='',meNightFight=-1;
-function setPerfAdv(v){perfAdv=!!v;try{localStorage.setItem('glask-perfadv',v?'1':'0')}catch(e){}render()}
-function advSw(){return `<span class="seg" style="display:inline-flex;padding:2px" role="group" aria-label="Detail level"><button class="${perfAdv?'':'on'}" onclick="setPerfAdv(0)">Normal</button><button class="${perfAdv?'on':''}" onclick="setPerfAdv(1)">Advanced</button></span>`}
+let perfAdps=(()=>{try{return localStorage.getItem('glask-perfadps')==='1'}catch(e){return false}})();
+function setPerfAdv(v){perfAdv=!!v;perfAdps=false;try{localStorage.setItem('glask-perfadv',v?'1':'0');localStorage.setItem('glask-perfadps','0')}catch(e){}render()}
+function setPerfAdps(){perfAdps=true;try{localStorage.setItem('glask-perfadps','1')}catch(e){}render()}
+function advSw(bard){const a=bard&&perfAdps;return `<span class="seg" style="display:inline-flex;padding:2px" role="group" aria-label="Detail level"><button class="${!a&&!perfAdv?'on':''}" onclick="setPerfAdv(0)">Normal</button><button class="${!a&&perfAdv?'on':''}" onclick="setPerfAdv(1)">Advanced</button>${bard?`<button class="${a?'on':''}" onclick="setPerfAdps()" title="Your songs for your group, with the group's own burns and DPS">ADPS</button>`:''}</span>`}
 const medOf=a=>{const s=a.slice().sort((u,v)=>u-v);return s.length?s[Math.floor((s.length-1)/2)]:0};
 // ---- roles: each fight judges people on the job they did ----
 // Tanking: Warriors vs Warriors, Paladins + Shadow Knights together as Knights. Healing: Clerics, Druids, Shamans and Paladins
@@ -778,12 +780,14 @@ function raidNight(RA,x){const r=RA[raidIdx];const FS=fightsFor(G,r);const have=
 function memberNightCard(m,gi){const own=new Set(m.chars.map(c=>c.n));const RA=allRaids(gi).filter(r=>r.uploaded&&r.players.some(p=>own.has(p.name)));
   if(!RA.length)return '';if(meFightRaid>=RA.length)meFightRaid=0;const r=RA[meFightRaid];const FS=fightsFor(gi,r);
   const pick=`<select onchange="meFightRaid=+this.value;meNightFight=-1;render()">${RA.map((q,i)=>`<option value="${i}" ${i===meFightRaid?'selected':''}>${esc(q.date)} · ${esc(q.id)}</option>`).join('')}</select>`;
-  const top=x=>`<div class="card"><h3>Raid performance ${advSw()}</h3><div class="filters" style="margin:0 0 10px">${pick}${x}</div>`;
+  let isBard=m.chars.some(c=>c.n===(meFightChar||m.main)&&/^Bard$/i.test(c.c))||/^Bard$/i.test(m.cls);
+  const top=x=>`<div class="card"><h3>Raid performance ${advSw(isBard)}</h3><div class="filters" style="margin:0 0 10px">${pick}${x}</div>`;
   if(!Array.isArray(FS)||!FS.length)return top('')+`<div class="hint" style="margin:0">${FS==='loading'?'Loading…':'No fight breakdown for this raid night yet. Fights are recorded for raid logs uploaded from now on.'}</div></div>`;
   if(meNightFight>=FS.length)meNightFight=-1;const F=withRoles(meNightFight<0?joinFights(FS):FS[meNightFight]);
   const chars=Object.entries(F.P).filter(([n])=>own.has(n)).map(([n,p])=>({n,...p})).sort((a,b)=>((b.n===m.main)-(a.n===m.main))||(a.b-b.b)||(b.d-a.d));
   if(!chars.length)return top(fightPills(FS,meNightFight,'meNightFight'))+'<div class="hint" style="margin:0">None of your characters fought in this one.</div></div>';
   const me=chars.find(c=>c.n===meFightChar)||chars[0];const cm=F.cm[me.c]||{},H=HEAL_CLS.has(me.c);const L=roleLines(F,me.n),ML=mainLine(L,me.c);
+  isBard=me.c==='Bard';if(perfAdps&&isBard)return top(fightPills(FS,meNightFight,'meNightFight'))+bardAdpsView(FS,me.n,meNightFight,isOff(gi))+'</div>';
   const pct=ML?ML.pct:(cm.v?Math.round(100*me.v/cm.v):null);const myD=F.deaths.filter(d=>d[1]===me.n);
   return top(fightPills(FS,meNightFight,'meNightFight'))+`${chars.length>1?`<div class="filters" style="margin:0 0 10px">${chars.map(c=>`<button class="more" style="margin:0;${c.n===me.n?'background:var(--panel2);border-color:var(--ember)':''}" onclick="meFightChar='${esc(c.n)}';render()">${esc(c.n)} · ${esc(c.c)}${c.b?' (box)':''}</button>`).join('')}</div>`:''}
    <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="font-size:36px;font-weight:700;color:${pct!=null&&pct<70?'var(--ember2)':'inherit'}">${pct!=null?pct+'%':'—'}</span><span style="color:var(--mute)">${esc(ML?ML.label:'vs the '+me.c+' median')} · ${esc(me.n)}, ${esc(meNightFight<0?'whole night':fname(F.name))}</span></div>
@@ -1091,8 +1095,11 @@ const RAID_MIN=10, GM_RX=/^Your guildmate (\S+) has completed (.+) achievement\.
 function nightOf(t){const d=new Date((t-6*3600)*1000);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 // Which class each spell or ability belongs to, from EQLogParser's spells.txt class masks (Apache 2.0, data/procs.NOTICE.txt);
 // a log shows what class someone actually played that night (personas), whatever the guild dump says.
+let ADPS=null;async function adpsLoad(){if(ADPS)return ADPS;try{const r=await fetch('/api/adps');ADPS=r.ok?await r.json():{}}catch(e){ADPS={}}return ADPS}
+// raid window listing in the log ("[125 Lyricist (Bard)] Mewzik (Group: 1)"): who was grouped with whom
+const GRP_RX=/^\[\d+ [^\]]*\] (\w+) \((?:Group: (\d+)|[^)]*)\)$/;
 let SPELLCLS=null;async function spellClsLoad(){if(SPELLCLS)return SPELLCLS;try{const r=await fetch('/api/spellclass');SPELLCLS=r.ok?await r.json():{}}catch(e){SPELLCLS={}}return SPELLCLS}
-async function parseLogFile(f,gi){const SC=await spellClsLoad();
+async function parseLogFile(f,gi){const SC=await spellClsLoad(),AD=await adpsLoad(),ADC={},GSN=[];
   const x=D.guilds[gi],roster={};x.members.forEach(m=>m.chars.forEach(c=>roster[c.n.toLowerCase()]={cls:c.c,main:m.main,alt:c.a,n:c.n}));
   // whose log is this? EverQuest names logs eqlog_<Character>_<server>.txt; otherwise the uploader's own linked character
   const st=logSettings(),fn=(f.name.match(/eqlog_([A-Za-z]+)_/i)||[])[1];const mine=(()=>{const l=(ME.links||{})[x.server];return l&&l.status==='approved'?l.main:null})();
@@ -1123,6 +1130,7 @@ async function parseLogFile(f,gi){const SC=await spellClsLoad();
   while(true){const{value,done}=await reader.read();if(done)break;const lines=(carry+value).split('\n');carry=lines.pop();
     for(const raw of lines){const m=raw.replace(/\r$/,'').match(RX.TS);if(!m)continue;const msg=m[7];
       const t=new Date(+m[6],MONI[m[1]],+m[2],+m[3],+m[4],+m[5]).getTime()/1000;let k;
+      if(msg[0]==='['&&(k=msg.match(GRP_RX))){let S=GSN[GSN.length-1];if(!S||t-S.t>5)GSN.push(S={t,g:{}});const r=roster[k[1].toLowerCase()];S.g[r?r.n:k[1]]=k[2]?+k[2]:0;continue}
       {let hit2=false;for(const ru of TATTLE){if(msg.slice(0,ru.pre.length).toLowerCase()===ru.pre.toLowerCase()){const e=msg.match(ru.emote);if(e){TTW.push([t,ru,e[1].split(/,\s*(?:and\s+)?|\s+and\s+/).map(z=>/^you$/i.test(z.trim())?me:z.trim()).filter(Boolean)]);hit2=true}}if(ru.cast&&ru.cast.test(msg)){TTC.push([t,ru]);hit2=true}}if(hit2)continue}
       if(msg.includes(' taken ')&&(k=msg.match(TT_RX))){const w=own(k[1]);if(isP(w)&&!RX.OWNER.test(k[1]))TTH.push([t,roster[w.toLowerCase()].n,k[2]])}
       if(GLASK_RX.test(msg)&&(k=msg.match(CHAT_RX))){notes.push({t:Math.round(t),who:k[1]==='You'?me:k[1],ch:(k[2]||'say').toLowerCase(),text:k[3]});continue}
@@ -1138,7 +1146,7 @@ async function parseLogFile(f,gi){const SC=await spellClsLoad();
         else if(isP(tgt)&&k[5]&&!isP(k[5]))fTaken(t,roster[tgt.toLowerCase()].n,k[5],+k[2],norm(k[4]));continue}
       if((k=msg.match(RX.HEAL))){const src=own(k[1]);if(isP(src)){if(!RX.OWNER.test(k[1])&&!/^(himself|herself|itself|yourself)$|over time/i.test(k[2]))seenAt(roster[src.toLowerCase()].n,t);const p=get(src,t),a=+k[3],tot=+(k[4]||k[3]);p.heal+=a;p.over+=tot-a;p.acts.push(t);if(k[5]&&!RX.OWNER.test(k[1]))p.sp[norm(k[5])]=(p.sp[norm(k[5])]||0)+1;
           if(live(t)&&!RX.OWNER.test(k[1])){const n=roster[src.toLowerCase()].n,q=fP(n),ab=fAb(q,k[5]?norm(k[5]):'Heal'),b=fB(t);q.h+=a;q.o+=tot-a;q.acts.add(Math.floor(t));q.htl[b]=(q.htl[b]||0)+a;ab.hn++;ab.hd+=a;ab.o+=tot-a;if(/Crit/.test(k[6]||''))ab.cr++;if(/^(himself|herself|itself|yourself)$/i.test(k[2])||own(k[2])===src)q.sh+=a}}continue}
-      if((k=msg.match(RX.CAST))||((k=msg.match(/^You (?:begin (?:casting|singing)|activate) (.+?)\.$/))&&(k=[k[0],'You',k[1]]))){const who=own(k[1]);if(isP(who)){const rn=roster[who.toLowerCase()].n;seenAt(rn,t);if(N[nightOf(t)]?.P[rn])get(rn,t).acts.push(t);const sc=SC[norm(k[2])];if(sc){const cc=(night(t).CC??={})[rn]??={};cc[sc]=(cc[sc]||0)+1}}if(isP(who)&&live(t)){const n=roster[who.toLowerCase()].n,q=fP(n);fAb(q,norm(k[2])).c++;q.acts.add(Math.floor(t))}continue}
+      if((k=msg.match(RX.CAST))||((k=msg.match(/^You (?:begin (?:casting|singing)|activate) (.+?)\.$/))&&(k=[k[0],'You',k[1]]))){const who=own(k[1]);if(isP(who)){const rn=roster[who.toLowerCase()].n;seenAt(rn,t);{const sp=norm(k[2]);if(AD[sp])(ADC[rn]??=[]).push([t,sp])}if(N[nightOf(t)]?.P[rn])get(rn,t).acts.push(t);const sc=SC[norm(k[2])];if(sc){const cc=(night(t).CC??={})[rn]??={};cc[sc]=(cc[sc]||0)+1}}if(isP(who)&&live(t)){const n=roster[who.toLowerCase()].n,q=fP(n);fAb(q,norm(k[2])).c++;q.acts.add(Math.floor(t))}continue}
       if((k=msg.match(RX.SLAIN))){const who=k[1]==='You'?me:k[1];if(isP(who)){get(who,t).deaths++;fDeath(t,roster[who.toLowerCase()].n,k[2]);TTD.push([t,roster[who.toLowerCase()].n,k[2]])}}}}
   fEnd();
   for(const[c,a,d,t]of calls){const F=FIGHTS.find(F=>t>=F.start-120&&t<=F.last+180&&Object.keys(F.P).some(n=>n.toLowerCase()===c));
@@ -1157,7 +1165,7 @@ async function parseLogFile(f,gi){const SC=await spellClsLoad();
       const played=ce.length&&ce[0][1]>=10&&ce[0][1]/ct>=.8?ce[0][0]:te.length&&te[0][1]>=200&&te[0][1]/tt>=.8?te[0][0]:r.cls;
       return {name:r.n,main:r.main,dump_cls:r.cls,played,box:r.alt,dmg:p.dmg,heal:p.heal,overheal:p.over,active:Math.round(active),uptime:Math.min(1,active/upDen),deaths:p.deaths,sdps:Math.round(p.dmg/Math.max(active,1))}});
     const playedOf={};players.forEach(p=>playedOf[p.name]=p.played);
-    const fights=FIGHTS.filter(F=>nightOf(F.start)===date).map(F=>packFight(F,roster,playedOf,HEALERS));
+    const fights=FIGHTS.filter(F=>nightOf(F.start)===date).map(F=>packFight(F,roster,playedOf,HEALERS,{AD,ADC,GSN}));
     // tattle tale: each wave of a rule, judged from that night's hits and everyone's own actions
     const isTank=n=>TANK_CLS.has(playedOf[n]||(roster[n.toLowerCase()]||{}).cls);
     for(const[T,ru,names]of TTW.filter(w=>nightOf(w[0])===date&&w[1].kind==='callout-charge')){
@@ -1204,7 +1212,25 @@ async function parseLogFile(f,gi){const SC=await spellClsLoad();
 // active time: any damage, heal or cast keeps you active, and gaps of ACTIVE_GAP seconds or less count as active
 const ACTIVE_GAP=12;
 function activeSecs(ts){ts=ts.slice().sort((a,b)=>a-b);let n=0,s=null,e=null;for(const u of ts){if(s==null){s=e=u}else if(u-e<=ACTIVE_GAP)e=u;else{n+=e-s+1;s=e=u}}if(s!=null)n+=e-s+1;return n}
-function packFight(F,roster,playedOf,HEALERS){const dur=Math.max(1,Math.round(F.last-F.start)),nb=Math.floor(dur/10)+1;const med=a=>{if(!a.length)return 0;const s=a.slice().sort((x,y)=>x-y);return s[Math.floor((s.length-1)/2)]};
+// Bard ADPS for one fight: each bard's group (from the raid listing in the log), their group songs as time ranges
+// (from a cast until its duration runs out or the same song is cast again), the group's own ADPS casts, and group DPS per 10s
+function bardAdps(F,P,ctx,fill){const {AD,ADC,GSN}=ctx||{};if(!AD)return null;const ws=F.start,we=F.last,out={};
+  let snap=null;for(const S of GSN||[]){if(S.t<=ws+30)snap=S;else{if(!snap&&S.t-ws<6*3600)snap=S;break}}
+  const D=a=>Math.max(6,a[1]*6);
+  for(const[b,q]of Object.entries(P)){if(q.c!=='Bard')continue;
+    const g=snap&&snap.g[b]?snap.g[b]:null,mem=g?Object.keys(P).filter(n=>n!==b&&snap.g[n]===g):[];
+    const by={};for(const[t,sp]of ADC[b]||[]){if(t<ws-120||t>we)continue;(by[sp]??=[]).push(t)}
+    const songs=[];for(const[sp,ts]of Object.entries(by)){const a=AD[sp];if(![3,40,41].includes(a[2]))continue;const iv=[];ts.sort((x,y)=>x-y);
+      ts.forEach((t,i)=>{const e=Math.min(t+D(a),i+1<ts.length?ts[i+1]:Infinity),s0=Math.max(t,ws),e0=Math.min(e,we);if(e0<=s0)return;const L=iv[iv.length-1],rs=Math.round(s0-ws),re=Math.round(e0-ws);if(L&&rs<=L[1]+1)L[1]=Math.max(L[1],re);else iv.push([rs,re])});
+      if(iv.length)songs.push([sp,a[0],iv])}
+    songs.sort((x,y)=>y[2].reduce((s,v)=>s+v[1]-v[0],0)-x[2].reduce((s,v)=>s+v[1]-v[0],0));
+    /* burns: short (2 minutes or less) caster or melee ADPS that isn't a song; long buffs, potions and runes are left out */
+    const isBurn=a=>D(a)<=120&&(a[0]&3)&&!a[4];
+    const burns=[b,...mem].map(n=>[n,(ADC[n]||[]).filter(([t,sp])=>t>=ws-30&&t<=we&&isBurn(AD[sp])&&(n!==b||AD[sp][2]===6)).slice(0,40).map(([t,sp])=>{const a=AD[sp],s0=Math.max(t,ws);return [Math.round(s0-ws),sp,Math.max(1,Math.round(Math.min(t+D(a),we)-s0)),a[0]]})]).filter(z=>z[1].length);
+    const gt=[];[b,...mem].forEach(n=>((F.P[n]||{}).tl||[]).forEach((v,i)=>gt[i]=(gt[i]||0)+(v||0)));
+    out[b]={g,mem:mem.map(n=>[n,P[n].c]),songs,burns,gtl:fill(gt)}}
+  return Object.keys(out).length?out:null}
+function packFight(F,roster,playedOf,HEALERS,ctx){const dur=Math.max(1,Math.round(F.last-F.start)),nb=Math.floor(dur/10)+1;const med=a=>{if(!a.length)return 0;const s=a.slice().sort((x,y)=>x-y);return s[Math.floor((s.length-1)/2)]};
   const fill=a=>Array.from({length:nb},(_,i)=>Math.round((a[i]||0)/10));const P={};
   for(const[n,p]of Object.entries(F.P)){const r=roster[n.toLowerCase()];if(!r)continue;const cls=playedOf[r.n]||r.cls,heal=HEALERS.has(cls),act=Math.max(1,Math.min(dur,activeSecs([...p.acts])));
     const ab=Object.entries(p.ab).map(([k,v])=>[k,v.c,v.h,v.d,v.cr,v.hn,v.hd,v.o]);const by=heal?6:3;
@@ -1220,7 +1246,8 @@ function packFight(F,roster,playedOf,HEALERS){const dur=Math.max(1,Math.round(F.
   const rl=roleMedians({P,dur,sw:F.sw||0});
   const tg=Object.entries(F.tg).sort((a,b)=>b[1]-a[1]);
   for(const[c,o]of Object.entries(rl.cm))Object.assign(cm[c]??={v:0,n:0,ab:{},tl:[]},o);
-  return {name:tg[0]?tg[0][0]:'Fight',start:Math.round(F.start),dur,dmg:Object.values(P).reduce((s,q)=>s+q.d,0),tg:tg.slice(0,4),P,cm,tkm:rl.tkm,hm:rl.hm,sw:F.sw||0,deaths:F.deaths,rtl:fill(F.rtl)}}
+  const bd=bardAdps(F,P,ctx,fill);
+  return {name:tg[0]?tg[0][0]:'Fight',start:Math.round(F.start),dur,dmg:Object.values(P).reduce((s,q)=>s+q.d,0),tg:tg.slice(0,4),P,cm,tkm:rl.tkm,hm:rl.hm,sw:F.sw||0,deaths:F.deaths,rtl:fill(F.rtl),...(bd?{bd}:{})}}
 async function parseRaidFile(f,gi){const r=await parseLogFile(f,gi);return r.raids.sort((a,b)=>b.players.length-a.players.length)[0]||null}
 async function saveSeen(gi,seen){const x=D.guilds[gi];try{const res=await fetch('/api/ach-seen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({server:x.server,seen})});
   if(!res.ok){let d='';try{d=(await res.json()).detail}catch(e){}return {ok:false,msg:d||('server said '+res.status)}}KV['glask-seen-'+x.server]=await res.json();applySeen();return {ok:true}}catch(e){return {ok:false,msg:'could not reach Glask'}}}
@@ -1440,6 +1467,40 @@ function launch0(){const x=g(),qs=allQ();
 <!--§/C--><!--§N-->  <div class="card"><h3>Active raiders who haven't answered <span class="n">${pending.length}</span></h3><div class="hint">Raiding ranks, online in the last ${D.inactive_days} days, no response matched to any of their characters.</div>${pending.map(m=>`<span class="tag link" style="margin:2px" onclick="profile('${esc(m.main)}')">${esc(m.main)} · ${esc(m.cls)}</span>`).join(' ')}</div>
 <!--§/N-->  ${notG.length?`<div class="card"><h3>Responses Glask couldn't match to the roster <span class="n">${notG.length}</span></h3><div class="hint">Typo, a character not in the guild dump, or someone who has left. Fix the name in the form sheet or check the roster.</div>${notG.map(r=>`<span class="tag" style="margin:2px">${esc(r.raw||'(blank)')} ${qTag(r.status)}</span>`).join(' ')}</div>`:''}`}
 
+// ---- Bard ADPS view (character page, Raid performance → ADPS) ----
+function ivLen(iv){return iv.reduce((s,v)=>s+Math.max(0,v[1]-v[0]),0)}
+function ivUnion(list){const a=list.slice().sort((x,y)=>x[0]-y[0]),o=[];for(const v of a){const L=o[o.length-1];if(L&&v[0]<=L[1])L[1]=Math.max(L[1],v[1]);else o.push([v[0],v[1]])}return o}
+function ivOverlap(a,b){let n=0;for(const x of a)for(const y of b){const s=Math.max(x[0],y[0]),e=Math.min(x[1],y[1]);if(e>s)n+=e-s}return n}
+function adpsStats(v,dur){const key=v.songs.filter(z=>ivLen(z[2])>=0.15*dur);
+  const bw=ivUnion(v.burns.filter(([n])=>n!==v.me).flatMap(([,L])=>L.map(z=>[z[0],z[0]+z[2]])));const bl=ivLen(bw);
+  const up=key.length?Math.round(100*key.reduce((s,z)=>s+ivLen(z[2]),0)/(key.length*dur)):null;
+  const upB=key.length&&bl?Math.round(100*key.reduce((s,z)=>s+ivOverlap(z[2],bw),0)/(key.length*bl)):null;
+  let bi=[],oi=[];(v.gtl||[]).forEach((d,i)=>{const o=ivOverlap([[i*10,i*10+10]],bw);(o>=5?bi:oi).push(d)});const avg=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:0;
+  return {key,bw,bl,up,upB,dB:avg(bi),dO:avg(oi),nb:bi.length}}
+function adpsChart(v,dur,st){const L=250,W=1000,PW=W-L-10,X=t=>L+Math.max(0,Math.min(dur,t))*PW/Math.max(1,dur),RH=22;
+  const rows=[...v.songs.map(z=>({lab:z[0],sub:Math.round(100*ivLen(z[2])/dur)+'%',bars:z[2].map(q=>[q[0],q[1],z[0]]),col:'#9b8be0'})),
+    ...v.burns.map(([n,Lst])=>({lab:n===v.me?n+' (own)':n,sub:(v.memc[n]&&!n.startsWith(v.memc[n])?v.memc[n]:''),bars:Lst.map(q=>[q[0],q[0]+q[2],q[1]]),col:'#e8774f'}))];
+  const top=78,H=top+rows.length*RH+26,mx=Math.max(1,...(v.gtl||[0]));const nb=(v.gtl||[]).length;
+  const pts=(v.gtl||[]).map((d,i)=>`${(L+(nb<2?PW/2:i*PW/(nb-1))).toFixed(1)},${(top-8-(d/mx)*60).toFixed(1)}`).join(' ');
+  const ticks=[0,0.25,0.5,0.75,1].map(f=>Math.round(f*dur));
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block" role="img" aria-label="Bard songs, group burns and group damage over the fight">
+   ${st.bw.map(q=>`<rect x="${X(q[0])}" y="6" width="${Math.max(1,X(q[1])-X(q[0]))}" height="${H-30}" fill="#e8774f" opacity="0.10"/>`).join('')}
+   <text x="0" y="40" fill="#b5aea3" font-size="12">Group damage / s</text><text x="0" y="56" fill="#8a847b" font-size="11">peak ${kk(mx)}</text>
+   ${pts?`<polyline points="${pts}" fill="none" stroke="#d9cbb4" stroke-width="2"/>`:''}
+   ${rows.map((r,i)=>{const y=top+i*RH;return `<text x="0" y="${y+15}" fill="#e9e3dc" font-size="14">${esc(r.lab.length>24?r.lab.slice(0,23)+'…':r.lab)}<title>${esc(r.lab)}</title></text><text x="${L-6}" y="${y+15}" fill="#8a847b" font-size="12" text-anchor="end">${esc(r.sub)}</text><line x1="${L}" x2="${W-10}" y1="${y+RH-1}" y2="${y+RH-1}" stroke="#2c2727"/>
+     ${r.bars.map(b=>`<rect x="${X(b[0])}" y="${y+3}" width="${Math.max(2,X(b[1])-X(b[0]))}" height="${RH-7}" rx="2" fill="${r.col}"><title>${esc(b[2])} · ${mmss(b[0])}–${mmss(b[1])}</title></rect>`).join('')}`}).join('')}
+   ${ticks.map((t,i)=>`<text x="${X(t)}" y="${H-6}" fill="#8a847b" font-size="12" text-anchor="${i===0?'start':i===4?'end':'middle'}">${mmss(t)}</text>`).join('')}</svg>`}
+function bardAdpsView(FS,bard,idx,off){const have=FS.map((f,i)=>[f,i,(f.bd||{})[bard]]).filter(z=>z[2]);
+  const note=`<div class="hint" style="margin:0 0 10px"><b>ADPS</b>: your songs that land on your group (purple, each counted from the cast until it runs out or you sing it again), your group's own burns (orange: short caster or melee ADPS, 2 minutes or less, not songs), and your group's damage per second (line). Shaded = while groupmates had burns up. Groups come from the raid list in the log; songs and burns from "begins singing", "begins casting" and "activates" lines, using EQLogParser's ADPS spell list.</div>`;
+  if(!have.length)return note+'<div class="hint" style="margin:0">No ADPS recorded for you on this night. It\'s recorded for raid logs uploaded from now on.</div>';
+  const pre=(f,v)=>Object.assign({me:bard,memc:Object.fromEntries((v.mem||[]).map(([n,c])=>[n,c]))},v);
+  if(idx<0){const rows=have.map(([f,i,v])=>{const w=pre(f,v),st=adpsStats(w,f.dur);return {f,i,w,st}});
+    return note+`<table><tr><th>Fight</th><th>Group</th><th class="num">Songs kept up</th><th class="num">Up during group burns</th><th class="num">Group DPS in burns / outside</th></tr>${rows.map(({f,i,w,st})=>`<tr class="click" onclick="meNightFight=${i};render()"><td>${esc(fname(f.name))} · ${mmss(f.dur)}</td><td>${w.g?`Group ${w.g} · ${w.mem.length} others`:'<span style="color:var(--dim)">not in the log</span>'}</td><td class="num">${st.up!=null?st.up+'%':'—'}</td><td class="num">${st.upB!=null?st.upB+'%':'—'}</td><td class="num">${st.nb?`${kk(st.dB)} / ${kk(st.dO)}`:'—'}</td></tr>`).join('')}</table><div class="hint" style="margin:8px 0 0">Pick a fight above for the timeline. "Songs kept up" averages the songs you had going for at least 15% of the fight.</div>`}
+  const f=FS[idx],v=(f.bd||{})[bard];if(!v)return note+'<div class="hint" style="margin:0">No ADPS recorded for you in this fight.</div>';
+  const w=pre(f,v),st=adpsStats(w,f.dur);
+  return note+`<div class="facts"><div><b>${st.up!=null?st.up+'%':'—'}</b><span>songs kept up (${st.key.length} song${st.key.length===1?'':'s'})</span></div><div><b>${st.upB!=null?st.upB+'%':'—'}</b><span>up during group burns (${mmss(st.bl)})</span></div><div><b>${st.nb?kk(st.dB)+'/s':'—'}</b><span>group DPS during burns</span></div><div><b>${kk(st.dO)}/s</b><span>group DPS the rest of the fight</span></div></div>
+   <div style="margin:8px 0 4px;color:var(--mute);font-size:13px">${w.g?`Group ${w.g}: ${[bard,...w.mem.map(([n,c])=>n===c||!off?n:`${n} (${c})`)].map(esc).join(', ')}`:'No raid group list in this log before this fight, so only your own songs and burns are shown.'}</div>
+   ${adpsChart(w,f.dur,st)}`}
 // ---- character panel (EQ style): the officer drawer and the member's own page share it ----
 let charTab='inv';
 const CHAR_TABS=[['inv','Inventory'],['bio','Bio'],['perf','Raid performance'],['ach','Achievements'],['loot','Loot history'],['up','Uploads']];
@@ -1514,7 +1575,7 @@ function charPanel(m,gi,drawer){const x=D.guilds[gi],off=isOff(gi),mem=!drawer;i
   let body='';
   if(charTab==='inv')body=eqInvTab(m,gi);
   else if(charTab==='bio')body=(mem?signupCard(m,gi):'')+charsCard(m,gi)+membershipCard(m,gi)+(off?appCard(m):'');
-  else if(charTab==='perf')body=mem?perfSummary(m,gi)+memberNightCard(m,gi)+tattleHistoryCard(m,gi):perfCard(m,gi)+tattleHistoryCard(m,gi);
+  else if(charTab==='perf')body=mem?perfSummary(m,gi)+memberNightCard(m,gi)+tattleHistoryCard(m,gi):perfCard(m,gi)+memberNightCard(m,gi)+tattleHistoryCard(m,gi);
   else if(charTab==='ach')body=charAchBar(gi)+trackedAchCard(m,gi,achSel(gi))+(treeByCode(achSel(gi))?flagTreeCard(m,gi,achSel(gi)):flagCard(m,gi))+(hasVanq(gi,achSel(gi))?vqCard(m,gi):'');
   else if(charTab==='loot')body=(off?lootHistoryCard(m,gi):'')+xpLootCard(m,gi);
   else if(charTab==='up')body=mem?memberUploadCard(gi):`<div class="card"><h3>Upload for ${esc(m.main)}</h3><div class="hint">Files ${esc(m.main)} sent you. Raid logs go on the Attendance page so everyone in the raid gets credit.</div>
@@ -1739,7 +1800,7 @@ function enhanceCards(root=document){root.querySelectorAll('.card').forEach(c=>{
   c.dataset.cz='1';h.classList.add('ct');const k=cardKey(c,h);try{if(localStorage.getItem(k)==='1')c.classList.add('cz')}catch(e){}
   h.addEventListener('click',e=>{if(e.target.closest('button,a,input,select,label,textarea'))return;c.classList.toggle('cz');try{localStorage.setItem(k,c.classList.contains('cz')?'1':'0')}catch(e){}})})}
 new MutationObserver(()=>{clearTimeout(window._ecT);window._ecT=setTimeout(()=>enhanceCards(),0)}).observe(document.body,{childList:true,subtree:true});
-function render(){renderShell();$('#view').innerHTML={overview,cleanup,roster,perf,ach,launch,recruit,uploads,me}[V]()}
+function render(){renderShell();$('#view').innerHTML={overview,cleanup,roster,perf,ach,launch,recruit,uploads,me}[V]();if(charTab==='perf')drawerRefresh()}
 render();
 </script>
 <script>

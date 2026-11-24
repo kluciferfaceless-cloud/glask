@@ -6,3 +6,6 @@ to the source heading it is listed under, as JSON.
 data/spellclass.json is derived from data/spells.txt in the same project (same license): each spell or
 ability name (rank suffixes stripped) mapped to the single class in its class mask, kept only when every
 rank of that name belongs to one class.
+
+data/adps.json (ADPS spell list: ADPS category mask, duration, target type, class mask, song flag) is also derived from
+EQLogParser's data/spells.txt (https://github.com/kauffman12/EQLogParser), Apache License 2.0.

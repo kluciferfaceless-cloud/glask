@@ -1,5 +1,5 @@
 """Glask web server: Discord sign-in, role-based access per guild, shared storage."""
-import json, os, re, secrets, threading, time
+import collections, json, os, re, secrets, threading, time
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -906,11 +906,42 @@ async def get_fights(request: Request, server: str = '', id: str = '', date: str
                         cm={c: v for c, v in (f.get('cm') or {}).items() if c in cls},
                         tkm=f.get('tkm') or {}, hm=f.get('hm') or 0, sw=f.get('sw') or 0,   # group medians and the raid's swing count name no one
                         deaths=[d for d in f.get('deaths', []) if d[1] in own],
-                        tt=[x for x in f.get('tt', []) if x[1] in own]))   # tattle tale: only their own failed mechanics
+                        tt=[x for x in f.get('tt', []) if x[1] in own],   # tattle tale: only their own failed mechanics
+                        bd=anon_bd(f, own)))
     return {'fights': out}
 
 
+def anon_bd(f, own):
+    """A member's own bard ADPS view of a fight, with their groupmates shown by class only."""
+    out = {}
+    P = f.get('P') or {}
+    for b, v in (f.get('bd') or {}).items():
+        if b not in own:
+            continue
+        names, seen = {}, collections.Counter()
+        for n, c in v.get('mem') or []:
+            seen[c] += 1
+            names[n] = c if seen[c] == 1 else f'{c} {seen[c]}'
+        names[b] = b
+        out[b] = dict(v, mem=[[names[n], c] for n, c in v.get('mem') or []],
+                      burns=[[names.get(n, (P.get(n) or {}).get('c', 'Groupmate')), L] for n, L in v.get('burns') or []])
+    return out
+
+
 _PROCS = None
+_ADPS = None
+
+
+@app.get('/api/adps')
+async def get_adps(request: Request):
+    """ADPS spells (EQLogParser spells.txt, Apache 2.0): base name -> [ADPS mask, duration ticks, target type, class mask, song]."""
+    global _ADPS
+    u = user(request)
+    if not u or not u['access']:
+        raise HTTPException(403, 'Sign in first')
+    if _ADPS is None:
+        _ADPS = json.load(open(Path(__file__).resolve().parent.parent / 'data' / 'adps.json'))['s']
+    return _ADPS
 
 
 @app.get('/api/procs')
